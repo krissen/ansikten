@@ -211,10 +211,11 @@ export function ImageViewer() {
   const drawFaceBoxes = useCallback((ctx, canvasWidth, canvasHeight, imageScale, imageX, imageY) => {
     if (faceBoxMode === 'none' || !faces || faces.length === 0 || !image) return;
 
-    // Determine which faces to draw
-    let facesToDraw = faces;
+    // Determine which faces to draw (with original index for numbering)
+    let facesToDraw = faces.map((face, idx) => ({ face, originalIndex: idx }));
     if (faceBoxMode === 'single') {
-      facesToDraw = faces[activeFaceIndex] ? [faces[activeFaceIndex]] : [];
+      const activeFace = faces[activeFaceIndex];
+      facesToDraw = activeFace ? [{ face: activeFace, originalIndex: activeFaceIndex }] : [];
     }
 
     // Font for labels
@@ -225,10 +226,10 @@ export function ImageViewer() {
     const placedBoxes = [];
     const placements = [];
 
-    facesToDraw.forEach(face => {
+    facesToDraw.forEach(({ face, originalIndex }) => {
       const bbox = face.bounding_box;
+      const faceNumber = originalIndex + 1;
 
-      // Transform to canvas space
       const faceBox = {
         x: imageX + bbox.x * imageScale,
         y: imageY + bbox.y * imageScale,
@@ -242,36 +243,30 @@ export function ImageViewer() {
       let labelWidth = 0;
       let labelHeight = 0;
 
-      // Determine label text based on match_case
       let labelText = null;
       const matchCase = face.match_case;
 
-      // Helper: get best person name from alternatives if person_name is not set
       const getPersonName = () => {
         if (face.person_name) return face.person_name;
-        // Find first non-ignored alternative
         const alt = face.match_alternatives?.find(a => !a.is_ignored);
         return alt?.name || 'Unknown';
       };
 
       if (matchCase === 'ign') {
-        labelText = `ign (${(face.ignore_confidence || 0)}%)`;
+        labelText = `${faceNumber}. ign (${(face.ignore_confidence || 0)}%)`;
       } else if (matchCase === 'uncertain_ign') {
-        // person_name may be null for uncertain_ign, get from alternatives
-        labelText = `ign (${(face.ignore_confidence || 0)}%) / ${getPersonName()}`;
+        labelText = `${faceNumber}. ign (${(face.ignore_confidence || 0)}%) / ${getPersonName()}`;
       } else if (matchCase === 'uncertain_name') {
-        labelText = `${getPersonName()} / ign (${(face.ignore_confidence || 0)}%)`;
+        labelText = `${faceNumber}. ${getPersonName()} / ign (${(face.ignore_confidence || 0)}%)`;
       } else if (face.person_name) {
-        labelText = `${face.person_name} (${((face.confidence || 0) * 100).toFixed(0)}%)`;
+        labelText = `${faceNumber}. ${face.person_name} (${((face.confidence || 0) * 100).toFixed(0)}%)`;
       } else if (face.match_alternatives?.length > 0) {
-        // Fallback: show best alternative when no direct match (e.g., match_case='unknown')
         const best = face.match_alternatives[0];
         labelText = best.is_ignored
-          ? `ign? (${best.confidence}%)`
-          : `${best.name}? (${best.confidence}%)`;
+          ? `${faceNumber}. ign? (${best.confidence}%)`
+          : `${faceNumber}. ${best.name}? (${best.confidence}%)`;
       } else {
-        // No match and no alternatives
-        labelText = 'Unknown';
+        labelText = `${faceNumber}. Unknown`;
       }
 
       if (labelText) {
