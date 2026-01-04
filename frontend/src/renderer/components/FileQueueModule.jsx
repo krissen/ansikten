@@ -1209,11 +1209,9 @@ export function FileQueueModule() {
       const fileName = imagePath.split('/').pop();
       const faceCount = reviewedFaces?.length || 0;
 
-      const nextIdx = currentQueue.findIndex((item, i) => {
-        if (i <= currentIdx) return false;
+      const nextIdx = currentQueue.findIndex((item) => {
         if (item.status === 'completed') return false;
         if (item.filePath === imagePath) return false;
-        // Skip already-processed files when fix-mode is OFF
         if (!currentFixMode && item.isAlreadyProcessed) return false;
         return true;
       });
