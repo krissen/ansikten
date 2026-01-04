@@ -120,7 +120,11 @@ export function ReviewModule() {
         attempts++;
       }
 
-      emit('active-face-changed', { index: newIndex });
+      // Only emit if we found an unconfirmed face (avoid centering on old face when all done)
+      const targetFace = detectedFaces[newIndex];
+      if (targetFace && !targetFace.is_confirmed) {
+        emit('active-face-changed', { index: newIndex });
+      }
       return newIndex;
     });
   }, [detectedFaces, emit]);
