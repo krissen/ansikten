@@ -305,19 +305,19 @@ export function ImageViewer() {
       const matchCase = face.match_case;
       let strokeColor, textBgColor;
 
-      // Determine colors based on match_case first, then confidence
       if (matchCase === 'ign' || matchCase === 'uncertain_ign') {
-        // Gray for probable-ignore faces
         strokeColor = '#9e9e9e';
         textBgColor = 'rgba(158, 158, 158, 0.9)';
       } else if (matchCase === 'uncertain_name') {
-        // Yellow/amber for uncertain (name slightly better than ignore)
         strokeColor = '#ffc107';
         textBgColor = 'rgba(255, 193, 7, 0.9)';
-      } else if (confidence > 0.9) {
+      } else if (confidence >= 0.65) {
         strokeColor = '#4caf50';
         textBgColor = 'rgba(76, 175, 80, 0.9)';
-      } else if (confidence > 0.6) {
+      } else if (confidence >= 0.50) {
+        strokeColor = '#2196f3';
+        textBgColor = 'rgba(33, 150, 243, 0.9)';
+      } else if (confidence >= 0.35) {
         strokeColor = '#ff9800';
         textBgColor = 'rgba(255, 152, 0, 0.9)';
       } else {
