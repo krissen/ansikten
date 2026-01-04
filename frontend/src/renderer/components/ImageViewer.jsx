@@ -116,7 +116,7 @@ export function ImageViewer() {
         setPan({ x: 0, y: 0 });
         setIsLoading(false);
 
-        resolve();
+        resolve({ img, loadPath, originalPath });
       };
 
       img.onerror = (err) => {
@@ -626,11 +626,11 @@ export function ImageViewer() {
   // Listen for load-image events
   useModuleEvent('load-image', async ({ imagePath: path }) => {
     try {
-      await loadImage(path);
+      const { img, originalPath } = await loadImage(path);
       debug('ImageViewer', 'Loaded image:', path);
       emit('image-loaded', {
-        imagePath: originalImagePath || path,
-        dimensions: { width: image?.width, height: image?.height }
+        imagePath: originalPath,
+        dimensions: { width: img.width, height: img.height }
       });
     } catch (err) {
       debugError('ImageViewer', 'Failed to load image:', err);

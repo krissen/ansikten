@@ -1726,9 +1726,11 @@ function FileQueueItem({ item, index, isActive, isSelected, onClick, onDoubleCli
   const nameWouldChange = newName && newName !== item.fileName;
   const shouldShowPreview = showPreview && (item.status === 'completed' || item.isAlreadyProcessed) && previewInfo;
 
-  // Face count for icon: prefer preprocessing count, fall back to reviewedFaces length for completed files
-  // This ensures completed files show their face count even if preprocessing status was cleared
-  const detectedFaceCount = ppFaceCount ?? item.reviewedFaces?.length ?? null;
+  // Face count: for completed files, prefer reviewedFaces (actual confirmed count)
+  // For pending files, use preprocessing faceCount (from background detection)
+  const detectedFaceCount = item.status === 'completed' && item.reviewedFaces?.length > 0
+    ? item.reviewedFaces.length
+    : (ppFaceCount ?? item.reviewedFaces?.length ?? null);
   const hasDetectedFaces = detectedFaceCount !== null;
 
   // Confirmed names for hover: from previewInfo (rename) or reviewedFaces (this session)
