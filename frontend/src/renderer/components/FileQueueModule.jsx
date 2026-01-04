@@ -137,6 +137,23 @@ const getToastDurationMultiplier = () => {
   return 1.0;
 };
 
+// Get insert mode preference: 'bottom' or 'alphabetical'
+const getInsertModePreference = () => {
+  try {
+    const stored = localStorage.getItem('bildvisare-preferences');
+    if (stored) {
+      const prefs = JSON.parse(stored);
+      return prefs.fileQueue?.insertMode ?? 'alphabetical';
+    }
+  } catch (e) {}
+  return 'alphabetical';
+};
+
+// Natural sort comparator for filenames (handles numbers correctly)
+const naturalSortCompare = (a, b) => {
+  return a.fileName.localeCompare(b.fileName, undefined, { numeric: true, sensitivity: 'base' });
+};
+
 // Generate simple unique ID
 const generateId = () => Math.random().toString(36).substring(2, 9);
 
@@ -641,9 +658,11 @@ export function FileQueueModule() {
   }, [processedFiles]);
 
   // Add files to queue
-  // position: 'end' (default) or 'start'
-  const addFiles = useCallback((filePaths, position = 'end') => {
+  // position: 'end' | 'start' | 'sorted' | 'default' (uses preference)
+  const addFiles = useCallback((filePaths, position = 'default') => {
     if (!filePaths || filePaths.length === 0) return;
+
+    const effectivePosition = position === 'default' ? getInsertModePreference() : position;
 
     const newItems = filePaths.map(filePath => {
       const fileName = filePath.split('/').pop();
@@ -659,25 +678,25 @@ export function FileQueueModule() {
 
     let addedCount = 0;
     setQueue(prev => {
-      // Dedupe by filePath
       const existingPaths = new Set(prev.map(item => item.filePath));
       const uniqueNew = newItems.filter(item => !existingPaths.has(item.filePath));
       addedCount = uniqueNew.length;
 
-      // Start preprocessing for new files
       if (preprocessingManager.current) {
         uniqueNew.forEach(item => {
           preprocessingManager.current.addToQueue(item.filePath);
         });
       }
 
-      if (position === 'start') {
+      if (effectivePosition === 'start') {
         return [...uniqueNew, ...prev];
+      } else if (effectivePosition === 'sorted' || effectivePosition === 'alphabetical') {
+        const combined = [...prev, ...uniqueNew];
+        return combined.sort(naturalSortCompare);
       }
       return [...prev, ...uniqueNew];
     });
 
-    // Show toast for added files
     if (newItems.length > 0) {
       const dupeCount = newItems.length - addedCount;
       if (addedCount > 0) {
@@ -687,7 +706,6 @@ export function FileQueueModule() {
         }
         showToast(msg, 'info', 3000);
       } else if (dupeCount > 0) {
-        // All files were duplicates
         const msg = dupeCount === 1
           ? 'File already in queue'
           : `All ${dupeCount} files already in queue`;
@@ -695,8 +713,14 @@ export function FileQueueModule() {
       }
     }
 
-    debug('FileQueue', 'Added', newItems.length, 'files at', position);
+    debug('FileQueue', 'Added', newItems.length, 'files, mode:', effectivePosition);
   }, [isFileProcessed, showToast]);
+
+  // Sort existing queue alphabetically
+  const sortQueue = useCallback(() => {
+    setQueue(prev => [...prev].sort(naturalSortCompare));
+    showToast('Queue sorted alphabetically', 'info', 2000);
+  }, [showToast]);
 
   // Remove file from queue
   const removeFile = useCallback((id) => {
@@ -1255,14 +1279,13 @@ export function FileQueueModule() {
   useEffect(() => {
     const handleQueueFiles = ({ files, position, startQueue }) => {
       debug('FileQueue', `Received ${files.length} files from main process (position: ${position})`);
-      addFiles(files, position || 'end');
+      addFiles(files, position || 'default');
       if (startQueue && files.length > 0) {
         setTimeout(() => loadFile(0), 100);
       }
     };
 
     window.bildvisareAPI?.on('queue-files', handleQueueFiles);
-    // Note: No cleanup needed as Electron IPC listeners persist
   }, [addFiles, loadFile]);
 
   // Expose fileQueue API globally for programmatic access
@@ -1285,9 +1308,11 @@ export function FileQueueModule() {
     };
 
     window.fileQueue = {
-      add: (pattern, position = 'end') => expandAndAdd(pattern, position),
+      add: (pattern, position = 'default') => expandAndAdd(pattern, position),
       addToStart: (pattern) => expandAndAdd(pattern, 'start'),
       addToEnd: (pattern) => expandAndAdd(pattern, 'end'),
+      addSorted: (pattern) => expandAndAdd(pattern, 'sorted'),
+      sort: sortQueue,
       clear: clearQueue,
       clearCompleted: clearCompleted,
       loadFile: loadFile,
@@ -1296,7 +1321,7 @@ export function FileQueueModule() {
       getCurrentIndex: () => currentIndex
     };
     return () => { delete window.fileQueue; };
-  }, [addFiles, clearQueue, clearCompleted, loadFile, currentIndex]);
+  }, [addFiles, sortQueue, clearQueue, clearCompleted, loadFile, currentIndex]);
 
   // Scroll active item into view
   useEffect(() => {
@@ -1388,6 +1413,14 @@ export function FileQueueModule() {
           </button>
           <button
             className="btn-icon"
+            onClick={sortQueue}
+            title="Sort queue alphabetically"
+            disabled={queue.length < 2}
+          >
+            <Icon name="sort" size={14} />
+          </button>
+          <button
+            className="btn-icon"
             onClick={() => setAutoAdvance(!autoAdvance)}
             title={autoAdvance ? 'Auto-advance ON' : 'Auto-advance OFF'}
           >
@@ -1455,23 +1488,33 @@ export function FileQueueModule() {
             <p className="hint">Click + to add files</p>
           </div>
         ) : (
-          queue.map((item, index) => (
-            <FileQueueItem
-              key={item.id}
-              item={item}
-              index={index}
-              isActive={index === currentIndex}
-              isSelected={selectedFiles.has(item.id)}
-              onClick={(e) => handleItemClick(index, e)}
-              onDoubleClick={() => handleItemDoubleClick(index)}
-              onToggleSelect={() => toggleFileSelection(item.id)}
-              onRemove={() => removeFile(item.id)}
-              fixMode={fixMode}
-              preprocessingStatus={preprocessingStatus[item.filePath]}
-              showPreview={showPreviewNames}
-              previewInfo={previewData?.[item.filePath]}
-            />
-          ))
+          // Display order: active file at top, rest in original order
+          (() => {
+            const displayOrder = currentIndex >= 0
+              ? [
+                  { item: queue[currentIndex], originalIndex: currentIndex },
+                  ...queue.map((item, i) => ({ item, originalIndex: i })).filter((_, i) => i !== currentIndex)
+                ]
+              : queue.map((item, i) => ({ item, originalIndex: i }));
+
+            return displayOrder.map(({ item, originalIndex }) => (
+              <FileQueueItem
+                key={item.id}
+                item={item}
+                index={originalIndex}
+                isActive={originalIndex === currentIndex}
+                isSelected={selectedFiles.has(item.id)}
+                onClick={(e) => handleItemClick(originalIndex, e)}
+                onDoubleClick={() => handleItemDoubleClick(originalIndex)}
+                onToggleSelect={() => toggleFileSelection(item.id)}
+                onRemove={() => removeFile(item.id)}
+                fixMode={fixMode}
+                preprocessingStatus={preprocessingStatus[item.filePath]}
+                showPreview={showPreviewNames}
+                previewInfo={previewData?.[item.filePath]}
+              />
+            ));
+          })()
         )}
       </div>
 
@@ -1557,19 +1600,29 @@ function FileQueueItem({ item, index, isActive, isSelected, onClick, onDoubleCli
   const [showTooltip, setShowTooltip] = useState(false);
   const [tooltipPos, setTooltipPos] = useState({ x: 0, y: 0 });
   const itemRef = useRef(null);
+  const tooltipTimerRef = useRef(null);
 
-  // Handle mouse enter/leave for tooltip
   const handleMouseEnter = (e) => {
     if (itemRef.current) {
       const rect = itemRef.current.getBoundingClientRect();
       setTooltipPos({ x: rect.left, y: rect.bottom + 4 });
     }
-    setShowTooltip(true);
+    tooltipTimerRef.current = setTimeout(() => setShowTooltip(true), 400);
   };
 
   const handleMouseLeave = () => {
+    if (tooltipTimerRef.current) {
+      clearTimeout(tooltipTimerRef.current);
+      tooltipTimerRef.current = null;
+    }
     setShowTooltip(false);
   };
+
+  useEffect(() => {
+    return () => {
+      if (tooltipTimerRef.current) clearTimeout(tooltipTimerRef.current);
+    };
+  }, []);
   const getStatusIcon = () => {
     switch (item.status) {
       case 'completed':
@@ -1738,8 +1791,8 @@ function FileQueueItem({ item, index, isActive, isSelected, onClick, onDoubleCli
             <span className="tooltip-value">{item.fileName}</span>
           </div>
           <div className="tooltip-row">
-            <span className="tooltip-label">Path:</span>
-            <span className="tooltip-value tooltip-path">{item.filePath}</span>
+            <span className="tooltip-label">Folder:</span>
+            <span className="tooltip-value tooltip-path">{item.filePath.substring(0, item.filePath.lastIndexOf('/'))}</span>
           </div>
           {hasDetectedFaces && (
             <div className="tooltip-row">

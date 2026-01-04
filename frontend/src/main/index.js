@@ -26,7 +26,7 @@ let isQuitting = false;
 function parseCommandLineArgs(argv) {
   const result = {
     files: [],
-    queuePosition: null, // null = open directly, 'start' or 'end' = add to queue
+    queuePosition: null,  // null = open directly, 'start' | 'end' | 'sorted' = add to queue
     startQueue: false,
   };
 
@@ -36,13 +36,11 @@ function parseCommandLineArgs(argv) {
     /^node/i,
     /^npx/i,
     /\.js$/i,
-    /^\.$/,  // Current directory marker
+    /^\.$/,
   ];
 
   const shouldSkipArg = (arg) => {
-    // Skip empty args
     if (!arg) return true;
-    // Check if it's a known executable/path
     const basename = arg.split(/[/\\]/).pop();
     return skipPatterns.some(pattern => pattern.test(basename));
   };
@@ -50,18 +48,17 @@ function parseCommandLineArgs(argv) {
   for (let i = 0; i < argv.length; i++) {
     const arg = argv[i];
 
-    // Handle flags
     if (arg === "--queue" || arg === "-q") {
-      result.queuePosition = "end";
+      result.queuePosition = "sorted";
     } else if (arg === "--queue-start" || arg === "-qs") {
       result.queuePosition = "start";
+    } else if (arg === "--queue-end" || arg === "-qe") {
+      result.queuePosition = "end";
     } else if (arg === "--start" || arg === "-s") {
       result.startQueue = true;
     } else if (arg.startsWith("-")) {
-      // Unknown flag, skip
       continue;
     } else if (!shouldSkipArg(arg)) {
-      // It's a file path or glob (not an executable/app path)
       result.files.push(arg);
     }
   }
