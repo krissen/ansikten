@@ -79,6 +79,12 @@ const ICONS = {
   ),
   circle: (
     <circle cx="12" cy="12" r="8" fill="none" stroke="currentColor" strokeWidth="2"/>
+  ),
+  layers: (
+    <path d="M11.99 18.54l-7.37-5.73L3 14.07l9 7 9-7-1.63-1.27-7.38 5.74zM12 16l7.36-5.73L21 9l-9-7-9 7 1.63 1.27L12 16z"/>
+  ),
+  'hourglass-empty': (
+    <path d="M6 2v6h.01L6 8.01 10 12l-4 4 .01.01H6V22h12v-5.99h-.01L18 16l-4-4 4-3.99-.01-.01H18V2H6zm10 14.5V20H8v-3.5l4-4 4 4zm-4-5l-4-4V4h8v3.5l-4 4z"/>
   )
 };
 

@@ -38,16 +38,28 @@ export class PreprocessingManager {
       thumbnails: options.steps?.thumbnails ?? true
     };
 
+    // Rolling window configuration
+    this.rollingWindow = {
+      maxReadyItems: options.rollingWindow?.maxReadyItems ?? 15,
+      minQueueBuffer: options.rollingWindow?.minQueueBuffer ?? 10,
+      resumeThreshold: options.rollingWindow?.resumeThreshold ?? 5
+    };
+
     // State
     this.queue = [];           // Files waiting to be processed
     this.processing = new Map(); // file_path -> { status, progress, hash }
     this.completed = new Map();  // file_path -> { hash, cached_data }
     this.activeWorkers = 0;
 
+    // Rolling window state
+    this.isPaused = false;
+    this.doneItems = new Set();
+    this.doneCount = 0;
+
     // Event handlers
     this.handlers = new Map();
 
-    debug('Preprocessing', `Manager initialized: maxWorkers=${this.maxWorkers}, enabled=${this.enabled}`);
+    debug('Preprocessing', `Manager initialized: maxWorkers=${this.maxWorkers}, enabled=${this.enabled}, rollingWindow=${JSON.stringify(this.rollingWindow)}`);
   }
 
   /**
@@ -89,7 +101,7 @@ export class PreprocessingManager {
   /**
    * Add file to preprocessing queue
    * @param {string} filePath - Path to file
-   * @param {object} options - Options (priority, etc.)
+   * @param {object} options - Options (priority, force, etc.)
    */
   addToQueue(filePath, options = {}) {
     if (!this.enabled) {
@@ -114,8 +126,46 @@ export class PreprocessingManager {
 
     debug('Preprocessing', `Added to queue: ${filePath} (queue size: ${this.queue.length})`);
 
+    // Force processing bypasses pause state (for user-requested items)
+    if (options.force && this.isPaused) {
+      debug('Preprocessing', `Force processing: ${filePath} (bypassing pause)`);
+      this._forceProcessFile(filePath);
+      return;
+    }
+
     // Start processing if workers available
     this._processNext();
+  }
+
+  /**
+   * Force process a specific file immediately, bypassing pause state
+   * @param {string} filePath - Path to file
+   */
+  _forceProcessFile(filePath) {
+    const index = this.queue.indexOf(filePath);
+    if (index === -1) return;
+
+    this.queue.splice(index, 1);
+    this.activeWorkers++;
+    this.processing.set(filePath, {
+      status: PreprocessingStatus.HASHING,
+      startTime: Date.now()
+    });
+
+    this.emit('status-change', { filePath, status: PreprocessingStatus.HASHING });
+
+    this._processFile(filePath)
+      .catch((err) => {
+        debugError('Preprocessing', `Error processing ${filePath}:`, err);
+        this.processing.set(filePath, {
+          status: PreprocessingStatus.ERROR,
+          error: err.message
+        });
+        this.emit('error', { filePath, error: err.message });
+      })
+      .finally(() => {
+        this.activeWorkers--;
+      });
   }
 
   /**
@@ -183,11 +233,136 @@ export class PreprocessingManager {
   }
 
   /**
+   * Get count of "ready" items (preprocessed but not yet reviewed)
+   * @returns {number}
+   */
+  getReadyCount() {
+    let count = 0;
+    for (const filePath of this.completed.keys()) {
+      if (!this.doneItems.has(filePath)) {
+        count++;
+      }
+    }
+    return count;
+  }
+
+  /**
+   * Check if preprocessing should pause (buffer full)
+   * @returns {boolean}
+   */
+  shouldPause() {
+    const readyCount = this.getReadyCount();
+    const hasMoreToProcess = this.queue.length > 0;
+    return readyCount >= this.rollingWindow.minQueueBuffer && hasMoreToProcess;
+  }
+
+  /**
+   * Check if preprocessing should resume
+   * @returns {boolean}
+   */
+  shouldResume() {
+    return this.isPaused && this.doneCount >= this.rollingWindow.resumeThreshold;
+  }
+
+  /**
+   * Mark item as "done" (reviewed by user)
+   * @param {string} filePath - Path to reviewed file
+   */
+  markDone(filePath) {
+    if (!this.completed.has(filePath)) return;
+
+    this.doneItems.add(filePath);
+    this.doneCount++;
+
+    debug('Preprocessing', `Marked done: ${filePath} (done count: ${this.doneCount})`);
+
+    if (this.shouldResume()) {
+      this._resumeProcessing();
+    }
+  }
+
+  /**
+   * Clear done items from completed map to free memory
+   * @private
+   */
+  _clearDoneItems() {
+    const toRemove = Math.min(this.doneCount, this.rollingWindow.resumeThreshold);
+    let removed = 0;
+    const removedHashes = [];
+
+    for (const filePath of this.doneItems) {
+      if (removed >= toRemove) break;
+
+      const entry = this.completed.get(filePath);
+      if (entry?.hash) {
+        removedHashes.push(entry.hash);
+      }
+
+      this.completed.delete(filePath);
+      this.doneItems.delete(filePath);
+      removed++;
+    }
+
+    this.doneCount = Math.max(0, this.doneCount - removed);
+    debug('Preprocessing', `Cleared ${removed} done items from cache`);
+
+    this.emit('cache-cleared', { count: removed, hashes: removedHashes });
+  }
+
+  /**
+   * Pause preprocessing (buffer full)
+   * @private
+   */
+  _pauseProcessing() {
+    if (this.isPaused) return;
+
+    this.isPaused = true;
+    const readyCount = this.getReadyCount();
+    debug('Preprocessing', `Paused: ${readyCount} ready items, ${this.queue.length} in queue`);
+
+    this.emit('paused', {
+      readyCount,
+      queueLength: this.queue.length
+    });
+  }
+
+  /**
+   * Resume preprocessing after enough items reviewed
+   * @private
+   */
+  _resumeProcessing() {
+    if (!this.isPaused) return;
+
+    this._clearDoneItems();
+
+    this.isPaused = false;
+    this.doneCount = 0;
+
+    debug('Preprocessing', 'Resumed preprocessing');
+    this.emit('resumed', {});
+
+    this._processNext();
+  }
+
+  /**
    * Process next item(s) in queue - launches multiple workers in parallel
    * @private
    */
   _processNext() {
-    // Start as many workers as we have capacity for
+    if (this.shouldPause() && !this.isPaused) {
+      this._pauseProcessing();
+      return;
+    }
+
+    if (this.isPaused) {
+      return;
+    }
+
+    if (this.getReadyCount() >= this.rollingWindow.maxReadyItems) {
+      debug('Preprocessing', `At max ready items (${this.rollingWindow.maxReadyItems}), waiting...`);
+      return;
+    }
+
     while (this.activeWorkers < this.maxWorkers && this.queue.length > 0) {
       const filePath = this.queue.shift();
       if (!filePath) {
@@ -394,7 +569,10 @@ export class PreprocessingManager {
     if (config.steps) {
       this.steps = { ...this.steps, ...config.steps };
     }
-    debug('Preprocessing', 'Config updated:', { maxWorkers: this.maxWorkers, enabled: this.enabled, steps: this.steps });
+    if (config.rollingWindow) {
+      this.rollingWindow = { ...this.rollingWindow, ...config.rollingWindow };
+    }
+    debug('Preprocessing', 'Config updated:', { maxWorkers: this.maxWorkers, enabled: this.enabled, steps: this.steps, rollingWindow: this.rollingWindow });
   }
 
   /**
@@ -408,7 +586,11 @@ export class PreprocessingManager {
       completedCount: this.completed.size,
       activeWorkers: this.activeWorkers,
       maxWorkers: this.maxWorkers,
-      enabled: this.enabled
+      enabled: this.enabled,
+      isPaused: this.isPaused,
+      readyCount: this.getReadyCount(),
+      doneCount: this.doneCount,
+      rollingWindow: this.rollingWindow
     };
   }
 

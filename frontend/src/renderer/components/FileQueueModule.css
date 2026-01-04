@@ -250,6 +250,41 @@
   gap: var(--space-xs);
 }
 
+/* Preprocessing status indicator in footer */
+.preprocessing-status {
+  font-size: var(--font-sm);
+  margin-bottom: var(--space-xs);
+}
+
+.preprocessing-status .status-paused,
+.preprocessing-status .status-active,
+.preprocessing-status .status-ready {
+  display: flex;
+  align-items: center;
+  gap: var(--space-xs);
+}
+
+.preprocessing-status .status-paused {
+  color: var(--text-warning);
+}
+
+.preprocessing-status .status-active {
+  color: var(--text-secondary);
+}
+
+.preprocessing-status .status-ready {
+  color: var(--text-success);
+}
+
+.preprocessing-status .spinning {
+  animation: spin 1s linear infinite;
+}
+
+@keyframes spin {
+  from { transform: rotate(0deg); }
+  to { transform: rotate(360deg); }
+}
+
 /* Control button styles now in theme.css (.btn-secondary) */
 
 /* Preprocessing column - fixed width for alignment */
