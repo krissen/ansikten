@@ -44,7 +44,35 @@
 }
 
 
-/* Clear button styles now in theme.css (.btn-secondary) */
+/* Current file status bar */
+.current-file-bar {
+  display: flex;
+  align-items: center;
+  gap: var(--space-sm);
+  padding: var(--space-xs) var(--space-md);
+  background: var(--color-info-bg);
+  border-bottom: 1px solid var(--color-info);
+  cursor: pointer;
+  font-size: var(--font-sm);
+}
+
+.current-file-bar:hover {
+  background: var(--bg-hover);
+}
+
+.current-file-bar .current-file-name {
+  flex: 1;
+  font-weight: 500;
+  color: var(--text-primary);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.current-file-bar .current-file-hint {
+  font-size: var(--font-xs);
+  color: var(--text-tertiary);
+}
 
 /* File list - override module-body padding */
 .file-queue-module .file-queue-list {
