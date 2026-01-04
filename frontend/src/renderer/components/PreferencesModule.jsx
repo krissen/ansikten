@@ -458,6 +458,16 @@ export function PreferencesModule({ api }) {
         checked={prefs.fileQueue?.autoRemoveMissing ?? true}
         onChange={(v) => updatePref('fileQueue.autoRemoveMissing', v)}
       />
+      <SelectField
+        label="Insert mode"
+        hint="How new files are added to the queue"
+        value={prefs.fileQueue?.insertMode ?? 'alphabetical'}
+        onChange={(v) => updatePref('fileQueue.insertMode', v)}
+        options={[
+          { value: 'alphabetical', label: 'Alphabetical (sorted)' },
+          { value: 'bottom', label: 'Bottom of queue' }
+        ]}
+      />
 
       <SectionHeader title="Notifications" />
       <SelectField
@@ -596,6 +606,66 @@ export function PreferencesModule({ api }) {
       <button className="btn-secondary" onClick={handleClearCache}>
         Clear Preprocessing Cache
       </button>
+
+      <SectionHeader title="Rolling Window" />
+      <p className="section-hint">
+        Controls how many files are preprocessed ahead. Prevents memory issues with large queues.
+      </p>
+      <NumberField
+        label="Max Ready Items"
+        hint="Maximum preprocessed files to keep ready (5-50)"
+        value={prefs.preprocessing?.rollingWindow?.maxReadyItems ?? 15}
+        onChange={(v) => {
+          const maxReady = Math.max(5, Math.min(50, v));
+          updatePref('preprocessing.rollingWindow.maxReadyItems', maxReady);
+          const pauseBuffer = prefs.preprocessing?.rollingWindow?.minQueueBuffer ?? 10;
+          if (pauseBuffer >= maxReady) {
+            updatePref('preprocessing.rollingWindow.minQueueBuffer', maxReady - 1);
+          }
+        }}
+        min={5}
+        max={50}
+      />
+      <NumberField
+        label="Pause Buffer"
+        hint="Pause when this many items are ready (should be noticeably less than Max Ready Items)"
+        value={prefs.preprocessing?.rollingWindow?.minQueueBuffer ?? 10}
+        onChange={(v) => {
+          const maxReady = prefs.preprocessing?.rollingWindow?.maxReadyItems ?? 15;
+          const pauseBuffer = Math.max(3, Math.min(maxReady - 1, v));
+          updatePref('preprocessing.rollingWindow.minQueueBuffer', pauseBuffer);
+        }}
+        min={3}
+        max={(prefs.preprocessing?.rollingWindow?.maxReadyItems ?? 15) - 1}
+      />
+      <NumberField
+        label="Resume After"
+        hint="Resume preprocessing after this many reviews complete (1-15)"
+        value={prefs.preprocessing?.rollingWindow?.resumeThreshold ?? 5}
+        onChange={(v) => updatePref('preprocessing.rollingWindow.resumeThreshold', Math.max(1, Math.min(15, v)))}
+        min={1}
+        max={15}
+      />
+
+      <SectionHeader title="Notifications" />
+      <CheckboxField
+        label="Show status indicator"
+        hint="Show preprocessing status in File Queue footer"
+        checked={prefs.preprocessing?.notifications?.showStatusIndicator ?? true}
+        onChange={(v) => updatePref('preprocessing.notifications.showStatusIndicator', v)}
+      />
+      <CheckboxField
+        label="Toast on pause"
+        hint="Show toast notification when preprocessing pauses"
+        checked={prefs.preprocessing?.notifications?.showToastOnPause ?? true}
+        onChange={(v) => updatePref('preprocessing.notifications.showToastOnPause', v)}
+      />
+      <CheckboxField
+        label="Toast on resume"
+        hint="Show toast notification when preprocessing resumes"
+        checked={prefs.preprocessing?.notifications?.showToastOnResume ?? false}
+        onChange={(v) => updatePref('preprocessing.notifications.showToastOnResume', v)}
+      />
     </>
   );
 

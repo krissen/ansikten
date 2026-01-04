@@ -74,6 +74,9 @@ class PreprocessingCache:
         self._index_dirty = False
         self._last_save_time = 0.0
 
+        # Priority hashes (files in queue that should be evicted last)
+        self.priority_hashes: set = set()
+
         # Ensure directories exist
         self._ensure_dirs()
 
@@ -310,6 +313,11 @@ class PreprocessingCache:
             'usage_percent': round((total_size / self.max_size_bytes) * 100, 1) if self.max_size_bytes > 0 else 0
         }
 
+    def set_priority_hashes(self, hashes: List[str]):
+        """Set file hashes that should be evicted last (files currently in queue)."""
+        self.priority_hashes = set(hashes)
+        logger.debug(f"[PreprocessingCache] Priority hashes updated: {len(hashes)} files")
+
     def _enforce_size_limit(self):
         """Remove oldest entries if cache exceeds max size (LRU eviction)."""
         total_size = self.get_total_size()
@@ -317,25 +325,33 @@ class PreprocessingCache:
         if total_size <= self.max_size_bytes:
             return
 
-        # Sort by last_accessed (oldest first)
-        sorted_entries = sorted(
-            self.index.items(),
-            key=lambda x: x[1].last_accessed
-        )
+        # Sort: non-priority files first (by last_accessed), then priority files
+        def eviction_key(item):
+            file_hash, entry = item
+            is_priority = file_hash in self.priority_hashes
+            return (is_priority, entry.last_accessed)
+
+        sorted_entries = sorted(self.index.items(), key=eviction_key)
 
         removed_count = 0
+        priority_evicted = 0
         for file_hash, entry in sorted_entries:
-            if total_size <= self.max_size_bytes * 0.9:  # Target 90% capacity
+            if total_size <= self.max_size_bytes * 0.9:
                 break
+
+            if file_hash in self.priority_hashes:
+                priority_evicted += 1
 
             total_size -= entry.size_bytes
             self._remove_entry_files(entry)
             del self.index[file_hash]
             removed_count += 1
 
+        if priority_evicted > 0:
+            logger.warning(f"[PreprocessingCache] Had to evict {priority_evicted} priority files - consider increasing cache size")
         if removed_count > 0:
             logger.info(f"[PreprocessingCache] LRU eviction: removed {removed_count} entries")
-            self._save_index(force=True)  # Force save after eviction
+            self._save_index(force=True)
 
     def _remove_entry_files(self, entry: CacheEntry):
         """Remove all files associated with a cache entry."""

@@ -14,6 +14,7 @@ import { useKeyboardShortcuts, useKeyHold } from '../hooks/useKeyboardShortcuts.
 import { useCanvasDimensions } from '../hooks/useCanvas.js';
 import { debug, debugWarn, debugError } from '../shared/debug.js';
 import { apiClient } from '../shared/api-client.js';
+import { preferences } from '../workspace/preferences.js';
 import './ImageViewer.css';
 
 // Constants (will be user-configurable in Phase 4)
@@ -59,6 +60,10 @@ export function ImageViewer() {
   // Loading state
   const [isLoading, setIsLoading] = useState(false);
   const [loadingMessage, setLoadingMessage] = useState('');
+
+  // File info overlay state
+  const [showFileInfo, setShowFileInfo] = useState(() => preferences.get('imageViewer.showFileInfo') ?? true);
+  const [queueStatus, setQueueStatus] = useState(null);
 
   // Canvas dimensions
   const dimensions = useCanvasDimensions(containerRef);
@@ -107,6 +112,7 @@ export function ImageViewer() {
       const img = new Image();
 
       img.onload = () => {
+        debug('ImageViewer', `Image decoded: ${img.width}x${img.height} (${(img.width * img.height / 1e6).toFixed(1)}MP)`);
         setImage(img);
         setImagePath(loadPath);
         setOriginalImagePath(originalPath);
@@ -115,17 +121,37 @@ export function ImageViewer() {
         setPan({ x: 0, y: 0 });
         setIsLoading(false);
 
-
-        resolve();
+        resolve({ img, loadPath, originalPath });
       };
 
       img.onerror = (err) => {
         setIsLoading(false);
-        debugError('ImageViewer', 'Failed to load image:', loadPath, err);
+        const errorDetails = err?.type || err?.message || 'Unknown error';
+        debugError('ImageViewer', 'Failed to load image:', loadPath, '- Error:', errorDetails);
         reject(new Error(`Failed to load image: ${loadPath}`));
       };
 
-      const imageSrc = loadPath.startsWith('file://') ? loadPath : 'file://' + loadPath;
+      // Construct file:// URL with proper encoding
+      // encodeURI preserves path separators and colons while encoding spaces
+      // but doesn't encode # and ? which have special meaning in URLs
+      let imageSrc;
+      if (loadPath.startsWith('file://')) {
+        imageSrc = loadPath;
+      } else {
+        const normalizedPath = loadPath.replace(/\\/g, '/');
+        const isWindowsAbsolute = /^[a-zA-Z]:\//.test(normalizedPath);
+        // Windows: file:///C:/path, Unix: file:///path
+        const encoded = encodeURI(normalizedPath)
+          .replace(/#/g, '%23')
+          .replace(/\?/g, '%3F')
+          .replace(/\[/g, '%5B')
+          .replace(/\]/g, '%5D');
+        imageSrc = isWindowsAbsolute
+          ? 'file:///' + encoded
+          : 'file://' + encoded;
+      }
+
+      debug('ImageViewer', 'Loading image from:', imageSrc);
       img.src = imageSrc;
     });
   }, []);
@@ -190,24 +216,30 @@ export function ImageViewer() {
   const drawFaceBoxes = useCallback((ctx, canvasWidth, canvasHeight, imageScale, imageX, imageY) => {
     if (faceBoxMode === 'none' || !faces || faces.length === 0 || !image) return;
 
-    // Determine which faces to draw
-    let facesToDraw = faces;
+    // Determine which faces to draw (with original index for numbering)
+    let facesToDraw = faces.map((face, idx) => ({ face, originalIndex: idx }));
     if (faceBoxMode === 'single') {
-      facesToDraw = faces[activeFaceIndex] ? [faces[activeFaceIndex]] : [];
+      const activeFace = faces[activeFaceIndex];
+      facesToDraw = activeFace ? [{ face: activeFace, originalIndex: activeFaceIndex }] : [];
     }
 
     // Font for labels
     ctx.font = '16px -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif';
     ctx.lineWidth = 3;
 
+    const activeHighlightColor = getComputedStyle(document.documentElement)
+      .getPropertyValue('--face-active-highlight').trim() || '#00bcd4';
+
     // Calculate placements with collision avoidance
     const placedBoxes = [];
     const placements = [];
 
-    facesToDraw.forEach(face => {
+    facesToDraw.forEach(({ face, originalIndex }) => {
       const bbox = face.bounding_box;
+      if (!bbox) return;
 
-      // Transform to canvas space
+      const faceNumber = originalIndex + 1;
+
       const faceBox = {
         x: imageX + bbox.x * imageScale,
         y: imageY + bbox.y * imageScale,
@@ -221,36 +253,31 @@ export function ImageViewer() {
       let labelWidth = 0;
       let labelHeight = 0;
 
-      // Determine label text based on match_case
       let labelText = null;
       const matchCase = face.match_case;
 
-      // Helper: get best person name from alternatives if person_name is not set
-      const getPersonName = () => {
+      const getFirstAlternativeName = () => {
         if (face.person_name) return face.person_name;
-        // Find first non-ignored alternative
-        const alt = face.match_alternatives?.find(a => !a.is_ignored);
-        return alt?.name || 'Unknown';
+        const first = face.match_alternatives?.[0];
+        if (!first) return 'Unknown';
+        return first.is_ignored ? 'ign' : first.name;
       };
 
       if (matchCase === 'ign') {
-        labelText = `ign (${(face.ignore_confidence || 0)}%)`;
+        labelText = `${faceNumber}. ign (${(face.ignore_confidence || 0)}%)`;
       } else if (matchCase === 'uncertain_ign') {
-        // person_name may be null for uncertain_ign, get from alternatives
-        labelText = `ign (${(face.ignore_confidence || 0)}%) / ${getPersonName()}`;
+        labelText = `${faceNumber}. ign (${(face.ignore_confidence || 0)}%) / ${getFirstAlternativeName()}`;
       } else if (matchCase === 'uncertain_name') {
-        labelText = `${getPersonName()} / ign (${(face.ignore_confidence || 0)}%)`;
+        labelText = `${faceNumber}. ${getFirstAlternativeName()} / ign (${(face.ignore_confidence || 0)}%)`;
       } else if (face.person_name) {
-        labelText = `${face.person_name} (${((face.confidence || 0) * 100).toFixed(0)}%)`;
+        labelText = `${faceNumber}. ${face.person_name} (${((face.confidence || 0) * 100).toFixed(0)}%)`;
       } else if (face.match_alternatives?.length > 0) {
-        // Fallback: show best alternative when no direct match (e.g., match_case='unknown')
         const best = face.match_alternatives[0];
         labelText = best.is_ignored
-          ? `ign? (${best.confidence}%)`
-          : `${best.name}? (${best.confidence}%)`;
+          ? `${faceNumber}. ign? (${best.confidence}%)`
+          : `${faceNumber}. ${best.name}? (${best.confidence}%)`;
       } else {
-        // No match and no alternatives
-        labelText = 'Unknown';
+        labelText = `${faceNumber}. Unknown`;
       }
 
       if (labelText) {
@@ -278,34 +305,47 @@ export function ImageViewer() {
         label: labelText,
         labelPos,
         labelWidth,
-        labelHeight
+        labelHeight,
+        originalIndex
       });
     });
 
     // Draw everything
-    placements.forEach(({ face, faceBox, label, labelPos, labelWidth, labelHeight }) => {
+    placements.forEach(({ face, faceBox, label, labelPos, labelWidth, labelHeight, originalIndex }) => {
       const confidence = face.confidence || 0;
       const matchCase = face.match_case;
+      const isActiveFace = originalIndex === activeFaceIndex;
       let strokeColor, textBgColor;
 
-      // Determine colors based on match_case first, then confidence
       if (matchCase === 'ign' || matchCase === 'uncertain_ign') {
-        // Gray for probable-ignore faces
         strokeColor = '#9e9e9e';
         textBgColor = 'rgba(158, 158, 158, 0.9)';
       } else if (matchCase === 'uncertain_name') {
-        // Yellow/amber for uncertain (name slightly better than ignore)
         strokeColor = '#ffc107';
         textBgColor = 'rgba(255, 193, 7, 0.9)';
-      } else if (confidence > 0.9) {
+      } else if (confidence >= 0.65) {
         strokeColor = '#4caf50';
         textBgColor = 'rgba(76, 175, 80, 0.9)';
-      } else if (confidence > 0.6) {
+      } else if (confidence >= 0.50) {
+        strokeColor = '#2196f3';
+        textBgColor = 'rgba(33, 150, 243, 0.9)';
+      } else if (confidence >= 0.35) {
         strokeColor = '#ff9800';
         textBgColor = 'rgba(255, 152, 0, 0.9)';
       } else {
         strokeColor = '#f44336';
         textBgColor = 'rgba(244, 67, 54, 0.9)';
+      }
+
+      // Draw active face highlight (outer glow)
+      if (isActiveFace) {
+        ctx.save();
+        ctx.strokeStyle = activeHighlightColor;
+        ctx.lineWidth = 2;
+        ctx.shadowColor = activeHighlightColor;
+        ctx.shadowBlur = 6;
+        ctx.strokeRect(faceBox.x - 2, faceBox.y - 2, faceBox.width + 4, faceBox.height + 4);
+        ctx.restore();
       }
 
       // Draw bounding box
@@ -326,7 +366,17 @@ export function ImageViewer() {
         ctx.lineTo(labelCenterX, labelCenterY);
         ctx.stroke();
 
-        // Label background
+        // Label background with active highlight
+        if (isActiveFace) {
+          ctx.save();
+          ctx.strokeStyle = activeHighlightColor;
+          ctx.lineWidth = 2;
+          ctx.shadowColor = activeHighlightColor;
+          ctx.shadowBlur = 6;
+          ctx.strokeRect(labelPos.x - 1, labelPos.y - 1, labelWidth + 2, labelHeight + 2);
+          ctx.restore();
+        }
+
         ctx.fillStyle = textBgColor;
         ctx.fillRect(labelPos.x, labelPos.y, labelWidth, labelHeight);
 
@@ -398,11 +448,23 @@ export function ImageViewer() {
 
     setZoomMode('manual');
     setZoomFactor(1);
-    setPan({
-      x: (canvasWidth - image.width) / 2,
-      y: (canvasHeight - image.height) / 2
-    });
-  }, [image, dimensions]);
+
+    const face = faces[activeFaceIndex];
+    if (face?.bounding_box) {
+      const bbox = face.bounding_box;
+      const faceCenterX = bbox.x + bbox.width / 2;
+      const faceCenterY = bbox.y + bbox.height / 2;
+      setPan({
+        x: canvasWidth / 2 - faceCenterX,
+        y: canvasHeight / 2 - faceCenterY
+      });
+    } else {
+      setPan({
+        x: (canvasWidth - image.width) / 2,
+        y: (canvasHeight - image.height) / 2
+      });
+    }
+  }, [image, dimensions, faces, activeFaceIndex]);
 
   const autoFit = useCallback(() => {
     setZoomMode('auto');
@@ -595,13 +657,21 @@ export function ImageViewer() {
     onDoubleTap: () => autoFit() // Double-tap - → fit-to-window
   }, { holdDelay: ZOOM_HOLD_DELAY });
 
+  const toggleFileInfo = useCallback((enable) => {
+    const newValue = enable === undefined ? !showFileInfo : enable;
+    setShowFileInfo(newValue);
+    preferences.set('imageViewer.showFileInfo', newValue);
+    updateMenuState('show-file-info', newValue);
+  }, [showFileInfo, updateMenuState]);
+
   useKeyboardShortcuts({
     '=': resetZoom,
     '0': autoFit,
     'b': toggleSingleAll,
     'B': toggleOnOff,
     'c': () => toggleAutoCenterOnFace(true),
-    'C': () => toggleAutoCenterOnFace(false)
+    'C': () => toggleAutoCenterOnFace(false),
+    'i': () => toggleFileInfo()
   });
 
   // ============================================
@@ -611,11 +681,11 @@ export function ImageViewer() {
   // Listen for load-image events
   useModuleEvent('load-image', async ({ imagePath: path }) => {
     try {
-      await loadImage(path);
+      const { img, originalPath } = await loadImage(path);
       debug('ImageViewer', 'Loaded image:', path);
       emit('image-loaded', {
-        imagePath: originalImagePath || path,
-        dimensions: { width: image?.width, height: image?.height }
+        imagePath: originalPath,
+        dimensions: { width: img.width, height: img.height }
       });
     } catch (err) {
       debugError('ImageViewer', 'Failed to load image:', err);
@@ -632,10 +702,18 @@ export function ImageViewer() {
     setActiveFaceIndex(-1);
   });
 
-  // Listen for faces-detected events
-  useModuleEvent('faces-detected', ({ faces: newFaces }) => {
+  // Listen for faces-detected events - reset activeFaceIndex to sync with ReviewModule
+  // Guard: only apply if imagePath matches current image (prevents race conditions)
+  useModuleEvent('faces-detected', ({ faces: newFaces, imagePath: facesImagePath }) => {
+    if (facesImagePath && originalImagePath && facesImagePath !== originalImagePath) {
+      debug('ImageViewer', 'Ignoring faces-detected for different image:', facesImagePath);
+      return;
+    }
     setFaces(newFaces || []);
-  });
+    if (newFaces && newFaces.length > 0) {
+      setActiveFaceIndex(0);
+    }
+  }, [originalImagePath]);
 
   // Listen for active-face-changed events
   useModuleEvent('active-face-changed', ({ index }) => {
@@ -679,15 +757,21 @@ export function ImageViewer() {
   useModuleEvent('auto-fit', autoFit);
   useModuleEvent('auto-center-enable', () => toggleAutoCenterOnFace(true));
   useModuleEvent('auto-center-disable', () => toggleAutoCenterOnFace(false));
+  useModuleEvent('file-info-show', () => toggleFileInfo(true));
+  useModuleEvent('file-info-hide', () => toggleFileInfo(false));
+
+  useModuleEvent('queue-status', (status) => {
+    setQueueStatus(status);
+  });
 
   // ============================================
   // Sync menu state on mount
   // ============================================
 
   useEffect(() => {
-    // Sync initial state to menu
     updateMenuState('auto-center', autoCenterOnFace);
     updateMenuState('boxes-visible', faceBoxMode !== 'none');
+    updateMenuState('show-file-info', showFileInfo);
     updateMenuState('boxes-all-faces', faceBoxMode === 'all');
   }, []); // Only on mount
 
@@ -746,6 +830,26 @@ export function ImageViewer() {
           <div className="placeholder-icon">📷</div>
           <div>No image loaded</div>
           <div className="placeholder-hint">Open an image to get started</div>
+        </div>
+      )}
+      {showFileInfo && image && (
+        <div className="file-info-overlay">
+          <div className="file-info-filename">
+            {originalImagePath?.split('/').pop() || 'Unknown'}
+          </div>
+          {queueStatus && (
+            <div className="file-info-queue">
+              <span className="file-info-progress-text">
+                {queueStatus.done} done · {queueStatus.current + 1}/{queueStatus.total} · {queueStatus.remaining} left
+              </span>
+              <div className="file-info-progress-bar">
+                <div
+                  className="file-info-progress-fill"
+                  style={{ width: `${((queueStatus.done + 1) / queueStatus.total) * 100}%` }}
+                />
+              </div>
+            </div>
+          )}
         </div>
       )}
     </div>

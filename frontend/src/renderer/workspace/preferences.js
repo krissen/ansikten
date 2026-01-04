@@ -46,7 +46,8 @@ export class PreferencesManager {
         minZoom: 0.1, // Minimum zoom level
         defaultZoomMode: 'auto-fit', // 'auto-fit' | '1:1'
         smoothPan: true, // Smooth panning animation
-        showPixelGrid: false // Show pixel grid at high zoom levels (future)
+        showPixelGrid: false, // Show pixel grid at high zoom levels (future)
+        showFileInfo: true // Show filename and queue progress overlay
       },
       reviewModule: {
         autoSaveOnComplete: true, // Auto-save when all faces reviewed
@@ -57,7 +58,9 @@ export class PreferencesManager {
         maxAlternatives: 5 // Number of match alternatives to show (1-9)
       },
       fileQueue: {
-        autoLoadOnStartup: true // Auto-load first file from queue on startup/reload
+        autoLoadOnStartup: true,
+        autoRemoveMissing: true,
+        insertMode: 'alphabetical'  // 'bottom' | 'alphabetical' - how new files are inserted
       },
       preprocessing: {
         enabled: true,              // Master switch for background preprocessing
@@ -69,6 +72,18 @@ export class PreferencesManager {
         parallelWorkers: 2,         // Number of parallel preprocessing jobs (1-8)
         cache: {
           maxSizeMB: 1024           // Max cache size in MB (default 1GB)
+        },
+        // Rolling window settings - controls how many files stay preprocessed ahead
+        rollingWindow: {
+          maxReadyItems: 15,        // Max preprocessed items to keep "ready"
+          minQueueBuffer: 10,       // Pause preprocessing when this many items are ready
+          resumeThreshold: 5        // Resume after this many items are "done" (reviewed)
+        },
+        // Notification settings for preprocessing status
+        notifications: {
+          showStatusIndicator: true,  // Show status indicator in File Queue footer
+          showToastOnPause: true,     // Show toast when preprocessing pauses
+          showToastOnResume: false    // Show toast when preprocessing resumes
         }
       },
       layout: {
