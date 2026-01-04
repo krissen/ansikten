@@ -653,9 +653,12 @@ export function ImageViewer() {
     setActiveFaceIndex(-1);
   });
 
-  // Listen for faces-detected events
+  // Listen for faces-detected events - reset activeFaceIndex to sync with ReviewModule
   useModuleEvent('faces-detected', ({ faces: newFaces }) => {
     setFaces(newFaces || []);
+    if (newFaces && newFaces.length > 0) {
+      setActiveFaceIndex(0);
+    }
   });
 
   // Listen for active-face-changed events
