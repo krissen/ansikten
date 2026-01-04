@@ -586,9 +586,11 @@ ipcMain.on("watch-file", (event, filePath) => {
 
     watcher.on("error", (err) => {
       console.error("[Main] Directory watcher error:", dir, err.message);
+      const affectedFiles = [...files];
       directoryWatchers.get(dir)?.watcher?.close();
       for (const f of files) fileToDirectory.delete(f);
       directoryWatchers.delete(dir);
+      mainWindow?.webContents.send("watcher-error", { dir, files: affectedFiles });
     });
 
     directoryWatchers.set(dir, { watcher, files });

@@ -409,6 +409,19 @@ export function FileQueueModule() {
     return () => unsubscribe?.();
   }, [showToast]);
 
+  // Handle watcher-error: re-register affected files that are still in queue
+  useEffect(() => {
+    const handleWatcherError = (dir, affectedFiles) => {
+      debugWarn('FileQueue', `Watcher error for ${dir}, re-registering ${affectedFiles.length} files`);
+      for (const filePath of affectedFiles) {
+        window.bildvisareAPI?.watchFile(filePath);
+      }
+    };
+
+    const unsubscribe = window.bildvisareAPI?.onWatcherError(handleWatcherError);
+    return () => unsubscribe?.();
+  }, []);
+
   // Load queue from localStorage on mount
   useEffect(() => {
     try {
@@ -1813,7 +1826,7 @@ function FileQueueItem({ item, index, isActive, isSelected, onClick, onDoubleCli
           </div>
           <div className="tooltip-row">
             <span className="tooltip-label">Folder:</span>
-            <span className="tooltip-value tooltip-path">{item.filePath.substring(0, item.filePath.lastIndexOf('/'))}</span>
+            <span className="tooltip-value tooltip-path">{item.filePath.replace(/\\/g, '/').replace(/\/[^/]*$/, '')}</span>
           </div>
           {hasDetectedFaces && (
             <div className="tooltip-row">

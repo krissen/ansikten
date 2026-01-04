@@ -396,14 +396,18 @@ export function ReviewModule() {
 
   /**
    * Keyboard handler
-   * Review shortcuts work when focus is in ReviewModule OR ImageViewer
-   * This allows seamless workflow: view image, confirm/ignore faces
-   * Shortcuts are blocked in other modules (LogViewer, etc.) to prevent accidents
+   * Shortcuts active when ReviewModule is visible (rendered in DOM)
+   * Blocked in input fields and modules that capture keyboard (Preferences, etc.)
    */
   useEffect(() => {
     const handleKeyboard = (e) => {
-      // Block shortcuts in modules that should capture keyboard input
+      const reviewModuleVisible = document.querySelector('.review-module') !== null;
+      if (!reviewModuleVisible) {
+        return;
+      }
+
       const activeEl = document.activeElement;
+      const isInput = e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA' || e.target.isContentEditable;
       const inBlockingModule =
         activeEl?.closest('.log-viewer') !== null ||
         activeEl?.closest('.preferences-module') !== null ||
@@ -413,8 +417,6 @@ export function ReviewModule() {
       if (inBlockingModule) {
         return;
       }
-
-      const isInput = e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA' || e.target.isContentEditable;
 
       if (e.key === 'ArrowDown' && !isInput) {
         e.preventDefault();

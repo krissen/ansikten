@@ -378,12 +378,12 @@ export class PreprocessingManager {
    * @private
    */
   _processNext() {
-    if (this.shouldPause() && !this.isPaused) {
-      this._pauseProcessing();
+    if (this.isPaused) {
       return;
     }
 
-    if (this.isPaused) {
+    if (this.shouldPause()) {
+      this._pauseProcessing();
       return;
     }
 
