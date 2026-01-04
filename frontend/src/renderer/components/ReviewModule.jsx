@@ -699,6 +699,20 @@ function FaceCard({ face, index, isActive, imagePath, people, cardRef, inputRef,
                 e.target.blur();
                 e.stopPropagation();
               }
+              if (e.key === 'Tab') {
+                const typed = e.target.value?.toLowerCase();
+                if (typed) {
+                  const match = people.find(p => p.toLowerCase().startsWith(typed));
+                  if (match) {
+                    e.preventDefault();
+                    setInputValue(match);
+                  }
+                }
+              }
+              if ((e.key === 'a' || e.key === 'A') && e.target.value?.trim()) {
+                e.preventDefault();
+                confirmFace(faceIndex, e.target.value.trim());
+              }
             }}
             list="people-names-datalist"
             onClick={(e) => e.stopPropagation()}

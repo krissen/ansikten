@@ -55,8 +55,8 @@ function ShortcutsHelpOverlay({ onClose }) {
           <div className="shortcuts-section">
             <h3>Navigation</h3>
             <div className="shortcut-row"><kbd>Cmd</kbd>+<kbd>←→↑↓</kbd><span>Move focus between panels</span></div>
-            <div className="shortcut-row"><kbd>Tab</kbd><span>Next face / field</span></div>
-            <div className="shortcut-row"><kbd>Shift</kbd>+<kbd>Tab</kbd><span>Previous face / field</span></div>
+            <div className="shortcut-row"><kbd>↑</kbd>/<kbd>↓</kbd><span>Previous / next face</span></div>
+            <div className="shortcut-row"><kbd>Tab</kbd><span>Complete name (in input)</span></div>
           </div>
 
           {/* Layout */}
