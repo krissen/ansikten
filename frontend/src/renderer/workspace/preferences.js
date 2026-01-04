@@ -46,7 +46,8 @@ export class PreferencesManager {
         minZoom: 0.1, // Minimum zoom level
         defaultZoomMode: 'auto-fit', // 'auto-fit' | '1:1'
         smoothPan: true, // Smooth panning animation
-        showPixelGrid: false // Show pixel grid at high zoom levels (future)
+        showPixelGrid: false, // Show pixel grid at high zoom levels (future)
+        showFileInfo: true // Show filename and queue progress overlay
       },
       reviewModule: {
         autoSaveOnComplete: true, // Auto-save when all faces reviewed

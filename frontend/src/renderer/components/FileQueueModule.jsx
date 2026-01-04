@@ -241,6 +241,17 @@ export function FileQueueModule() {
     }
   }, [api, showToast]);
 
+  const emitQueueStatus = useCallback((currentIdx = currentIndex) => {
+    const q = queueRef.current;
+    const done = q.filter(item => item.status === 'completed').length;
+    emit('queue-status', {
+      total: q.length,
+      current: currentIdx,
+      done: done,
+      remaining: q.length - done - 1
+    });
+  }, [emit, currentIndex]);
+
   useEffect(() => {
     loadProcessedFiles();
   }, [loadProcessedFiles]);
@@ -928,10 +939,10 @@ export function FileQueueModule() {
     setCurrentIndex(index);
     currentFileRef.current = item.filePath;
 
-    // Emit load-image event
     debug('FileQueue', 'Emitting load-image for:', item.filePath);
     emit('load-image', { imagePath: item.filePath });
-  }, [fixMode, api, loadProcessedFiles, emit, showToast]);
+    emitQueueStatus(index);
+  }, [fixMode, api, loadProcessedFiles, emit, showToast, emitQueueStatus]);
 
   // Handle file item click with modifier key support
   // Single click = select, Double click = load
@@ -1220,6 +1231,15 @@ export function FileQueueModule() {
         return item;
       }));
 
+      const prevDone = currentQueue.filter(q => q.status === 'completed').length;
+      const newDone = success ? prevDone + 1 : prevDone;
+      emit('queue-status', {
+        total: currentQueue.length,
+        current: nextIdx >= 0 ? nextIdx : currentIdx,
+        done: newDone,
+        remaining: currentQueue.length - newDone - 1
+      });
+
       // Show toast for review result
       if (success) {
         showToast(`Saved review for ${fileName} (${faceCount} face${faceCount !== 1 ? 's' : ''})`, 'success', 2500);
@@ -1249,7 +1269,7 @@ export function FileQueueModule() {
         showToast('🎉 Queue complete - all files reviewed!', 'success', 4000);
       }
     }
-  }, [autoAdvance, loadFile, loadProcessedFiles, showToast]));
+  }, [autoAdvance, loadFile, loadProcessedFiles, showToast, emit]));
 
   // Listen for faces-detected event to update face count for the detected file
   // This updates the face count when detection completes (not just from preprocessing)

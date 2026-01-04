@@ -80,3 +80,53 @@
   margin-top: var(--space-sm);
   color: var(--text-secondary);
 }
+
+.file-info-overlay {
+  position: absolute;
+  right: var(--space-md);
+  bottom: var(--space-md);
+  background: color-mix(in srgb, var(--bg-elevated) 85%, transparent);
+  backdrop-filter: blur(4px);
+  border: 1px solid var(--border-medium);
+  border-radius: var(--radius-md);
+  padding: var(--space-sm) var(--space-md);
+  pointer-events: none;
+  z-index: var(--z-base);
+  max-width: 300px;
+  box-shadow: var(--shadow-md);
+}
+
+.file-info-filename {
+  font-size: var(--font-sm);
+  font-weight: 500;
+  color: var(--text-primary);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  margin-bottom: var(--space-xs);
+}
+
+.file-info-queue {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-xs);
+}
+
+.file-info-progress-text {
+  font-size: var(--font-xs);
+  color: var(--text-secondary);
+}
+
+.file-info-progress-bar {
+  height: 4px;
+  background: var(--border-medium);
+  border-radius: 2px;
+  overflow: hidden;
+}
+
+.file-info-progress-fill {
+  height: 100%;
+  background: var(--accent-primary);
+  border-radius: 2px;
+  transition: width 0.3s ease;
+}
