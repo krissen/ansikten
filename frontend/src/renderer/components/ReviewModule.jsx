@@ -402,13 +402,15 @@ export function ReviewModule() {
    */
   useEffect(() => {
     const handleKeyboard = (e) => {
-      // Check if focus is in ReviewModule or ImageViewer
+      // Block shortcuts in modules that should capture keyboard input
       const activeEl = document.activeElement;
-      const inReviewModule = moduleRef.current?.contains(activeEl);
-      const inImageViewer = activeEl?.closest('.image-viewer') !== null;
+      const inBlockingModule =
+        activeEl?.closest('.log-viewer') !== null ||
+        activeEl?.closest('.preferences-module') !== null ||
+        activeEl?.closest('.database-management') !== null ||
+        activeEl?.closest('.theme-editor') !== null;
 
-      // Only handle shortcuts when in ReviewModule or ImageViewer
-      if (!inReviewModule && !inImageViewer) {
+      if (inBlockingModule) {
         return;
       }
 
