@@ -36,7 +36,7 @@ function parseCommandLineArgs(argv) {
     /^node/i,
     /^npx/i,
     /\.js$/i,
-    /^\.$/,
+    /^\.\.?$/,
   ];
 
   const shouldSkipArg = (arg) => {
