@@ -628,7 +628,7 @@ export function PreferencesModule({ api }) {
       />
       <NumberField
         label="Pause Buffer"
-        hint="Pause when this many items are ready (must be less than Max Ready Items)"
+        hint="Pause when this many items are ready (should be noticeably less than Max Ready Items)"
         value={prefs.preprocessing?.rollingWindow?.minQueueBuffer ?? 10}
         onChange={(v) => {
           const maxReady = prefs.preprocessing?.rollingWindow?.maxReadyItems ?? 15;

@@ -137,8 +137,10 @@ export function ImageViewer() {
         const isWindowsAbsolute = /^[a-zA-Z]:\//.test(normalizedPath);
         // Windows: file:///C:/path, Unix: file:///path
         const encoded = encodeURI(normalizedPath)
-          .replace(/#/g, '%23')   // # is URL fragment delimiter
-          .replace(/\?/g, '%3F'); // ? is URL query delimiter
+          .replace(/#/g, '%23')
+          .replace(/\?/g, '%3F')
+          .replace(/\[/g, '%5B')
+          .replace(/\]/g, '%5D');
         imageSrc = isWindowsAbsolute
           ? 'file:///' + encoded
           : 'file://' + encoded;

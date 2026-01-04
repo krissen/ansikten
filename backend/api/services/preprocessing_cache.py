@@ -334,15 +334,21 @@ class PreprocessingCache:
         sorted_entries = sorted(self.index.items(), key=eviction_key)
 
         removed_count = 0
+        priority_evicted = 0
         for file_hash, entry in sorted_entries:
             if total_size <= self.max_size_bytes * 0.9:
                 break
+
+            if file_hash in self.priority_hashes:
+                priority_evicted += 1
 
             total_size -= entry.size_bytes
             self._remove_entry_files(entry)
             del self.index[file_hash]
             removed_count += 1
 
+        if priority_evicted > 0:
+            logger.warning(f"[PreprocessingCache] Had to evict {priority_evicted} priority files - consider increasing cache size")
         if removed_count > 0:
             logger.info(f"[PreprocessingCache] LRU eviction: removed {removed_count} entries")
             self._save_index(force=True)
