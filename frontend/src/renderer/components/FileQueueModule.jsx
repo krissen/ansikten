@@ -520,6 +520,17 @@ export function FileQueueModule() {
     };
   }, [queue]);
 
+  // Update backend cache priority (queue files evicted last)
+  useEffect(() => {
+    const queueHashes = queue
+      .map(item => preprocessingStatus[item.filePath]?.hash)
+      .filter(Boolean);
+
+    if (queueHashes.length > 0) {
+      apiClient.setPriorityCacheHashes(queueHashes).catch(() => {});
+    }
+  }, [queue, preprocessingStatus]);
+
   // Track preprocessing completion for toast notification
   const prevPreprocessingCountRef = useRef({ pending: 0, total: 0 });
   useEffect(() => {
