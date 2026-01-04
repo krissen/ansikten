@@ -258,10 +258,15 @@ export function FileQueueModule() {
     };
 
     const handleCompleted = ({ filePath, hash, faceCount }) => {
-      setPreprocessingStatus(prev => ({
-        ...prev,
-        [filePath]: { status: PreprocessingStatus.COMPLETED, faceCount, hash }
-      }));
+      setPreprocessingStatus(prev => {
+        const existing = prev[filePath];
+        // Preserve existing faceCount if it's valid (faces-detected may have set it)
+        const actualFaceCount = (existing?.faceCount > 0) ? existing.faceCount : faceCount;
+        return {
+          ...prev,
+          [filePath]: { status: PreprocessingStatus.COMPLETED, faceCount: actualFaceCount, hash }
+        };
+      });
 
       // Check if file hash matches a processed file (handles renamed files)
       if (hash && processedHashes.has(hash)) {
@@ -1739,11 +1744,10 @@ function FileQueueItem({ item, index, isActive, isSelected, onClick, onDoubleCli
   const nameWouldChange = newName && newName !== item.fileName;
   const shouldShowPreview = showPreview && (item.status === 'completed' || item.isAlreadyProcessed) && previewInfo;
 
-  // Face count: for completed files, prefer reviewedFaces (actual confirmed count)
-  // For pending files, use preprocessing faceCount (from background detection)
-  const detectedFaceCount = item.status === 'completed' && item.reviewedFaces?.length > 0
-    ? item.reviewedFaces.length
-    : (ppFaceCount ?? item.reviewedFaces?.length ?? null);
+  // Face count priority: reviewedFaces (from review-complete) > ppFaceCount (from preprocessing)
+  // Using || instead of ?? because ppFaceCount=0 might be stale (race with faces-detected)
+  const reviewedCount = item.reviewedFaces?.length;
+  const detectedFaceCount = reviewedCount > 0 ? reviewedCount : (ppFaceCount || null);
   const hasDetectedFaces = detectedFaceCount !== null;
 
   // Confirmed names for hover: from previewInfo (rename) or reviewedFaces (this session)
