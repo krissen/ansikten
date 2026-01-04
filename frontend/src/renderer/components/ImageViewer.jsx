@@ -236,6 +236,8 @@ export function ImageViewer() {
 
     facesToDraw.forEach(({ face, originalIndex }) => {
       const bbox = face.bounding_box;
+      if (!bbox) return;
+
       const faceNumber = originalIndex + 1;
 
       const faceBox = {
