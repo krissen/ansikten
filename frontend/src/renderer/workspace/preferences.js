@@ -69,6 +69,18 @@ export class PreferencesManager {
         parallelWorkers: 2,         // Number of parallel preprocessing jobs (1-8)
         cache: {
           maxSizeMB: 1024           // Max cache size in MB (default 1GB)
+        },
+        // Rolling window settings - controls how many files stay preprocessed ahead
+        rollingWindow: {
+          maxReadyItems: 15,        // Max preprocessed items to keep "ready"
+          minQueueBuffer: 10,       // Pause preprocessing when this many items are ready
+          resumeThreshold: 5        // Resume after this many items are "done" (reviewed)
+        },
+        // Notification settings for preprocessing status
+        notifications: {
+          showStatusIndicator: true,  // Show status indicator in File Queue footer
+          showToastOnPause: true,     // Show toast when preprocessing pauses
+          showToastOnResume: false    // Show toast when preprocessing resumes
         }
       },
       layout: {

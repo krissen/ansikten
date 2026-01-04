@@ -124,9 +124,22 @@ Workspace är ett modulärt gränssnitt byggt med FlexLayout. Paneler kan dockas
 - **Image Viewer** - Zoom, panorering
 - **Review** - Auto-save, bekräftelser, antal alternativ
 - **Files** - Kö, namnbyte
-- **Preprocessing** - Bakgrundsbearbetning, cache
+- **Preprocessing** - Bakgrundsbearbetning, cache, rolling window
 - **Dashboard** - Statistiksektioner
 - **Advanced** - Loggning, debug-kategorier
+
+### Rolling Window (Preprocessing)
+
+Förhindrar att cachen fylls vid stora köer (1000+ bilder). Preprocessningen pausar automatiskt när tillräckligt många filer är redo, och återupptas när du granskat några.
+
+| Inställning | Standard | Beskrivning |
+|-------------|----------|-------------|
+| **Max Ready Items** | 15 | Max antal preprocessade filer att hålla redo |
+| **Pause Buffer** | 10 | Pausa när så här många är redo |
+| **Resume After** | 5 | Återuppta efter så många granskade |
+| **Status Indicator** | På | Visa status i File Queue-footer |
+| **Toast on Pause** | På | Visa meddelande vid paus |
+| **Toast on Resume** | Av | Visa meddelande vid återstart |
 
 ---
 
@@ -147,4 +160,5 @@ Theme Editor ger full kontroll över färger och presets.
 1. **Snabb granskning**: Använd `1-9` för att snabbt välja matchningsalternativ
 2. **Batch-läge**: Aktivera auto-advance för snabbare genomgång
 3. **Fix-läge**: Aktivera för att omgranska redan bearbetade filer
-4. **Ångra**: Använd Database-modulen för att ångra filändringar
+4. **Stora köer**: Rolling Window hanterar 1000+ bilder utan att fylla minnet
+5. **Ångra**: Använd Database-modulen för att ångra filändringar

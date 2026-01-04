@@ -14,6 +14,7 @@ import { useModuleEvent, useEmitEvent } from '../hooks/useModuleEvent.js';
 import { useBackend } from '../context/BackendContext.jsx';
 import { useToast } from '../context/ToastContext.jsx';
 import { debug, debugWarn, debugError } from '../shared/debug.js';
+import { apiClient } from '../shared/api-client.js';
 import { getPreprocessingManager, PreprocessingStatus } from '../services/preprocessing/index.js';
 import { Icon } from './Icon.jsx';
 import './FileQueueModule.css';
@@ -58,6 +59,43 @@ const getRenameConfig = () => {
     // Ignore parse errors
   }
   return null;
+};
+
+// Get preprocessing notification preference
+const getNotificationPreference = (key) => {
+  try {
+    const stored = localStorage.getItem('bildvisare-preferences');
+    if (stored) {
+      const prefs = JSON.parse(stored);
+      const notifications = prefs.preprocessing?.notifications || {};
+      if (key === 'showStatusIndicator') return notifications.showStatusIndicator ?? true;
+      if (key === 'showToastOnPause') return notifications.showToastOnPause ?? true;
+      if (key === 'showToastOnResume') return notifications.showToastOnResume ?? false;
+    }
+  } catch (e) {
+    // Ignore parse errors
+  }
+  return key === 'showToastOnPause';
+};
+
+// Get preprocessing config including rolling window settings
+const getPreprocessingConfig = () => {
+  try {
+    const stored = localStorage.getItem('bildvisare-preferences');
+    if (stored) {
+      const prefs = JSON.parse(stored);
+      const preprocessing = prefs.preprocessing || {};
+      return {
+        enabled: preprocessing.enabled ?? true,
+        maxWorkers: preprocessing.parallelWorkers ?? 2,
+        steps: preprocessing.steps || {},
+        rollingWindow: preprocessing.rollingWindow || {}
+      };
+    }
+  } catch (e) {
+    // Ignore parse errors
+  }
+  return {};
 };
 
 // Get rename confirmation preference
@@ -115,6 +153,7 @@ export function FileQueueModule() {
   const [processedFiles, setProcessedFiles] = useState(new Set()); // Set of filenames
   const [processedHashes, setProcessedHashes] = useState(new Set()); // Set of file hashes
   const [preprocessingStatus, setPreprocessingStatus] = useState({}); // filePath -> status
+  const [preprocessingPaused, setPreprocessingPaused] = useState(false);
   const [selectedFiles, setSelectedFiles] = useState(new Set()); // Selected file IDs
 
   // Rename state
@@ -140,7 +179,8 @@ export function FileQueueModule() {
   // Get preprocessing manager (singleton)
   const preprocessingManager = useRef(null);
   if (!preprocessingManager.current) {
-    preprocessingManager.current = getPreprocessingManager();
+    const config = getPreprocessingConfig();
+    preprocessingManager.current = getPreprocessingManager(config);
   }
 
   // Refs
@@ -265,16 +305,52 @@ export function FileQueueModule() {
       debug('FileQueue', 'File not found:', filePath);
     };
 
+    const handlePaused = ({ readyCount, queueLength }) => {
+      debug('FileQueue', `Preprocessing paused: ${readyCount} ready, ${queueLength} in queue`);
+      setPreprocessingPaused(true);
+      const showPauseToast = getNotificationPreference('showToastOnPause');
+      if (showPauseToast) {
+        showToast(`Preprocessing paused (${readyCount} files ready)`, 'info', 3000);
+      }
+    };
+
+    const handleResumed = () => {
+      debug('FileQueue', 'Preprocessing resumed');
+      setPreprocessingPaused(false);
+      const showResumeToast = getNotificationPreference('showToastOnResume');
+      if (showResumeToast) {
+        showToast('Preprocessing resumed', 'info', 2000);
+      }
+    };
+
+    const handleCacheCleared = async ({ count, hashes }) => {
+      debug('FileQueue', `Cleared ${count} items from preprocessing cache`);
+      if (hashes && hashes.length > 0) {
+        try {
+          await apiClient.batchDeleteCache(hashes);
+          debug('FileQueue', `Cleared ${hashes.length} items from backend cache`);
+        } catch (err) {
+          debugWarn('FileQueue', 'Failed to clear backend cache:', err.message);
+        }
+      }
+    };
+
     manager.on('status-change', handleStatusChange);
     manager.on('completed', handleCompleted);
     manager.on('error', handleError);
     manager.on('file-not-found', handleFileNotFound);
+    manager.on('paused', handlePaused);
+    manager.on('resumed', handleResumed);
+    manager.on('cache-cleared', handleCacheCleared);
 
     return () => {
       manager.off('status-change', handleStatusChange);
       manager.off('completed', handleCompleted);
       manager.off('error', handleError);
       manager.off('file-not-found', handleFileNotFound);
+      manager.off('paused', handlePaused);
+      manager.off('resumed', handleResumed);
+      manager.off('cache-cleared', handleCacheCleared);
     };
   }, [showToast, processedHashes]);
 
@@ -969,6 +1045,10 @@ export function FileQueueModule() {
   useModuleEvent('review-complete', useCallback(({ imagePath, success, reviewedFaces }) => {
     debug('FileQueue', 'Review complete:', imagePath, success, 'faces:', reviewedFaces?.length);
 
+    if (success && preprocessingManager.current) {
+      preprocessingManager.current.markDone(imagePath);
+    }
+
     // Mark current file as completed
     if (currentFileRef.current === imagePath) {
       // Use refs for current state (avoids stale closure)
@@ -1334,6 +1414,28 @@ export function FileQueueModule() {
               />
             </div>
           </div>
+          {getNotificationPreference('showStatusIndicator') && (
+            <div className="preprocessing-status">
+              {preprocessingPaused ? (
+                <span className="status-paused" title="Preprocessing paused - buffer full">
+                  <Icon name="layers" size={12} /> Buffered
+                </span>
+              ) : queue.some(q => {
+                const status = preprocessingStatus[q.filePath];
+                return status && status.status !== PreprocessingStatus.COMPLETED &&
+                       status.status !== PreprocessingStatus.ERROR &&
+                       status.status !== PreprocessingStatus.FILE_NOT_FOUND;
+              }) ? (
+                <span className="status-active" title="Preprocessing in progress">
+                  <Icon name="refresh" size={12} className="spinning" /> Processing
+                </span>
+              ) : (
+                <span className="status-ready" title="All files preprocessed">
+                  <Icon name="check" size={12} /> Ready
+                </span>
+              )}
+            </div>
+          )}
           <div className="file-queue-controls">
             {completedCount > 0 && (
               <button

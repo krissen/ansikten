@@ -596,6 +596,55 @@ export function PreferencesModule({ api }) {
       <button className="btn-secondary" onClick={handleClearCache}>
         Clear Preprocessing Cache
       </button>
+
+      <SectionHeader title="Rolling Window" />
+      <p className="section-hint">
+        Controls how many files are preprocessed ahead. Prevents memory issues with large queues.
+      </p>
+      <NumberField
+        label="Max Ready Items"
+        hint="Maximum preprocessed files to keep ready (5-50)"
+        value={prefs.preprocessing?.rollingWindow?.maxReadyItems ?? 15}
+        onChange={(v) => updatePref('preprocessing.rollingWindow.maxReadyItems', Math.max(5, Math.min(50, v)))}
+        min={5}
+        max={50}
+      />
+      <NumberField
+        label="Pause Buffer"
+        hint="Pause preprocessing when this many items are ready (3-30)"
+        value={prefs.preprocessing?.rollingWindow?.minQueueBuffer ?? 10}
+        onChange={(v) => updatePref('preprocessing.rollingWindow.minQueueBuffer', Math.max(3, Math.min(30, v)))}
+        min={3}
+        max={30}
+      />
+      <NumberField
+        label="Resume After"
+        hint="Resume preprocessing after this many reviews complete (1-15)"
+        value={prefs.preprocessing?.rollingWindow?.resumeThreshold ?? 5}
+        onChange={(v) => updatePref('preprocessing.rollingWindow.resumeThreshold', Math.max(1, Math.min(15, v)))}
+        min={1}
+        max={15}
+      />
+
+      <SectionHeader title="Notifications" />
+      <CheckboxField
+        label="Show status indicator"
+        hint="Show preprocessing status in File Queue footer"
+        checked={prefs.preprocessing?.notifications?.showStatusIndicator ?? true}
+        onChange={(v) => updatePref('preprocessing.notifications.showStatusIndicator', v)}
+      />
+      <CheckboxField
+        label="Toast on pause"
+        hint="Show toast notification when preprocessing pauses"
+        checked={prefs.preprocessing?.notifications?.showToastOnPause ?? true}
+        onChange={(v) => updatePref('preprocessing.notifications.showToastOnPause', v)}
+      />
+      <CheckboxField
+        label="Toast on resume"
+        hint="Show toast notification when preprocessing resumes"
+        checked={prefs.preprocessing?.notifications?.showToastOnResume ?? false}
+        onChange={(v) => updatePref('preprocessing.notifications.showToastOnResume', v)}
+      />
     </>
   );
 
