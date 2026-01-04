@@ -615,17 +615,28 @@ export function PreferencesModule({ api }) {
         label="Max Ready Items"
         hint="Maximum preprocessed files to keep ready (5-50)"
         value={prefs.preprocessing?.rollingWindow?.maxReadyItems ?? 15}
-        onChange={(v) => updatePref('preprocessing.rollingWindow.maxReadyItems', Math.max(5, Math.min(50, v)))}
+        onChange={(v) => {
+          const maxReady = Math.max(5, Math.min(50, v));
+          updatePref('preprocessing.rollingWindow.maxReadyItems', maxReady);
+          const pauseBuffer = prefs.preprocessing?.rollingWindow?.minQueueBuffer ?? 10;
+          if (pauseBuffer >= maxReady) {
+            updatePref('preprocessing.rollingWindow.minQueueBuffer', maxReady - 1);
+          }
+        }}
         min={5}
         max={50}
       />
       <NumberField
         label="Pause Buffer"
-        hint="Pause when this many items are ready. Should be less than Max Ready Items."
+        hint="Pause when this many items are ready (must be less than Max Ready Items)"
         value={prefs.preprocessing?.rollingWindow?.minQueueBuffer ?? 10}
-        onChange={(v) => updatePref('preprocessing.rollingWindow.minQueueBuffer', Math.max(3, Math.min(30, v)))}
+        onChange={(v) => {
+          const maxReady = prefs.preprocessing?.rollingWindow?.maxReadyItems ?? 15;
+          const pauseBuffer = Math.max(3, Math.min(maxReady - 1, v));
+          updatePref('preprocessing.rollingWindow.minQueueBuffer', pauseBuffer);
+        }}
         min={3}
-        max={30}
+        max={(prefs.preprocessing?.rollingWindow?.maxReadyItems ?? 15) - 1}
       />
       <NumberField
         label="Resume After"

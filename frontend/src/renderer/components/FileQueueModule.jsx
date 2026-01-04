@@ -537,21 +537,38 @@ export function FileQueueModule() {
       }
     });
 
-    return () => {
-      window.bildvisareAPI?.unwatchAllFiles();
-      watched.clear();
-    };
   }, [queue]);
 
-  // Update backend cache priority (queue files evicted last)
+  // Cleanup all file watchers only on unmount
   useEffect(() => {
-    const queueHashes = queue
-      .map(item => preprocessingStatus[item.filePath]?.hash)
-      .filter(Boolean);
+    return () => {
+      window.bildvisareAPI?.unwatchAllFiles();
+      watchedFilesRef.current.clear();
+    };
+  }, []);
 
-    if (queueHashes.length > 0) {
-      apiClient.setPriorityCacheHashes(queueHashes).catch(() => {});
+  // Update backend cache priority (queue files evicted last)
+  const priorityHashesTimerRef = useRef(null);
+  useEffect(() => {
+    if (priorityHashesTimerRef.current) {
+      clearTimeout(priorityHashesTimerRef.current);
     }
+
+    priorityHashesTimerRef.current = setTimeout(() => {
+      const queueHashes = queue
+        .map(item => preprocessingStatus[item.filePath]?.hash)
+        .filter(Boolean);
+
+      if (queueHashes.length > 0) {
+        apiClient.setPriorityCacheHashes(queueHashes).catch(() => {});
+      }
+    }, 500);
+
+    return () => {
+      if (priorityHashesTimerRef.current) {
+        clearTimeout(priorityHashesTimerRef.current);
+      }
+    };
   }, [queue, preprocessingStatus]);
 
   // Track preprocessing completion for toast notification
