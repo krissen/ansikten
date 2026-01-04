@@ -20,26 +20,45 @@ let initialQueueFiles = [];
 let isQuitting = false;
 
 // Parse command line arguments
-// Electron argv structure: [electron_path, app_path, ...user_args]
+// Position-agnostic parsing: scan for known flags anywhere in argv
+// This handles variations in argv structure across different invocation methods
+// (direct electron, npx electron, packaged app, second-instance, etc.)
 function parseCommandLineArgs(argv) {
   const result = {
     files: [],
-    queuePosition: null, // null = open directly, 'start' or 'end' = add to queue
+    queuePosition: null,  // null = open directly, 'start' | 'end' | 'sorted' = add to queue
     startQueue: false,
   };
 
-  // Skip first two args (electron executable and app path)
-  // These are always present in Electron's process.argv
-  for (let i = 2; i < argv.length; i++) {
+  // Known paths/executables to skip (case-insensitive basename matching)
+  const skipPatterns = [
+    /^electron/i,
+    /^node/i,
+    /^npx/i,
+    /\.js$/i,
+    /^\.\.?$/,
+  ];
+
+  const shouldSkipArg = (arg) => {
+    if (!arg) return true;
+    const basename = arg.split(/[/\\]/).pop();
+    return skipPatterns.some(pattern => pattern.test(basename));
+  };
+
+  for (let i = 0; i < argv.length; i++) {
     const arg = argv[i];
+
     if (arg === "--queue" || arg === "-q") {
-      result.queuePosition = "end";
+      result.queuePosition = "sorted";
     } else if (arg === "--queue-start" || arg === "-qs") {
       result.queuePosition = "start";
+    } else if (arg === "--queue-end" || arg === "-qe") {
+      result.queuePosition = "end";
     } else if (arg === "--start" || arg === "-s") {
       result.startQueue = true;
-    } else if (!arg.startsWith("-")) {
-      // It's a file path or glob
+    } else if (arg.startsWith("-")) {
+      continue;
+    } else if (!shouldSkipArg(arg)) {
       result.files.push(arg);
     }
   }
@@ -521,6 +540,88 @@ ipcMain.on("renderer-log", (event, { level, message }) => {
   } catch (err) {
     console.error("[Main] Failed to write renderer log:", err);
   }
+});
+
+// Directory-level file watching for scalability (1000+ files)
+// Instead of one watcher per file, we watch directories and track which files we care about
+const directoryWatchers = new Map(); // dir -> { watcher, files: Set<filePath> }
+const fileToDirectory = new Map();   // filePath -> dir
+
+ipcMain.on("watch-file", (event, filePath) => {
+  if (fileToDirectory.has(filePath)) return;
+
+  try {
+    if (!fs.existsSync(filePath)) {
+      mainWindow?.webContents.send("file-deleted", filePath);
+      return;
+    }
+
+    const dir = path.dirname(filePath);
+
+    if (directoryWatchers.has(dir)) {
+      directoryWatchers.get(dir).files.add(filePath);
+      fileToDirectory.set(filePath, dir);
+      return;
+    }
+
+    const files = new Set([filePath]);
+    const watcher = fs.watch(dir, (eventType, changedFile) => {
+      if (eventType !== "rename" || !changedFile) return;
+
+      const changedPath = path.join(dir, changedFile);
+      const dirEntry = directoryWatchers.get(dir);
+      if (!dirEntry?.files.has(changedPath)) return;
+
+      if (!fs.existsSync(changedPath)) {
+        console.log("[Main] File deleted:", changedPath);
+        mainWindow?.webContents.send("file-deleted", changedPath);
+        dirEntry.files.delete(changedPath);
+        fileToDirectory.delete(changedPath);
+        if (dirEntry.files.size === 0) {
+          dirEntry.watcher.close();
+          directoryWatchers.delete(dir);
+        }
+      }
+    });
+
+    watcher.on("error", (err) => {
+      console.error("[Main] Directory watcher error:", dir, err.message);
+      const dirEntry = directoryWatchers.get(dir);
+      const affectedFiles = dirEntry ? [...dirEntry.files] : [];
+      dirEntry?.watcher?.close();
+      for (const f of affectedFiles) fileToDirectory.delete(f);
+      directoryWatchers.delete(dir);
+      mainWindow?.webContents.send("watcher-error", { dir, files: affectedFiles });
+    });
+
+    directoryWatchers.set(dir, { watcher, files });
+    fileToDirectory.set(filePath, dir);
+  } catch (err) {
+    console.error("[Main] Failed to watch file:", filePath, err.message);
+  }
+});
+
+ipcMain.on("unwatch-file", (event, filePath) => {
+  const dir = fileToDirectory.get(filePath);
+  if (!dir) return;
+
+  fileToDirectory.delete(filePath);
+  const dirEntry = directoryWatchers.get(dir);
+  if (!dirEntry) return;
+
+  dirEntry.files.delete(filePath);
+  if (dirEntry.files.size === 0) {
+    dirEntry.watcher.close();
+    directoryWatchers.delete(dir);
+  }
+});
+
+ipcMain.on("unwatch-all-files", () => {
+  for (const [dir, { watcher }] of directoryWatchers) {
+    watcher.close();
+  }
+  directoryWatchers.clear();
+  fileToDirectory.clear();
 });
 
 console.log("[Main] Workspace mode initialized");

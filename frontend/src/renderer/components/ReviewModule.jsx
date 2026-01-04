@@ -35,6 +35,7 @@ export function ReviewModule() {
   const [pendingIgnores, setPendingIgnores] = useState([]);
   const [status, setStatus] = useState('Waiting for image...');
   const [isLoading, setIsLoading] = useState(false);
+  const [clearInputTrigger, setClearInputTrigger] = useState(0);
 
   // Refs
   const moduleRef = useRef(null);
@@ -102,27 +103,29 @@ export function ReviewModule() {
   /**
    * Navigate to face
    */
-  const navigateToFace = useCallback((direction) => {
+  const navigateToFace = useCallback((direction, skipIndex = null) => {
     if (detectedFaces.length === 0) return;
 
     setCurrentFaceIndex(prev => {
       let newIndex = prev + direction;
 
-      // Wrap around
       if (newIndex >= detectedFaces.length) newIndex = 0;
       if (newIndex < 0) newIndex = detectedFaces.length - 1;
 
-      // Skip confirmed faces
+      // Skip confirmed faces AND explicitly skipped index (handles stale closure)
       let attempts = 0;
-      while (detectedFaces[newIndex]?.is_confirmed && attempts < detectedFaces.length) {
+      while ((detectedFaces[newIndex]?.is_confirmed || newIndex === skipIndex) && attempts < detectedFaces.length) {
         newIndex += direction;
         if (newIndex >= detectedFaces.length) newIndex = 0;
         if (newIndex < 0) newIndex = detectedFaces.length - 1;
         attempts++;
       }
 
-      // Notify Image Viewer
-      emit('active-face-changed', { index: newIndex });
+      // Only emit if we found an unconfirmed face (avoid centering on old face when all done)
+      const targetFace = detectedFaces[newIndex];
+      if (targetFace && !targetFace.is_confirmed) {
+        emit('active-face-changed', { index: newIndex });
+      }
       return newIndex;
     });
   }, [detectedFaces, emit]);
@@ -152,8 +155,7 @@ export function ReviewModule() {
       return [...prev, { face_id: face.face_id, person_name: personName.trim(), image_path: currentImagePath }];
     });
 
-    // Move to next face
-    navigateToFace(1);
+    navigateToFace(1, index);
   }, [detectedFaces, currentImagePath, navigateToFace]);
 
   /**
@@ -174,9 +176,40 @@ export function ReviewModule() {
       return [...prev, { face_id: face.face_id, image_path: currentImagePath }];
     });
 
-    // Move to next face
-    navigateToFace(1);
+    navigateToFace(1, index);
   }, [detectedFaces, currentImagePath, navigateToFace]);
+
+  /**
+   * Unconfirm a face - revert to unconfirmed state for re-review
+   */
+  const unconfirmFace = useCallback((index) => {
+    const face = detectedFaces[index];
+    if (!face || !face.is_confirmed) return;
+
+    debug('ReviewModule', 'Unconfirming face at index:', index);
+
+    setDetectedFaces(prev => {
+      const updated = [...prev];
+      const originalFace = updated[index];
+      updated[index] = {
+        ...originalFace,
+        is_confirmed: false,
+        is_rejected: false,
+        person_name: originalFace._original_person_name || null
+      };
+      return updated;
+    });
+
+    setPendingConfirmations(prev => prev.filter(p => p.face_id !== face.face_id));
+    setPendingIgnores(prev => prev.filter(p => p.face_id !== face.face_id));
+
+    setCurrentFaceIndex(index);
+    emit('active-face-changed', { index });
+
+    setTimeout(() => {
+      inputRefs.current[index]?.focus();
+    }, 50);
+  }, [detectedFaces, emit]);
 
   /**
    * Build reviewedFaces array for rename functionality
@@ -307,34 +340,34 @@ export function ReviewModule() {
   const addManualFace = useCallback(() => {
     if (!currentImagePath) return;
 
-    debug('ReviewModule', 'Adding manual face');
+    const insertIndex = detectedFaces.length === 0 ? 0 : currentFaceIndex + 1;
+    debug('ReviewModule', 'Adding manual face at index:', insertIndex, '(faces:', detectedFaces.length, ')');
 
-    // Create a virtual face with no bounding box
     const manualFaceId = `manual_${Date.now()}`;
     const manualFace = {
       face_id: manualFaceId,
-      bounding_box: null,  // No bounding box
-      confidence: null,    // No confidence
+      bounding_box: null,
+      confidence: null,
       person_name: '',
-      is_manual: true,     // Mark as manually added
+      is_manual: true,
       is_confirmed: false
     };
 
-    setDetectedFaces(prev => [...prev, manualFace]);
+    setDetectedFaces(prev => {
+      const updated = [...prev];
+      updated.splice(insertIndex, 0, manualFace);
+      return updated;
+    });
 
-    // Focus the new face's input after render
-    const newIndex = detectedFaces.length;
-    setCurrentFaceIndex(newIndex);
+    setCurrentFaceIndex(insertIndex);
+    emit('active-face-changed', { index: insertIndex });
 
     setTimeout(() => {
-      const input = inputRefs.current[newIndex];
-      if (input) {
-        input.focus();
-      }
+      inputRefs.current[insertIndex]?.focus();
     }, 100);
 
     setStatus('Manual face added - enter name');
-  }, [currentImagePath, detectedFaces.length]);
+  }, [currentImagePath, currentFaceIndex, detectedFaces.length, emit]);
 
   /**
    * Auto-save when all faces reviewed
@@ -396,39 +429,35 @@ export function ReviewModule() {
 
   /**
    * Keyboard handler
-   * Review shortcuts work when focus is in ReviewModule OR ImageViewer
-   * This allows seamless workflow: view image, confirm/ignore faces
-   * Shortcuts are blocked in other modules (LogViewer, etc.) to prevent accidents
+   * Shortcuts active when ReviewModule is visible (rendered in DOM)
+   * Blocked in input fields and modules that capture keyboard (Preferences, etc.)
    */
   useEffect(() => {
     const handleKeyboard = (e) => {
-      // Check if focus is in ReviewModule or ImageViewer
+      const reviewModuleVisible = document.querySelector('.review-module') !== null;
+      if (!reviewModuleVisible) {
+        return;
+      }
+
       const activeEl = document.activeElement;
-      const inReviewModule = moduleRef.current?.contains(activeEl);
-      const inImageViewer = activeEl?.closest('.image-viewer') !== null;
+      const isInput = e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA' || e.target.isContentEditable;
+      const inBlockingModule =
+        activeEl?.closest('.log-viewer') !== null ||
+        activeEl?.closest('.preferences-module') !== null ||
+        activeEl?.closest('.database-management') !== null ||
+        activeEl?.closest('.theme-editor') !== null;
 
-      // Only handle shortcuts when in ReviewModule or ImageViewer
-      if (!inReviewModule && !inImageViewer) {
+      if (inBlockingModule) {
         return;
       }
 
-      // Skip if in input (for letter keys only, not navigation)
-      const isInput = e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA';
-
-      // Navigation
-      if (e.key === 'Tab') {
-        e.preventDefault();
-        navigateToFace(e.shiftKey ? -1 : 1);
-        return;
-      }
-
-      if (e.key === 'ArrowDown') {
+      if (e.key === 'ArrowDown' && !isInput) {
         e.preventDefault();
         navigateToFace(1);
         return;
       }
 
-      if (e.key === 'ArrowUp') {
+      if (e.key === 'ArrowUp' && !isInput) {
         e.preventDefault();
         navigateToFace(-1);
         return;
@@ -457,13 +486,22 @@ export function ReviewModule() {
       // Enter to confirm (works both in input and outside)
       if (e.key === 'Enter') {
         e.preventDefault();
-        // If we're in an input, use that input's value directly
-        // Otherwise use the current face's input ref
+        const currentFace = detectedFaces[currentFaceIndex];
+        if (currentFace?.is_confirmed) return;
+
         const inputValue = isInput
           ? e.target.value?.trim()
           : inputRefs.current[currentFaceIndex]?.value?.trim();
+
         if (inputValue) {
           confirmFace(currentFaceIndex, inputValue);
+        } else if (currentFace?.match_alternatives?.length > 0) {
+          const firstAlt = currentFace.match_alternatives[0];
+          if (firstAlt.is_ignored || firstAlt.name === 'ign') {
+            ignoreFace(currentFaceIndex);
+          } else {
+            confirmFace(currentFaceIndex, firstAlt.name);
+          }
         }
         return;
       }
@@ -471,9 +509,19 @@ export function ReviewModule() {
       // A to confirm
       if ((e.key === 'a' || e.key === 'A') && !isInput) {
         e.preventDefault();
+        const currentFace = detectedFaces[currentFaceIndex];
+        if (currentFace?.is_confirmed) return;
+
         const input = inputRefs.current[currentFaceIndex];
         if (input?.value?.trim()) {
           confirmFace(currentFaceIndex, input.value);
+        } else if (currentFace?.match_alternatives?.length > 0) {
+          const firstAlt = currentFace.match_alternatives[0];
+          if (firstAlt.is_ignored || firstAlt.name === 'ign') {
+            ignoreFace(currentFaceIndex);
+          } else {
+            confirmFace(currentFaceIndex, firstAlt.name);
+          }
         }
         return;
       }
@@ -490,8 +538,8 @@ export function ReviewModule() {
         e.preventDefault();
         const input = inputRefs.current[currentFaceIndex];
         if (input && !detectedFaces[currentFaceIndex]?.is_confirmed) {
+          setClearInputTrigger(prev => prev + 1);
           input.focus();
-          input.value = '';
         }
         return;
       }
@@ -588,6 +636,7 @@ export function ReviewModule() {
               }}
               onConfirm={(name) => confirmFace(index, name)}
               onIgnore={() => ignoreFace(index)}
+              onUnconfirm={() => unconfirmFace(index)}
               maxAlternatives={preferences.get('reviewModule.maxAlternatives', 5)}
               onSelectAlternative={(name) => {
                 if (name === 'ign') {
@@ -596,6 +645,7 @@ export function ReviewModule() {
                   confirmFace(index, name);
                 }
               }}
+              clearInputTrigger={index === currentFaceIndex ? clearInputTrigger : 0}
             />
           ))
         )}
@@ -608,10 +658,35 @@ export function ReviewModule() {
 /**
  * FaceCard Component
  */
-function FaceCard({ face, index, isActive, imagePath, people, cardRef, inputRef, onSelect, onConfirm, onIgnore, maxAlternatives, onSelectAlternative }) {
-  const [inputValue, setInputValue] = useState(face.person_name || '');
+function FaceCard({ face, index, isActive, imagePath, people, cardRef, inputRef, onSelect, onConfirm, onIgnore, onUnconfirm, maxAlternatives, onSelectAlternative, clearInputTrigger }) {
+  const isProbableIgnoreCase = face.match_case === 'ign' || face.match_case === 'uncertain_ign';
+  const initialValue = isProbableIgnoreCase ? '' : (face.person_name || '');
+  const [inputValue, setInputValue] = useState(initialValue);
   const [imageError, setImageError] = useState(false);
+  const [showSuggestions, setShowSuggestions] = useState(false);
+  const [selectedSuggestion, setSelectedSuggestion] = useState(-1);
   const { api } = useBackend();
+
+  React.useEffect(() => {
+    const newValue = isProbableIgnoreCase ? '' : (face.person_name || '');
+    setInputValue(newValue);
+  }, [face.face_id, face.match_case, isProbableIgnoreCase, face.person_name]);
+
+  React.useEffect(() => {
+    if (clearInputTrigger > 0) {
+      setInputValue('');
+    }
+  }, [clearInputTrigger]);
+
+  const filteredPeople = React.useMemo(() => {
+    if (!inputValue?.trim()) return [];
+    const typed = inputValue.toLowerCase();
+    const startsWithMatch = people.filter(p => p.toLowerCase().startsWith(typed));
+    const containsMatch = people.filter(p =>
+      !p.toLowerCase().startsWith(typed) && p.toLowerCase().includes(typed)
+    );
+    return [...startsWithMatch, ...containsMatch].slice(0, 8);
+  }, [inputValue, people]);
 
   // Build thumbnail URL (only for faces with bounding boxes)
   const bbox = face.bounding_box;
@@ -633,8 +708,15 @@ function FaceCard({ face, index, isActive, imagePath, people, cardRef, inputRef,
     isActive ? 'active' : ''
   ].filter(Boolean).join(' ');
 
+  const handleDoubleClick = (e) => {
+    if (face.is_confirmed && onUnconfirm) {
+      e.stopPropagation();
+      onUnconfirm();
+    }
+  };
+
   return (
-    <div ref={cardRef} className={cardClass} onClick={onSelect}>
+    <div ref={cardRef} className={cardClass} onClick={onSelect} onDoubleClick={handleDoubleClick}>
       <div className="face-number">{index + 1}</div>
 
       <div className="face-thumbnail">
@@ -659,12 +741,12 @@ function FaceCard({ face, index, isActive, imagePath, people, cardRef, inputRef,
         )}
         {face.match_case === 'uncertain_ign' && !face.is_confirmed && (
           <div className="match-case uncertain">
-            ign ({face.ignore_confidence}%) / {face.person_name || face.match_alternatives?.find(a => !a.is_ignored)?.name || 'Unknown'}
+            ign ({face.ignore_confidence}%) / {face.person_name || face.match_alternatives?.[0]?.name || 'Unknown'}
           </div>
         )}
         {face.match_case === 'uncertain_name' && !face.is_confirmed && (
           <div className="match-case uncertain">
-            {face.person_name || face.match_alternatives?.find(a => !a.is_ignored)?.name || 'Unknown'} / ign ({face.ignore_confidence}%)
+            {face.person_name || face.match_alternatives?.[0]?.name || 'Unknown'} / ign ({face.ignore_confidence}%)
           </div>
         )}
       </div>
@@ -691,25 +773,80 @@ function FaceCard({ face, index, isActive, imagePath, people, cardRef, inputRef,
 
       <div className="face-actions">
         {!face.is_confirmed ? (
-          <input
-            ref={inputRef}
-            type="text"
-            placeholder="Person name..."
-            value={inputValue}
-            onChange={(e) => setInputValue(e.target.value)}
-            onKeyDown={(e) => {
-              // Let document handler manage Enter for consistency
-              // Just stop propagation for other keys we don't want bubbling
-              if (e.key === 'Escape') {
-                e.target.blur();
-                e.stopPropagation();
-              }
-            }}
-            list="people-names-datalist"
-            onClick={(e) => e.stopPropagation()}
-          />
+          <div className="autocomplete-wrapper">
+            <input
+              ref={inputRef}
+              type="text"
+              className={people.includes(inputValue) ? 'name-match' : ''}
+              placeholder="Person name..."
+              value={inputValue}
+              onChange={(e) => {
+                setInputValue(e.target.value);
+                setSelectedSuggestion(-1);
+                setShowSuggestions(true);
+              }}
+              onFocus={() => setShowSuggestions(true)}
+              onBlur={() => setTimeout(() => setShowSuggestions(false), 150)}
+              onKeyDown={(e) => {
+                if (e.key === 'Escape') {
+                  setShowSuggestions(false);
+                  e.target.blur();
+                  e.stopPropagation();
+                  return;
+                }
+                if (e.key === 'ArrowDown' && showSuggestions && filteredPeople.length > 0) {
+                  e.preventDefault();
+                  setSelectedSuggestion(prev => Math.min(prev + 1, filteredPeople.length - 1));
+                  return;
+                }
+                if (e.key === 'ArrowUp' && showSuggestions && filteredPeople.length > 0) {
+                  e.preventDefault();
+                  setSelectedSuggestion(prev => Math.max(prev - 1, -1));
+                  return;
+                }
+                if (e.key === 'Enter' && selectedSuggestion >= 0 && filteredPeople[selectedSuggestion]) {
+                  e.preventDefault();
+                  setInputValue(filteredPeople[selectedSuggestion]);
+                  setShowSuggestions(false);
+                  setSelectedSuggestion(-1);
+                  return;
+                }
+                if (e.key === 'Tab' && filteredPeople.length > 0) {
+                  e.preventDefault();
+                  const nameToUse = selectedSuggestion >= 0
+                    ? filteredPeople[selectedSuggestion]
+                    : filteredPeople[0];
+                  setInputValue(nameToUse);
+                  setShowSuggestions(false);
+                  setSelectedSuggestion(-1);
+                  return;
+                }
+              }}
+              onClick={(e) => e.stopPropagation()}
+            />
+            {showSuggestions && filteredPeople.length > 0 && (
+              <div className="autocomplete-dropdown">
+                {filteredPeople.map((name, idx) => (
+                  <div
+                    key={name}
+                    className={`autocomplete-item ${idx === selectedSuggestion ? 'selected' : ''}`}
+                    onMouseDown={(e) => {
+                      e.preventDefault();
+                      setInputValue(name);
+                      setShowSuggestions(false);
+                    }}
+                  >
+                    {name}
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
         ) : (
-          <div className={`status-text ${face.is_rejected ? 'rejected' : 'confirmed'}`}>
+          <div
+            className={`status-text ${face.is_rejected ? 'rejected' : 'confirmed'}`}
+            title="Double-click to undo"
+          >
             {face.is_rejected ? (
               <><Icon name="block" size={12} /> Ignored</>
             ) : (
@@ -718,13 +855,6 @@ function FaceCard({ face, index, isActive, imagePath, people, cardRef, inputRef,
           </div>
         )}
       </div>
-
-      {/* Datalist for autocomplete */}
-      <datalist id="people-names-datalist">
-        {people.map(name => (
-          <option key={name} value={name} />
-        ))}
-      </datalist>
     </div>
   );
 }

@@ -9,11 +9,12 @@
  * - Fix mode for re-reviewing processed files
  */
 
-import React, { useState, useEffect, useCallback, useRef } from 'react';
+import React, { useState, useEffect, useCallback, useRef, useMemo } from 'react';
 import { useModuleEvent, useEmitEvent } from '../hooks/useModuleEvent.js';
 import { useBackend } from '../context/BackendContext.jsx';
 import { useToast } from '../context/ToastContext.jsx';
 import { debug, debugWarn, debugError } from '../shared/debug.js';
+import { apiClient } from '../shared/api-client.js';
 import { getPreprocessingManager, PreprocessingStatus } from '../services/preprocessing/index.js';
 import { Icon } from './Icon.jsx';
 import './FileQueueModule.css';
@@ -60,6 +61,46 @@ const getRenameConfig = () => {
   return null;
 };
 
+// Get preprocessing notification preference
+const getNotificationPreference = (key) => {
+  try {
+    const stored = localStorage.getItem('bildvisare-preferences');
+    if (stored) {
+      const prefs = JSON.parse(stored);
+      const notifications = prefs.preprocessing?.notifications || {};
+      if (key === 'showStatusIndicator') return notifications.showStatusIndicator ?? true;
+      if (key === 'showToastOnPause') return notifications.showToastOnPause ?? true;
+      if (key === 'showToastOnResume') return notifications.showToastOnResume ?? false;
+    }
+  } catch (e) {
+    // Ignore parse errors
+  }
+  if (key === 'showStatusIndicator') return true;
+  if (key === 'showToastOnPause') return true;
+  if (key === 'showToastOnResume') return false;
+  return false;
+};
+
+// Get preprocessing config including rolling window settings
+const getPreprocessingConfig = () => {
+  try {
+    const stored = localStorage.getItem('bildvisare-preferences');
+    if (stored) {
+      const prefs = JSON.parse(stored);
+      const preprocessing = prefs.preprocessing || {};
+      return {
+        enabled: preprocessing.enabled ?? true,
+        maxWorkers: preprocessing.parallelWorkers ?? 2,
+        steps: preprocessing.steps || {},
+        rollingWindow: preprocessing.rollingWindow || {}
+      };
+    }
+  } catch (e) {
+    // Ignore parse errors
+  }
+  return {};
+};
+
 // Get rename confirmation preference
 const getRequireRenameConfirmation = () => {
   try {
@@ -96,6 +137,23 @@ const getToastDurationMultiplier = () => {
   return 1.0;
 };
 
+// Get insert mode preference: 'bottom' or 'alphabetical'
+const getInsertModePreference = () => {
+  try {
+    const stored = localStorage.getItem('bildvisare-preferences');
+    if (stored) {
+      const prefs = JSON.parse(stored);
+      return prefs.fileQueue?.insertMode ?? 'alphabetical';
+    }
+  } catch (e) {}
+  return 'alphabetical';
+};
+
+// Natural sort comparator for filenames (handles numbers correctly)
+const naturalSortCompare = (a, b) => {
+  return a.fileName.localeCompare(b.fileName, undefined, { numeric: true, sensitivity: 'base' });
+};
+
 // Generate simple unique ID
 const generateId = () => Math.random().toString(36).substring(2, 9);
 
@@ -115,6 +173,7 @@ export function FileQueueModule() {
   const [processedFiles, setProcessedFiles] = useState(new Set()); // Set of filenames
   const [processedHashes, setProcessedHashes] = useState(new Set()); // Set of file hashes
   const [preprocessingStatus, setPreprocessingStatus] = useState({}); // filePath -> status
+  const [preprocessingPaused, setPreprocessingPaused] = useState(false);
   const [selectedFiles, setSelectedFiles] = useState(new Set()); // Selected file IDs
 
   // Rename state
@@ -140,7 +199,8 @@ export function FileQueueModule() {
   // Get preprocessing manager (singleton)
   const preprocessingManager = useRef(null);
   if (!preprocessingManager.current) {
-    preprocessingManager.current = getPreprocessingManager();
+    const config = getPreprocessingConfig();
+    preprocessingManager.current = getPreprocessingManager(config);
   }
 
   // Refs
@@ -181,6 +241,17 @@ export function FileQueueModule() {
     }
   }, [api, showToast]);
 
+  const emitQueueStatus = useCallback((currentIdx = currentIndex) => {
+    const q = queueRef.current;
+    const done = q.filter(item => item.status === 'completed').length;
+    emit('queue-status', {
+      total: q.length,
+      current: currentIdx,
+      done: done,
+      remaining: q.length - done - 1
+    });
+  }, [emit, currentIndex]);
+
   useEffect(() => {
     loadProcessedFiles();
   }, [loadProcessedFiles]);
@@ -198,10 +269,15 @@ export function FileQueueModule() {
     };
 
     const handleCompleted = ({ filePath, hash, faceCount }) => {
-      setPreprocessingStatus(prev => ({
-        ...prev,
-        [filePath]: { status: PreprocessingStatus.COMPLETED, faceCount, hash }
-      }));
+      setPreprocessingStatus(prev => {
+        const existing = prev[filePath];
+        // Preserve existing faceCount if it's valid (faces-detected may have set it)
+        const actualFaceCount = (existing?.faceCount > 0) ? existing.faceCount : faceCount;
+        return {
+          ...prev,
+          [filePath]: { status: PreprocessingStatus.COMPLETED, faceCount: actualFaceCount, hash }
+        };
+      });
 
       // Check if file hash matches a processed file (handles renamed files)
       if (hash && processedHashes.has(hash)) {
@@ -233,13 +309,16 @@ export function FileQueueModule() {
         [filePath]: { status: PreprocessingStatus.FILE_NOT_FOUND }
       }));
 
+      const hash = preprocessingManager.current?.removeFile(filePath);
+      if (hash) {
+        apiClient.batchDeleteCache([hash]).catch(() => {});
+      }
+
       const autoRemove = getAutoRemoveMissingPreference();
 
       if (autoRemove) {
-        // Batch removal - collect missing files and remove after a short delay
         missingFilesRef.current.push(filePath);
 
-        // Clear existing timeout and set a new one
         if (missingFilesTimeoutRef.current) {
           clearTimeout(missingFilesTimeoutRef.current);
         }
@@ -249,13 +328,12 @@ export function FileQueueModule() {
           if (count > 0) {
             const pathsToRemove = new Set(missingFilesRef.current);
             setQueue(prev => prev.filter(item => !pathsToRemove.has(item.filePath)));
-            showToast(`Removed ${count} missing file${count > 1 ? 's' : ''} from queue`, 'warning', 3000);
+            showToast(`Removed ${count} missing file${count > 1 ? 's' : ''} from queue`, 'info', 3000);
             debug('FileQueue', `Auto-removed ${count} missing files`);
             missingFilesRef.current = [];
           }
-        }, 500); // Wait 500ms to batch multiple removals
+        }, 500);
       } else {
-        // Mark file as missing in queue (keep in list)
         setQueue(prev => prev.map(item =>
           item.filePath === filePath
             ? { ...item, status: 'missing', error: 'File not found' }
@@ -265,18 +343,106 @@ export function FileQueueModule() {
       debug('FileQueue', 'File not found:', filePath);
     };
 
+    const handlePaused = ({ readyCount, queueLength }) => {
+      debug('FileQueue', `Preprocessing paused: ${readyCount} ready, ${queueLength} in queue`);
+      setPreprocessingPaused(true);
+      const showPauseToast = getNotificationPreference('showToastOnPause');
+      if (showPauseToast) {
+        showToast(`Preprocessing paused (${readyCount} files ready)`, 'info', 3000);
+      }
+    };
+
+    const handleResumed = () => {
+      debug('FileQueue', 'Preprocessing resumed');
+      setPreprocessingPaused(false);
+      const showResumeToast = getNotificationPreference('showToastOnResume');
+      if (showResumeToast) {
+        showToast('Preprocessing resumed', 'info', 2000);
+      }
+    };
+
+    const handleCacheCleared = async ({ count, hashes }) => {
+      debug('FileQueue', `Cleared ${count} items from preprocessing cache`);
+      if (hashes && hashes.length > 0) {
+        try {
+          await apiClient.batchDeleteCache(hashes);
+          debug('FileQueue', `Cleared ${hashes.length} items from backend cache`);
+        } catch (err) {
+          debugWarn('FileQueue', 'Failed to clear backend cache:', err.message);
+        }
+      }
+    };
+
     manager.on('status-change', handleStatusChange);
     manager.on('completed', handleCompleted);
     manager.on('error', handleError);
     manager.on('file-not-found', handleFileNotFound);
+    manager.on('paused', handlePaused);
+    manager.on('resumed', handleResumed);
+    manager.on('cache-cleared', handleCacheCleared);
 
     return () => {
       manager.off('status-change', handleStatusChange);
       manager.off('completed', handleCompleted);
       manager.off('error', handleError);
       manager.off('file-not-found', handleFileNotFound);
+      manager.off('paused', handlePaused);
+      manager.off('resumed', handleResumed);
+      manager.off('cache-cleared', handleCacheCleared);
     };
   }, [showToast, processedHashes]);
+
+  // Handle file-deleted events from file watcher
+  // Use refs to avoid re-subscribing on every preprocessingStatus change
+  const preprocessingStatusRef = useRef(preprocessingStatus);
+  preprocessingStatusRef.current = preprocessingStatus;
+
+  useEffect(() => {
+    const handleFileDeleted = (filePath) => {
+      debug('FileQueue', 'File deleted from disk:', filePath);
+
+      const ppStatus = preprocessingStatusRef.current[filePath];
+      const removedHash = preprocessingManager.current?.removeFile(filePath);
+      const hash = removedHash || ppStatus?.hash;
+
+      if (hash) {
+        apiClient.batchDeleteCache([hash]).catch(err => {
+          debugWarn('FileQueue', 'Failed to clear backend cache:', err.message);
+        });
+      }
+
+      setPreprocessingStatus(prev => {
+        const updated = { ...prev };
+        delete updated[filePath];
+        return updated;
+      });
+
+      const fileName = filePath.split('/').pop();
+      setQueue(prev => prev.filter(item => item.filePath !== filePath));
+      showToast(`Removed deleted file: ${fileName}`, 'info', 3000);
+    };
+
+    const unsubscribe = window.bildvisareAPI?.onFileDeleted(handleFileDeleted);
+    return () => unsubscribe?.();
+  }, [showToast]);
+
+  useEffect(() => {
+    const handleWatcherError = (dir, affectedFiles) => {
+      const currentQueue = queueRef.current;
+      const queuePaths = new Set(currentQueue.map(item => item.filePath));
+      const stillInQueue = affectedFiles.filter(fp => queuePaths.has(fp));
+
+      if (stillInQueue.length > 0) {
+        debugWarn('FileQueue', `Watcher error for ${dir}, re-registering ${stillInQueue.length}/${affectedFiles.length} files`);
+        for (const filePath of stillInQueue) {
+          window.bildvisareAPI?.watchFile(filePath);
+        }
+      }
+    };
+
+    const unsubscribe = window.bildvisareAPI?.onWatcherError(handleWatcherError);
+    return () => unsubscribe?.();
+  }, []);
 
   // Load queue from localStorage on mount
   useEffect(() => {
@@ -285,22 +451,23 @@ export function FileQueueModule() {
       if (saved) {
         const parsed = JSON.parse(saved);
         if (Array.isArray(parsed.queue) && parsed.queue.length > 0) {
-          setQueue(parsed.queue);
-          // Don't restore currentIndex - we'll auto-load in a separate effect
+          // Reset 'active' status to 'pending' since no file is loaded yet
+          // This prevents mismatch between status and currentIndex at startup
+          const restoredQueue = parsed.queue.map(item => ({
+            ...item,
+            status: item.status === 'active' ? 'pending' : item.status
+          }));
+          setQueue(restoredQueue);
           setAutoAdvance(parsed.autoAdvance ?? true);
           setFixMode(parsed.fixMode ?? false);
           setShowPreviewNames(parsed.showPreviewNames ?? false);
-          // Save the index we want to resume from
           savedIndexRef.current = parsed.currentIndex ?? -1;
           setShouldAutoLoad(true);
-          debug('FileQueue', 'Restored queue with', parsed.queue.length, 'files, will auto-load');
-          // Debug: Log items with reviewedFaces
-          const withReviewed = parsed.queue.filter(q => q.reviewedFaces?.length > 0);
+          debug('FileQueue', 'Restored queue with', restoredQueue.length, 'files, will auto-load');
+          const withReviewed = restoredQueue.filter(q => q.reviewedFaces?.length > 0);
           if (withReviewed.length > 0) {
             debug('FileQueue', `Found ${withReviewed.length} items with reviewedFaces:`,
               withReviewed.map(q => `${q.fileName}: ${q.reviewedFaces.length} faces`));
-          } else {
-            debug('FileQueue', 'No items have reviewedFaces data');
           }
         }
       }
@@ -384,6 +551,59 @@ export function FileQueueModule() {
       debugError('FileQueue', 'Failed to save queue:', err);
     }
   }, [queue, currentIndex, autoAdvance, fixMode, showPreviewNames]);
+
+  // Watch queued files for deletion
+  const watchedFilesRef = useRef(new Set());
+  useEffect(() => {
+    const currentPaths = new Set(queue.map(item => item.filePath));
+    const watched = watchedFilesRef.current;
+
+    currentPaths.forEach(filePath => {
+      if (!watched.has(filePath)) {
+        window.bildvisareAPI?.watchFile(filePath);
+        watched.add(filePath);
+      }
+    });
+
+    watched.forEach(filePath => {
+      if (!currentPaths.has(filePath)) {
+        window.bildvisareAPI?.unwatchFile(filePath);
+        watched.delete(filePath);
+      }
+    });
+
+  }, [queue]);
+
+  // Cleanup all file watchers only on unmount
+  useEffect(() => {
+    return () => {
+      window.bildvisareAPI?.unwatchAllFiles();
+      watchedFilesRef.current.clear();
+    };
+  }, []);
+
+  // Update backend cache priority (queue files evicted last)
+  const priorityHashesTimerRef = useRef(null);
+  useEffect(() => {
+    if (priorityHashesTimerRef.current) {
+      clearTimeout(priorityHashesTimerRef.current);
+    }
+
+    priorityHashesTimerRef.current = setTimeout(() => {
+      const queueHashes = queue
+        .map(item => preprocessingStatus[item.filePath]?.hash)
+        .filter(Boolean);
+
+      // Always send, even empty list to clear old priorities
+      apiClient.setPriorityCacheHashes(queueHashes).catch(() => {});
+    }, 500);
+
+    return () => {
+      if (priorityHashesTimerRef.current) {
+        clearTimeout(priorityHashesTimerRef.current);
+      }
+    };
+  }, [queue, preprocessingStatus]);
 
   // Track preprocessing completion for toast notification
   const prevPreprocessingCountRef = useRef({ pending: 0, total: 0 });
@@ -490,9 +710,11 @@ export function FileQueueModule() {
   }, [processedFiles]);
 
   // Add files to queue
-  // position: 'end' (default) or 'start'
-  const addFiles = useCallback((filePaths, position = 'end') => {
+  // position: 'end' | 'start' | 'sorted' | 'default' (uses preference)
+  const addFiles = useCallback((filePaths, position = 'default') => {
     if (!filePaths || filePaths.length === 0) return;
+
+    const effectivePosition = position === 'default' ? getInsertModePreference() : position;
 
     const newItems = filePaths.map(filePath => {
       const fileName = filePath.split('/').pop();
@@ -508,25 +730,25 @@ export function FileQueueModule() {
 
     let addedCount = 0;
     setQueue(prev => {
-      // Dedupe by filePath
       const existingPaths = new Set(prev.map(item => item.filePath));
       const uniqueNew = newItems.filter(item => !existingPaths.has(item.filePath));
       addedCount = uniqueNew.length;
 
-      // Start preprocessing for new files
       if (preprocessingManager.current) {
         uniqueNew.forEach(item => {
           preprocessingManager.current.addToQueue(item.filePath);
         });
       }
 
-      if (position === 'start') {
+      if (effectivePosition === 'start') {
         return [...uniqueNew, ...prev];
+      } else if (effectivePosition === 'sorted' || effectivePosition === 'alphabetical') {
+        const combined = [...prev, ...uniqueNew];
+        return combined.sort(naturalSortCompare);
       }
       return [...prev, ...uniqueNew];
     });
 
-    // Show toast for added files
     if (newItems.length > 0) {
       const dupeCount = newItems.length - addedCount;
       if (addedCount > 0) {
@@ -536,7 +758,6 @@ export function FileQueueModule() {
         }
         showToast(msg, 'info', 3000);
       } else if (dupeCount > 0) {
-        // All files were duplicates
         const msg = dupeCount === 1
           ? 'File already in queue'
           : `All ${dupeCount} files already in queue`;
@@ -544,8 +765,14 @@ export function FileQueueModule() {
       }
     }
 
-    debug('FileQueue', 'Added', newItems.length, 'files at', position);
+    debug('FileQueue', 'Added', newItems.length, 'files, mode:', effectivePosition);
   }, [isFileProcessed, showToast]);
+
+  // Sort existing queue alphabetically
+  const sortQueue = useCallback(() => {
+    setQueue(prev => [...prev].sort(naturalSortCompare));
+    showToast('Queue sorted alphabetically', 'info', 2000);
+  }, [showToast]);
 
   // Remove file from queue
   const removeFile = useCallback((id) => {
@@ -553,7 +780,7 @@ export function FileQueueModule() {
     const fileToRemove = queue.find(item => item.id === id);
     if (fileToRemove) {
       if (preprocessingManager.current) {
-        preprocessingManager.current.removeFromQueue(fileToRemove.filePath);
+        preprocessingManager.current.removeFile(fileToRemove.filePath);
       }
       // Clear viewer if this was the active file
       if (fileToRemove.filePath === currentFileRef.current) {
@@ -713,10 +940,10 @@ export function FileQueueModule() {
     setCurrentIndex(index);
     currentFileRef.current = item.filePath;
 
-    // Emit load-image event
     debug('FileQueue', 'Emitting load-image for:', item.filePath);
     emit('load-image', { imagePath: item.filePath });
-  }, [fixMode, api, loadProcessedFiles, emit, showToast]);
+    emitQueueStatus(index);
+  }, [fixMode, api, loadProcessedFiles, emit, showToast, emitQueueStatus]);
 
   // Handle file item click with modifier key support
   // Single click = select, Double click = load
@@ -779,14 +1006,15 @@ export function FileQueueModule() {
     }
   }, [pendingAutoLoad, loadFile]);
 
-  // Advance to next file
+  // Advance to first pending file in queue (not just "next" sequentially)
   const advanceToNext = useCallback(() => {
     const currentQueue = queueRef.current;
     const currentFixMode = fixModeRef.current;
+
+    // Find first pending file (any position, not just after currentIndex)
     const nextIndex = currentQueue.findIndex((item, i) => {
-      if (i <= currentIndex) return false;
+      if (i === currentIndex) return false;
       if (item.status === 'completed') return false;
-      // Skip already-processed files when fix-mode is OFF
       if (!currentFixMode && item.isAlreadyProcessed) return false;
       return true;
     });
@@ -969,6 +1197,10 @@ export function FileQueueModule() {
   useModuleEvent('review-complete', useCallback(({ imagePath, success, reviewedFaces }) => {
     debug('FileQueue', 'Review complete:', imagePath, success, 'faces:', reviewedFaces?.length);
 
+    if (success && preprocessingManager.current) {
+      preprocessingManager.current.markDone(imagePath);
+    }
+
     // Mark current file as completed
     if (currentFileRef.current === imagePath) {
       // Use refs for current state (avoids stale closure)
@@ -978,11 +1210,9 @@ export function FileQueueModule() {
       const fileName = imagePath.split('/').pop();
       const faceCount = reviewedFaces?.length || 0;
 
-      const nextIdx = currentQueue.findIndex((item, i) => {
-        if (i <= currentIdx) return false;
+      const nextIdx = currentQueue.findIndex((item) => {
         if (item.status === 'completed') return false;
         if (item.filePath === imagePath) return false;
-        // Skip already-processed files when fix-mode is OFF
         if (!currentFixMode && item.isAlreadyProcessed) return false;
         return true;
       });
@@ -999,6 +1229,15 @@ export function FileQueueModule() {
         }
         return item;
       }));
+
+      const prevDone = currentQueue.filter(q => q.status === 'completed').length;
+      const newDone = success ? prevDone + 1 : prevDone;
+      emit('queue-status', {
+        total: currentQueue.length,
+        current: nextIdx >= 0 ? nextIdx : currentIdx,
+        done: newDone,
+        remaining: currentQueue.length - newDone - 1
+      });
 
       // Show toast for review result
       if (success) {
@@ -1029,7 +1268,7 @@ export function FileQueueModule() {
         showToast('🎉 Queue complete - all files reviewed!', 'success', 4000);
       }
     }
-  }, [autoAdvance, loadFile, loadProcessedFiles, showToast]));
+  }, [autoAdvance, loadFile, loadProcessedFiles, showToast, emit]));
 
   // Listen for faces-detected event to update face count for the detected file
   // This updates the face count when detection completes (not just from preprocessing)
@@ -1100,14 +1339,13 @@ export function FileQueueModule() {
   useEffect(() => {
     const handleQueueFiles = ({ files, position, startQueue }) => {
       debug('FileQueue', `Received ${files.length} files from main process (position: ${position})`);
-      addFiles(files, position || 'end');
+      addFiles(files, position || 'default');
       if (startQueue && files.length > 0) {
         setTimeout(() => loadFile(0), 100);
       }
     };
 
     window.bildvisareAPI?.on('queue-files', handleQueueFiles);
-    // Note: No cleanup needed as Electron IPC listeners persist
   }, [addFiles, loadFile]);
 
   // Expose fileQueue API globally for programmatic access
@@ -1130,9 +1368,11 @@ export function FileQueueModule() {
     };
 
     window.fileQueue = {
-      add: (pattern, position = 'end') => expandAndAdd(pattern, position),
+      add: (pattern, position = 'default') => expandAndAdd(pattern, position),
       addToStart: (pattern) => expandAndAdd(pattern, 'start'),
       addToEnd: (pattern) => expandAndAdd(pattern, 'end'),
+      addSorted: (pattern) => expandAndAdd(pattern, 'sorted'),
+      sort: sortQueue,
       clear: clearQueue,
       clearCompleted: clearCompleted,
       loadFile: loadFile,
@@ -1141,7 +1381,7 @@ export function FileQueueModule() {
       getCurrentIndex: () => currentIndex
     };
     return () => { delete window.fileQueue; };
-  }, [addFiles, clearQueue, clearCompleted, loadFile, currentIndex]);
+  }, [addFiles, sortQueue, clearQueue, clearCompleted, loadFile, currentIndex]);
 
   // Scroll active item into view
   useEffect(() => {
@@ -1211,6 +1451,12 @@ export function FileQueueModule() {
 
   const hasSelection = selectedFiles.size > 0;
 
+  const displayOrder = useMemo(() => {
+    return queue.map((item, i) => ({ item, originalIndex: i }));
+  }, [queue]);
+
+  const activeFile = currentIndex >= 0 ? queue[currentIndex] : null;
+
   return (
     <div ref={moduleRef} className={`module-container file-queue-module ${hasSelection ? 'has-selection' : ''}`} tabIndex={0}>
       {/* Header */}
@@ -1230,6 +1476,14 @@ export function FileQueueModule() {
             title="Add folder"
           >
             <Icon name="folder-plus" size={14} />
+          </button>
+          <button
+            className="btn-icon"
+            onClick={sortQueue}
+            title="Sort queue alphabetically"
+            disabled={queue.length < 2}
+          >
+            <Icon name="sort" size={14} />
           </button>
           <button
             className="btn-icon"
@@ -1292,6 +1546,18 @@ export function FileQueueModule() {
         )}
       </div>
 
+      {/* Current file status bar */}
+      {activeFile && (
+        <div className="current-file-bar" onClick={() => {
+          const activeEl = listRef.current?.querySelector('.file-item.active');
+          activeEl?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+        }}>
+          <Icon name="play" size={12} />
+          <span className="current-file-name">{activeFile.fileName}</span>
+          <span className="current-file-hint">click to scroll</span>
+        </div>
+      )}
+
       {/* File list */}
       <div ref={listRef} className="module-body file-queue-list">
         {queue.length === 0 ? (
@@ -1300,15 +1566,15 @@ export function FileQueueModule() {
             <p className="hint">Click + to add files</p>
           </div>
         ) : (
-          queue.map((item, index) => (
+          displayOrder.map(({ item, originalIndex }) => (
             <FileQueueItem
               key={item.id}
               item={item}
-              index={index}
-              isActive={index === currentIndex}
+              index={originalIndex}
+              isActive={originalIndex === currentIndex}
               isSelected={selectedFiles.has(item.id)}
-              onClick={(e) => handleItemClick(index, e)}
-              onDoubleClick={() => handleItemDoubleClick(index)}
+              onClick={(e) => handleItemClick(originalIndex, e)}
+              onDoubleClick={() => handleItemDoubleClick(originalIndex)}
               onToggleSelect={() => toggleFileSelection(item.id)}
               onRemove={() => removeFile(item.id)}
               fixMode={fixMode}
@@ -1334,6 +1600,28 @@ export function FileQueueModule() {
               />
             </div>
           </div>
+          {getNotificationPreference('showStatusIndicator') && (
+            <div className="preprocessing-status">
+              {preprocessingPaused ? (
+                <span className="status-paused" title="Preprocessing paused - buffer full">
+                  <Icon name="layers" size={12} /> Buffered
+                </span>
+              ) : queue.some(q => {
+                const status = preprocessingStatus[q.filePath];
+                return status && status.status !== PreprocessingStatus.COMPLETED &&
+                       status.status !== PreprocessingStatus.ERROR &&
+                       status.status !== PreprocessingStatus.FILE_NOT_FOUND;
+              }) ? (
+                <span className="status-active" title="Preprocessing in progress">
+                  <Icon name="refresh" size={12} className="spinning" /> Processing
+                </span>
+              ) : (
+                <span className="status-ready" title="All files preprocessed">
+                  <Icon name="check" size={12} /> Ready
+                </span>
+              )}
+            </div>
+          )}
           <div className="file-queue-controls">
             {completedCount > 0 && (
               <button
@@ -1380,19 +1668,29 @@ function FileQueueItem({ item, index, isActive, isSelected, onClick, onDoubleCli
   const [showTooltip, setShowTooltip] = useState(false);
   const [tooltipPos, setTooltipPos] = useState({ x: 0, y: 0 });
   const itemRef = useRef(null);
+  const tooltipTimerRef = useRef(null);
 
-  // Handle mouse enter/leave for tooltip
   const handleMouseEnter = (e) => {
     if (itemRef.current) {
       const rect = itemRef.current.getBoundingClientRect();
       setTooltipPos({ x: rect.left, y: rect.bottom + 4 });
     }
-    setShowTooltip(true);
+    tooltipTimerRef.current = setTimeout(() => setShowTooltip(true), 400);
   };
 
   const handleMouseLeave = () => {
+    if (tooltipTimerRef.current) {
+      clearTimeout(tooltipTimerRef.current);
+      tooltipTimerRef.current = null;
+    }
     setShowTooltip(false);
   };
+
+  useEffect(() => {
+    return () => {
+      if (tooltipTimerRef.current) clearTimeout(tooltipTimerRef.current);
+    };
+  }, []);
   const getStatusIcon = () => {
     switch (item.status) {
       case 'completed':
@@ -1477,19 +1775,15 @@ function FileQueueItem({ item, index, isActive, isSelected, onClick, onDoubleCli
   const nameWouldChange = newName && newName !== item.fileName;
   const shouldShowPreview = showPreview && (item.status === 'completed' || item.isAlreadyProcessed) && previewInfo;
 
-  // Face count for icon: prefer preprocessing count, fall back to reviewedFaces length for completed files
-  // This ensures completed files show their face count even if preprocessing status was cleared
-  const detectedFaceCount = ppFaceCount ?? item.reviewedFaces?.length ?? null;
+  // Face count priority: reviewedFaces (from review-complete) > ppFaceCount (from preprocessing)
+  // Using || instead of ?? because ppFaceCount=0 might be stale (race with faces-detected)
+  const reviewedCount = item.reviewedFaces?.length;
+  const detectedFaceCount = reviewedCount > 0 ? reviewedCount : (ppFaceCount || null);
   const hasDetectedFaces = detectedFaceCount !== null;
 
   // Confirmed names for hover: from previewInfo (rename) or reviewedFaces (this session)
   const confirmedNames = previewInfo?.persons || item.reviewedFaces?.map(f => f.personName).filter(Boolean) || [];
   const confirmedCount = confirmedNames.length;
-
-  // Debug: trace face info source
-  if (item.status === 'completed' || item.reviewedFaces || hasDetectedFaces) {
-    debug('FileQueue', `[${item.fileName}] detected=${detectedFaceCount}, confirmed=${confirmedCount}, names=${confirmedNames.join(',')}`);
-  }
 
   return (
     <div
@@ -1561,8 +1855,8 @@ function FileQueueItem({ item, index, isActive, isSelected, onClick, onDoubleCli
             <span className="tooltip-value">{item.fileName}</span>
           </div>
           <div className="tooltip-row">
-            <span className="tooltip-label">Path:</span>
-            <span className="tooltip-value tooltip-path">{item.filePath}</span>
+            <span className="tooltip-label">Folder:</span>
+            <span className="tooltip-value tooltip-path">{item.filePath.replace(/\\/g, '/').replace(/\/[^/]*$/, '')}</span>
           </div>
           {hasDetectedFaces && (
             <div className="tooltip-row">

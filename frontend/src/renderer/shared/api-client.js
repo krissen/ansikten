@@ -320,6 +320,24 @@ export class APIClient {
   }
 
   /**
+   * Delete multiple cache entries by hash
+   * @param {string[]} fileHashes - Array of file hashes to delete
+   * @returns {Promise<object>}
+   */
+  async batchDeleteCache(fileHashes) {
+    return await this.post('/api/preprocessing/cache/batch-delete', { file_hashes: fileHashes });
+  }
+
+  /**
+   * Set priority hashes for cache eviction (files in queue evicted last)
+   * @param {string[]} fileHashes - Array of file hashes to prioritize
+   * @returns {Promise<object>}
+   */
+  async setPriorityCacheHashes(fileHashes) {
+    return await this.post('/api/preprocessing/cache/priority', { file_hashes: fileHashes });
+  }
+
+  /**
    * Compute file hash
    * @param {string} filePath - Path to file
    * @returns {Promise<object>}

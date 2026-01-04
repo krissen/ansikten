@@ -124,6 +124,43 @@ async def remove_cache_entry(file_hash: str):
     return {"status": "ok", "file_hash": file_hash}
 
 
+class BatchDeleteRequest(BaseModel):
+    file_hashes: List[str]
+
+
+class PriorityHashesRequest(BaseModel):
+    file_hashes: List[str]
+
+
+@router.post("/cache/priority")
+async def set_priority_hashes(request: PriorityHashesRequest):
+    """Set file hashes that should be evicted last during LRU cleanup."""
+    cache = get_cache()
+    cache.set_priority_hashes(request.file_hashes)
+    return {"status": "ok", "count": len(request.file_hashes)}
+
+
+@router.post("/cache/batch-delete")
+async def batch_delete_cache_entries(request: BatchDeleteRequest):
+    """Remove multiple cache entries at once (for rolling window cleanup)."""
+    cache = get_cache()
+    removed = []
+    not_found = []
+
+    for file_hash in request.file_hashes:
+        if cache.remove_entry(file_hash):
+            removed.append(file_hash)
+        else:
+            not_found.append(file_hash)
+
+    return {
+        "status": "ok",
+        "removed": removed,
+        "removed_count": len(removed),
+        "not_found": not_found
+    }
+
+
 # ============================================================================
 # Hash Computation
 # ============================================================================
