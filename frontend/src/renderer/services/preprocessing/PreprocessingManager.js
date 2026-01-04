@@ -233,6 +233,28 @@ export class PreprocessingManager {
   }
 
   /**
+   * Remove a file from all preprocessing tracking
+   * @param {string} filePath - Path to file
+   * @returns {string|null} File hash if found, null otherwise
+   */
+  removeFile(filePath) {
+    const entry = this.completed.get(filePath);
+    const hash = entry?.hash || null;
+
+    this.completed.delete(filePath);
+    this.doneItems.delete(filePath);
+    this.processing.delete(filePath);
+    this.removeFromQueue(filePath);
+
+    if (hash) {
+      debug('Preprocessing', `Removed file from cache: ${filePath} (hash: ${hash.substring(0, 8)}...)`);
+      this.emit('file-removed', { filePath, hash });
+    }
+
+    return hash;
+  }
+
+  /**
    * Get count of "ready" items (preprocessed but not yet reviewed)
    * @returns {number}
    */
