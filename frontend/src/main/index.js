@@ -542,11 +542,13 @@ ipcMain.on("renderer-log", (event, { level, message }) => {
   }
 });
 
-// File watcher state for queue file monitoring
-const fileWatchers = new Map();
+// Directory-level file watching for scalability (1000+ files)
+// Instead of one watcher per file, we watch directories and track which files we care about
+const directoryWatchers = new Map(); // dir -> { watcher, files: Set<filePath> }
+const fileToDirectory = new Map();   // filePath -> dir
 
 ipcMain.on("watch-file", (event, filePath) => {
-  if (fileWatchers.has(filePath)) return;
+  if (fileToDirectory.has(filePath)) return;
 
   try {
     if (!fs.existsSync(filePath)) {
@@ -554,42 +556,65 @@ ipcMain.on("watch-file", (event, filePath) => {
       return;
     }
 
-    const watcher = fs.watch(filePath, (eventType) => {
-      if (eventType === "rename") {
-        if (!fs.existsSync(filePath)) {
-          console.log("[Main] File deleted:", filePath);
-          mainWindow?.webContents.send("file-deleted", filePath);
-          fileWatchers.get(filePath)?.close();
-          fileWatchers.delete(filePath);
-        }
+    const dir = path.dirname(filePath);
+    const fileName = path.basename(filePath);
+    fileToDirectory.set(filePath, dir);
+
+    if (directoryWatchers.has(dir)) {
+      directoryWatchers.get(dir).files.add(filePath);
+      return;
+    }
+
+    const files = new Set([filePath]);
+    const watcher = fs.watch(dir, (eventType, changedFile) => {
+      if (eventType !== "rename" || !changedFile) return;
+
+      const changedPath = path.join(dir, changedFile);
+      const dirEntry = directoryWatchers.get(dir);
+      if (!dirEntry?.files.has(changedPath)) return;
+
+      if (!fs.existsSync(changedPath)) {
+        console.log("[Main] File deleted:", changedPath);
+        mainWindow?.webContents.send("file-deleted", changedPath);
+        dirEntry.files.delete(changedPath);
+        fileToDirectory.delete(changedPath);
       }
     });
 
     watcher.on("error", (err) => {
-      console.error("[Main] File watcher error:", filePath, err.message);
-      fileWatchers.get(filePath)?.close();
-      fileWatchers.delete(filePath);
+      console.error("[Main] Directory watcher error:", dir, err.message);
+      directoryWatchers.get(dir)?.watcher?.close();
+      for (const f of files) fileToDirectory.delete(f);
+      directoryWatchers.delete(dir);
     });
 
-    fileWatchers.set(filePath, watcher);
+    directoryWatchers.set(dir, { watcher, files });
   } catch (err) {
     console.error("[Main] Failed to watch file:", filePath, err.message);
   }
 });
 
 ipcMain.on("unwatch-file", (event, filePath) => {
-  const watcher = fileWatchers.get(filePath);
-  if (watcher) {
-    watcher.close();
-    fileWatchers.delete(filePath);
+  const dir = fileToDirectory.get(filePath);
+  if (!dir) return;
+
+  fileToDirectory.delete(filePath);
+  const dirEntry = directoryWatchers.get(dir);
+  if (!dirEntry) return;
+
+  dirEntry.files.delete(filePath);
+  if (dirEntry.files.size === 0) {
+    dirEntry.watcher.close();
+    directoryWatchers.delete(dir);
   }
 });
 
 ipcMain.on("unwatch-all-files", () => {
-  for (const [filePath, watcher] of fileWatchers) {
+  for (const [dir, { watcher }] of directoryWatchers) {
     watcher.close();
   }
-  fileWatchers.clear();
+  directoryWatchers.clear();
+  fileToDirectory.clear();
 });
 
 console.log("[Main] Workspace mode initialized");

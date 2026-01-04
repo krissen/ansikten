@@ -559,9 +559,8 @@ export function FileQueueModule() {
         .map(item => preprocessingStatus[item.filePath]?.hash)
         .filter(Boolean);
 
-      if (queueHashes.length > 0) {
-        apiClient.setPriorityCacheHashes(queueHashes).catch(() => {});
-      }
+      // Always send, even empty list to clear old priorities
+      apiClient.setPriorityCacheHashes(queueHashes).catch(() => {});
     }, 500);
 
     return () => {
