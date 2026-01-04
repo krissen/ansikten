@@ -763,7 +763,7 @@ export function FileQueueModule() {
     const fileToRemove = queue.find(item => item.id === id);
     if (fileToRemove) {
       if (preprocessingManager.current) {
-        preprocessingManager.current.removeFromQueue(fileToRemove.filePath);
+        preprocessingManager.current.removeFile(fileToRemove.filePath);
       }
       // Clear viewer if this was the active file
       if (fileToRemove.filePath === currentFileRef.current) {
