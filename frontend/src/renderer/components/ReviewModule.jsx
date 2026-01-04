@@ -655,12 +655,12 @@ function FaceCard({ face, index, isActive, imagePath, people, cardRef, inputRef,
         )}
         {face.match_case === 'uncertain_ign' && !face.is_confirmed && (
           <div className="match-case uncertain">
-            ign ({face.ignore_confidence}%) / {face.person_name || face.match_alternatives?.find(a => !a.is_ignored)?.name || 'Unknown'}
+            ign ({face.ignore_confidence}%) / {face.person_name || face.match_alternatives?.[0]?.name || 'Unknown'}
           </div>
         )}
         {face.match_case === 'uncertain_name' && !face.is_confirmed && (
           <div className="match-case uncertain">
-            {face.person_name || face.match_alternatives?.find(a => !a.is_ignored)?.name || 'Unknown'} / ign ({face.ignore_confidence}%)
+            {face.person_name || face.match_alternatives?.[0]?.name || 'Unknown'} / ign ({face.ignore_confidence}%)
           </div>
         )}
       </div>

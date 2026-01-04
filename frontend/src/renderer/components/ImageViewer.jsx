@@ -246,18 +246,19 @@ export function ImageViewer() {
       let labelText = null;
       const matchCase = face.match_case;
 
-      const getPersonName = () => {
+      const getFirstAlternativeName = () => {
         if (face.person_name) return face.person_name;
-        const alt = face.match_alternatives?.find(a => !a.is_ignored);
-        return alt?.name || 'Unknown';
+        const first = face.match_alternatives?.[0];
+        if (!first) return 'Unknown';
+        return first.is_ignored ? 'ign' : first.name;
       };
 
       if (matchCase === 'ign') {
         labelText = `${faceNumber}. ign (${(face.ignore_confidence || 0)}%)`;
       } else if (matchCase === 'uncertain_ign') {
-        labelText = `${faceNumber}. ign (${(face.ignore_confidence || 0)}%) / ${getPersonName()}`;
+        labelText = `${faceNumber}. ign (${(face.ignore_confidence || 0)}%) / ${getFirstAlternativeName()}`;
       } else if (matchCase === 'uncertain_name') {
-        labelText = `${faceNumber}. ${getPersonName()} / ign (${(face.ignore_confidence || 0)}%)`;
+        labelText = `${faceNumber}. ${getFirstAlternativeName()} / ign (${(face.ignore_confidence || 0)}%)`;
       } else if (face.person_name) {
         labelText = `${faceNumber}. ${face.person_name} (${((face.confidence || 0) * 100).toFixed(0)}%)`;
       } else if (face.match_alternatives?.length > 0) {
@@ -649,12 +650,17 @@ export function ImageViewer() {
   });
 
   // Listen for faces-detected events - reset activeFaceIndex to sync with ReviewModule
-  useModuleEvent('faces-detected', ({ faces: newFaces }) => {
+  // Guard: only apply if imagePath matches current image (prevents race conditions)
+  useModuleEvent('faces-detected', ({ faces: newFaces, imagePath: facesImagePath }) => {
+    if (facesImagePath && originalImagePath && facesImagePath !== originalImagePath) {
+      debug('ImageViewer', 'Ignoring faces-detected for different image:', facesImagePath);
+      return;
+    }
     setFaces(newFaces || []);
     if (newFaces && newFaces.length > 0) {
       setActiveFaceIndex(0);
     }
-  });
+  }, [originalImagePath]);
 
   // Listen for active-face-changed events
   useModuleEvent('active-face-changed', ({ index }) => {
