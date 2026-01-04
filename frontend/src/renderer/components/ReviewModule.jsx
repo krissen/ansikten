@@ -416,13 +416,6 @@ export function ReviewModule() {
 
       const isInput = e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA' || e.target.isContentEditable;
 
-      // Navigation keys - skip if in input to allow normal text editing
-      if (e.key === 'Tab' && !isInput) {
-        e.preventDefault();
-        navigateToFace(e.shiftKey ? -1 : 1);
-        return;
-      }
-
       if (e.key === 'ArrowDown' && !isInput) {
         e.preventDefault();
         navigateToFace(1);
@@ -695,12 +688,11 @@ function FaceCard({ face, index, isActive, imagePath, people, cardRef, inputRef,
           <input
             ref={inputRef}
             type="text"
+            className={people.includes(inputValue) ? 'name-match' : ''}
             placeholder="Person name..."
             value={inputValue}
             onChange={(e) => setInputValue(e.target.value)}
             onKeyDown={(e) => {
-              // Let document handler manage Enter for consistency
-              // Just stop propagation for other keys we don't want bubbling
               if (e.key === 'Escape') {
                 e.target.blur();
                 e.stopPropagation();

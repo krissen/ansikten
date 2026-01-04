@@ -126,6 +126,11 @@
   border-color: var(--color-info);
 }
 
+.face-actions input.name-match {
+  border-color: var(--color-success);
+  background: var(--color-success-bg);
+}
+
 .status-text {
   font-size: var(--font-sm);
   padding: var(--space-xs);
