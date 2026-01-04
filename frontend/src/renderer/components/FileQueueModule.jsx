@@ -416,22 +416,23 @@ export function FileQueueModule() {
       if (saved) {
         const parsed = JSON.parse(saved);
         if (Array.isArray(parsed.queue) && parsed.queue.length > 0) {
-          setQueue(parsed.queue);
-          // Don't restore currentIndex - we'll auto-load in a separate effect
+          // Reset 'active' status to 'pending' since no file is loaded yet
+          // This prevents mismatch between status and currentIndex at startup
+          const restoredQueue = parsed.queue.map(item => ({
+            ...item,
+            status: item.status === 'active' ? 'pending' : item.status
+          }));
+          setQueue(restoredQueue);
           setAutoAdvance(parsed.autoAdvance ?? true);
           setFixMode(parsed.fixMode ?? false);
           setShowPreviewNames(parsed.showPreviewNames ?? false);
-          // Save the index we want to resume from
           savedIndexRef.current = parsed.currentIndex ?? -1;
           setShouldAutoLoad(true);
-          debug('FileQueue', 'Restored queue with', parsed.queue.length, 'files, will auto-load');
-          // Debug: Log items with reviewedFaces
-          const withReviewed = parsed.queue.filter(q => q.reviewedFaces?.length > 0);
+          debug('FileQueue', 'Restored queue with', restoredQueue.length, 'files, will auto-load');
+          const withReviewed = restoredQueue.filter(q => q.reviewedFaces?.length > 0);
           if (withReviewed.length > 0) {
             debug('FileQueue', `Found ${withReviewed.length} items with reviewedFaces:`,
               withReviewed.map(q => `${q.fileName}: ${q.reviewedFaces.length} faces`));
-          } else {
-            debug('FileQueue', 'No items have reviewedFaces data');
           }
         }
       }
