@@ -75,7 +75,10 @@ const getNotificationPreference = (key) => {
   } catch (e) {
     // Ignore parse errors
   }
-  return key === 'showToastOnPause';
+  if (key === 'showStatusIndicator') return true;
+  if (key === 'showToastOnPause') return true;
+  if (key === 'showToastOnResume') return false;
+  return false;
 };
 
 // Get preprocessing config including rolling window settings

@@ -165,6 +165,7 @@ export class PreprocessingManager {
       })
       .finally(() => {
         this.activeWorkers--;
+        this._processNext();
       });
   }
 
