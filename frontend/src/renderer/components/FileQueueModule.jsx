@@ -1766,11 +1766,6 @@ function FileQueueItem({ item, index, isActive, isSelected, onClick, onDoubleCli
   const confirmedNames = previewInfo?.persons || item.reviewedFaces?.map(f => f.personName).filter(Boolean) || [];
   const confirmedCount = confirmedNames.length;
 
-  // Debug: trace face info source
-  if (item.status === 'completed' || item.reviewedFaces || hasDetectedFaces) {
-    debug('FileQueue', `[${item.fileName}] detected=${detectedFaceCount}, confirmed=${confirmedCount}, names=${confirmedNames.join(',')}`);
-  }
-
   return (
     <div
       ref={itemRef}
