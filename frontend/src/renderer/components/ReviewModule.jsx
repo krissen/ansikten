@@ -640,7 +640,19 @@ export function ReviewModule() {
 function FaceCard({ face, index, isActive, imagePath, people, cardRef, inputRef, onSelect, onConfirm, onIgnore, onUnconfirm, maxAlternatives, onSelectAlternative }) {
   const [inputValue, setInputValue] = useState(face.person_name || '');
   const [imageError, setImageError] = useState(false);
+  const [showSuggestions, setShowSuggestions] = useState(false);
+  const [selectedSuggestion, setSelectedSuggestion] = useState(-1);
   const { api } = useBackend();
+
+  const filteredPeople = React.useMemo(() => {
+    if (!inputValue?.trim()) return [];
+    const typed = inputValue.toLowerCase();
+    const startsWithMatch = people.filter(p => p.toLowerCase().startsWith(typed));
+    const containsMatch = people.filter(p =>
+      !p.toLowerCase().startsWith(typed) && p.toLowerCase().includes(typed)
+    );
+    return [...startsWithMatch, ...containsMatch].slice(0, 8);
+  }, [inputValue, people]);
 
   // Build thumbnail URL (only for faces with bounding boxes)
   const bbox = face.bounding_box;
@@ -727,32 +739,71 @@ function FaceCard({ face, index, isActive, imagePath, people, cardRef, inputRef,
 
       <div className="face-actions">
         {!face.is_confirmed ? (
-          <input
-            ref={inputRef}
-            type="text"
-            className={people.includes(inputValue) ? 'name-match' : ''}
-            placeholder="Person name..."
-            value={inputValue}
-            onChange={(e) => setInputValue(e.target.value)}
-            onKeyDown={(e) => {
-              if (e.key === 'Escape') {
-                e.target.blur();
-                e.stopPropagation();
-              }
-              if (e.key === 'Tab') {
-                const typed = e.target.value?.toLowerCase();
-                if (typed) {
-                  const match = people.find(p => p.toLowerCase().startsWith(typed));
-                  if (match) {
-                    e.preventDefault();
-                    setInputValue(match);
-                  }
+          <div className="autocomplete-wrapper">
+            <input
+              ref={inputRef}
+              type="text"
+              className={people.includes(inputValue) ? 'name-match' : ''}
+              placeholder="Person name..."
+              value={inputValue}
+              onChange={(e) => {
+                setInputValue(e.target.value);
+                setSelectedSuggestion(-1);
+                setShowSuggestions(true);
+              }}
+              onFocus={() => setShowSuggestions(true)}
+              onBlur={() => setTimeout(() => setShowSuggestions(false), 150)}
+              onKeyDown={(e) => {
+                if (e.key === 'Escape') {
+                  setShowSuggestions(false);
+                  e.target.blur();
+                  e.stopPropagation();
+                  return;
                 }
-              }
-            }}
-            list="people-names-datalist"
-            onClick={(e) => e.stopPropagation()}
-          />
+                if (e.key === 'ArrowDown' && showSuggestions && filteredPeople.length > 0) {
+                  e.preventDefault();
+                  setSelectedSuggestion(prev => Math.min(prev + 1, filteredPeople.length - 1));
+                  return;
+                }
+                if (e.key === 'ArrowUp' && showSuggestions && filteredPeople.length > 0) {
+                  e.preventDefault();
+                  setSelectedSuggestion(prev => Math.max(prev - 1, -1));
+                  return;
+                }
+                if (e.key === 'Tab' || (e.key === 'Enter' && selectedSuggestion >= 0)) {
+                  if (selectedSuggestion >= 0 && filteredPeople[selectedSuggestion]) {
+                    e.preventDefault();
+                    setInputValue(filteredPeople[selectedSuggestion]);
+                    setShowSuggestions(false);
+                    setSelectedSuggestion(-1);
+                  } else if (e.key === 'Tab' && filteredPeople.length > 0) {
+                    e.preventDefault();
+                    setInputValue(filteredPeople[0]);
+                    setShowSuggestions(false);
+                  }
+                  return;
+                }
+              }}
+              onClick={(e) => e.stopPropagation()}
+            />
+            {showSuggestions && filteredPeople.length > 0 && (
+              <div className="autocomplete-dropdown">
+                {filteredPeople.map((name, idx) => (
+                  <div
+                    key={name}
+                    className={`autocomplete-item ${idx === selectedSuggestion ? 'selected' : ''}`}
+                    onMouseDown={(e) => {
+                      e.preventDefault();
+                      setInputValue(name);
+                      setShowSuggestions(false);
+                    }}
+                  >
+                    {name}
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
         ) : (
           <div
             className={`status-text ${face.is_rejected ? 'rejected' : 'confirmed'}`}
@@ -766,13 +817,6 @@ function FaceCard({ face, index, isActive, imagePath, people, cardRef, inputRef,
           </div>
         )}
       </div>
-
-      {/* Datalist for autocomplete */}
-      <datalist id="people-names-datalist">
-        {people.map(name => (
-          <option key={name} value={name} />
-        ))}
-      </datalist>
     </div>
   );
 }
