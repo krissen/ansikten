@@ -107,6 +107,7 @@ export function ImageViewer() {
       const img = new Image();
 
       img.onload = () => {
+        debug('ImageViewer', `Image decoded: ${img.width}x${img.height} (${(img.width * img.height / 1e6).toFixed(1)}MP)`);
         setImage(img);
         setImagePath(loadPath);
         setOriginalImagePath(originalPath);
@@ -115,17 +116,29 @@ export function ImageViewer() {
         setPan({ x: 0, y: 0 });
         setIsLoading(false);
 
-
         resolve();
       };
 
       img.onerror = (err) => {
         setIsLoading(false);
-        debugError('ImageViewer', 'Failed to load image:', loadPath, err);
+        const errorDetails = err?.type || err?.message || 'Unknown error';
+        debugError('ImageViewer', 'Failed to load image:', loadPath, '- Error:', errorDetails);
         reject(new Error(`Failed to load image: ${loadPath}`));
       };
 
-      const imageSrc = loadPath.startsWith('file://') ? loadPath : 'file://' + loadPath;
+      // Construct file:// URL with proper encoding for special characters
+      // Use three slashes for absolute paths: file:///path/to/file
+      let imageSrc;
+      if (loadPath.startsWith('file://')) {
+        imageSrc = loadPath;
+      } else {
+        // Encode path segments to handle spaces and special characters
+        // Split by /, encode each segment, rejoin
+        const encodedPath = loadPath.split('/').map(segment => encodeURIComponent(segment)).join('/');
+        imageSrc = 'file://' + encodedPath;
+      }
+
+      debug('ImageViewer', 'Loading image from:', imageSrc);
       img.src = imageSrc;
     });
   }, []);

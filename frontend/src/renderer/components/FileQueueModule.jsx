@@ -360,11 +360,15 @@ export function FileQueueModule() {
   }, [showToast, processedHashes]);
 
   // Handle file-deleted events from file watcher
+  // Use refs to avoid re-subscribing on every preprocessingStatus change
+  const preprocessingStatusRef = useRef(preprocessingStatus);
+  preprocessingStatusRef.current = preprocessingStatus;
+
   useEffect(() => {
     const handleFileDeleted = (filePath) => {
       debug('FileQueue', 'File deleted from disk:', filePath);
 
-      const ppStatus = preprocessingStatus[filePath];
+      const ppStatus = preprocessingStatusRef.current[filePath];
       const hash = ppStatus?.hash || preprocessingManager.current?.removeFile(filePath);
 
       if (hash) {
@@ -384,8 +388,9 @@ export function FileQueueModule() {
       showToast(`Removed deleted file: ${fileName}`, 'info', 3000);
     };
 
-    window.bildvisareAPI?.onFileDeleted(handleFileDeleted);
-  }, [preprocessingStatus, showToast]);
+    const unsubscribe = window.bildvisareAPI?.onFileDeleted(handleFileDeleted);
+    return () => unsubscribe?.();
+  }, [showToast]);
 
   // Load queue from localStorage on mount
   useEffect(() => {

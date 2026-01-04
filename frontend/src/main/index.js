@@ -20,7 +20,9 @@ let initialQueueFiles = [];
 let isQuitting = false;
 
 // Parse command line arguments
-// Electron argv structure: [electron_path, app_path, ...user_args]
+// Position-agnostic parsing: scan for known flags anywhere in argv
+// This handles variations in argv structure across different invocation methods
+// (direct electron, npx electron, packaged app, second-instance, etc.)
 function parseCommandLineArgs(argv) {
   const result = {
     files: [],
@@ -28,18 +30,38 @@ function parseCommandLineArgs(argv) {
     startQueue: false,
   };
 
-  // Skip first two args (electron executable and app path)
-  // These are always present in Electron's process.argv
-  for (let i = 2; i < argv.length; i++) {
+  // Known paths/executables to skip (case-insensitive basename matching)
+  const skipPatterns = [
+    /^electron/i,
+    /^node/i,
+    /^npx/i,
+    /\.js$/i,
+    /^\.$/,  // Current directory marker
+  ];
+
+  const shouldSkipArg = (arg) => {
+    // Skip empty args
+    if (!arg) return true;
+    // Check if it's a known executable/path
+    const basename = arg.split(/[/\\]/).pop();
+    return skipPatterns.some(pattern => pattern.test(basename));
+  };
+
+  for (let i = 0; i < argv.length; i++) {
     const arg = argv[i];
+
+    // Handle flags
     if (arg === "--queue" || arg === "-q") {
       result.queuePosition = "end";
     } else if (arg === "--queue-start" || arg === "-qs") {
       result.queuePosition = "start";
     } else if (arg === "--start" || arg === "-s") {
       result.startQueue = true;
-    } else if (!arg.startsWith("-")) {
-      // It's a file path or glob
+    } else if (arg.startsWith("-")) {
+      // Unknown flag, skip
+      continue;
+    } else if (!shouldSkipArg(arg)) {
+      // It's a file path or glob (not an executable/app path)
       result.files.push(arg);
     }
   }
