@@ -273,13 +273,16 @@ export function FileQueueModule() {
         [filePath]: { status: PreprocessingStatus.FILE_NOT_FOUND }
       }));
 
+      const hash = preprocessingManager.current?.removeFile(filePath);
+      if (hash) {
+        apiClient.batchDeleteCache([hash]).catch(() => {});
+      }
+
       const autoRemove = getAutoRemoveMissingPreference();
 
       if (autoRemove) {
-        // Batch removal - collect missing files and remove after a short delay
         missingFilesRef.current.push(filePath);
 
-        // Clear existing timeout and set a new one
         if (missingFilesTimeoutRef.current) {
           clearTimeout(missingFilesTimeoutRef.current);
         }
@@ -289,13 +292,12 @@ export function FileQueueModule() {
           if (count > 0) {
             const pathsToRemove = new Set(missingFilesRef.current);
             setQueue(prev => prev.filter(item => !pathsToRemove.has(item.filePath)));
-            showToast(`Removed ${count} missing file${count > 1 ? 's' : ''} from queue`, 'warning', 3000);
+            showToast(`Removed ${count} missing file${count > 1 ? 's' : ''} from queue`, 'info', 3000);
             debug('FileQueue', `Auto-removed ${count} missing files`);
             missingFilesRef.current = [];
           }
-        }, 500); // Wait 500ms to batch multiple removals
+        }, 500);
       } else {
-        // Mark file as missing in queue (keep in list)
         setQueue(prev => prev.map(item =>
           item.filePath === filePath
             ? { ...item, status: 'missing', error: 'File not found' }
@@ -353,6 +355,34 @@ export function FileQueueModule() {
       manager.off('cache-cleared', handleCacheCleared);
     };
   }, [showToast, processedHashes]);
+
+  // Handle file-deleted events from file watcher
+  useEffect(() => {
+    const handleFileDeleted = (filePath) => {
+      debug('FileQueue', 'File deleted from disk:', filePath);
+
+      const ppStatus = preprocessingStatus[filePath];
+      const hash = ppStatus?.hash || preprocessingManager.current?.removeFile(filePath);
+
+      if (hash) {
+        apiClient.batchDeleteCache([hash]).catch(err => {
+          debugWarn('FileQueue', 'Failed to clear backend cache:', err.message);
+        });
+      }
+
+      setPreprocessingStatus(prev => {
+        const updated = { ...prev };
+        delete updated[filePath];
+        return updated;
+      });
+
+      const fileName = filePath.split('/').pop();
+      setQueue(prev => prev.filter(item => item.filePath !== filePath));
+      showToast(`Removed deleted file: ${fileName}`, 'info', 3000);
+    };
+
+    window.bildvisareAPI?.onFileDeleted(handleFileDeleted);
+  }, [preprocessingStatus, showToast]);
 
   // Load queue from localStorage on mount
   useEffect(() => {
@@ -460,6 +490,32 @@ export function FileQueueModule() {
       debugError('FileQueue', 'Failed to save queue:', err);
     }
   }, [queue, currentIndex, autoAdvance, fixMode, showPreviewNames]);
+
+  // Watch queued files for deletion
+  const watchedFilesRef = useRef(new Set());
+  useEffect(() => {
+    const currentPaths = new Set(queue.map(item => item.filePath));
+    const watched = watchedFilesRef.current;
+
+    currentPaths.forEach(filePath => {
+      if (!watched.has(filePath)) {
+        window.bildvisareAPI?.watchFile(filePath);
+        watched.add(filePath);
+      }
+    });
+
+    watched.forEach(filePath => {
+      if (!currentPaths.has(filePath)) {
+        window.bildvisareAPI?.unwatchFile(filePath);
+        watched.delete(filePath);
+      }
+    });
+
+    return () => {
+      window.bildvisareAPI?.unwatchAllFiles();
+      watched.clear();
+    };
+  }, [queue]);
 
   // Track preprocessing completion for toast notification
   const prevPreprocessingCountRef = useRef({ pending: 0, total: 0 });

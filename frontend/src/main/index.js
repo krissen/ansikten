@@ -523,4 +523,54 @@ ipcMain.on("renderer-log", (event, { level, message }) => {
   }
 });
 
+// File watcher state for queue file monitoring
+const fileWatchers = new Map();
+
+ipcMain.on("watch-file", (event, filePath) => {
+  if (fileWatchers.has(filePath)) return;
+
+  try {
+    if (!fs.existsSync(filePath)) {
+      mainWindow?.webContents.send("file-deleted", filePath);
+      return;
+    }
+
+    const watcher = fs.watch(filePath, (eventType) => {
+      if (eventType === "rename") {
+        if (!fs.existsSync(filePath)) {
+          console.log("[Main] File deleted:", filePath);
+          mainWindow?.webContents.send("file-deleted", filePath);
+          fileWatchers.get(filePath)?.close();
+          fileWatchers.delete(filePath);
+        }
+      }
+    });
+
+    watcher.on("error", (err) => {
+      console.error("[Main] File watcher error:", filePath, err.message);
+      fileWatchers.get(filePath)?.close();
+      fileWatchers.delete(filePath);
+    });
+
+    fileWatchers.set(filePath, watcher);
+  } catch (err) {
+    console.error("[Main] Failed to watch file:", filePath, err.message);
+  }
+});
+
+ipcMain.on("unwatch-file", (event, filePath) => {
+  const watcher = fileWatchers.get(filePath);
+  if (watcher) {
+    watcher.close();
+    fileWatchers.delete(filePath);
+  }
+});
+
+ipcMain.on("unwatch-all-files", () => {
+  for (const [filePath, watcher] of fileWatchers) {
+    watcher.close();
+  }
+  fileWatchers.clear();
+});
+
 console.log("[Main] Workspace mode initialized");

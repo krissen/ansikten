@@ -54,4 +54,12 @@ contextBridge.exposeInMainWorld("bildvisareAPI", {
   onFileChanged: (callback) => {
     ipcRenderer.on("file-changed", (event, filePath) => callback(filePath));
   },
+
+  onFileDeleted: (callback) => {
+    ipcRenderer.on("file-deleted", (event, filePath) => callback(filePath));
+  },
+
+  unwatchAllFiles: () => {
+    ipcRenderer.send("unwatch-all-files");
+  },
 });
