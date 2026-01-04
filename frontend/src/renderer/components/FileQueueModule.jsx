@@ -972,14 +972,15 @@ export function FileQueueModule() {
     }
   }, [pendingAutoLoad, loadFile]);
 
-  // Advance to next file
+  // Advance to first pending file in queue (not just "next" sequentially)
   const advanceToNext = useCallback(() => {
     const currentQueue = queueRef.current;
     const currentFixMode = fixModeRef.current;
+
+    // Find first pending file (any position, not just after currentIndex)
     const nextIndex = currentQueue.findIndex((item, i) => {
-      if (i <= currentIndex) return false;
+      if (i === currentIndex) return false;
       if (item.status === 'completed') return false;
-      // Skip already-processed files when fix-mode is OFF
       if (!currentFixMode && item.isAlreadyProcessed) return false;
       return true;
     });
