@@ -637,6 +637,9 @@ let managerInstance = null;
 export function getPreprocessingManager(options = {}) {
   if (!managerInstance) {
     managerInstance = new PreprocessingManager(options);
+    if (typeof window !== 'undefined') {
+      window.__preprocessingManager = managerInstance;
+    }
   }
   return managerInstance;
 }

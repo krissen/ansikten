@@ -329,6 +329,15 @@ export class APIClient {
   }
 
   /**
+   * Set priority hashes for cache eviction (files in queue evicted last)
+   * @param {string[]} fileHashes - Array of file hashes to prioritize
+   * @returns {Promise<object>}
+   */
+  async setPriorityCacheHashes(fileHashes) {
+    return await this.post('/api/preprocessing/cache/priority', { file_hashes: fileHashes });
+  }
+
+  /**
    * Compute file hash
    * @param {string} filePath - Path to file
    * @returns {Promise<object>}

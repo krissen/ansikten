@@ -128,6 +128,18 @@ class BatchDeleteRequest(BaseModel):
     file_hashes: List[str]
 
 
+class PriorityHashesRequest(BaseModel):
+    file_hashes: List[str]
+
+
+@router.post("/cache/priority")
+async def set_priority_hashes(request: PriorityHashesRequest):
+    """Set file hashes that should be evicted last during LRU cleanup."""
+    cache = get_cache()
+    cache.set_priority_hashes(request.file_hashes)
+    return {"status": "ok", "count": len(request.file_hashes)}
+
+
 @router.post("/cache/batch-delete")
 async def batch_delete_cache_entries(request: BatchDeleteRequest):
     """Remove multiple cache entries at once (for rolling window cleanup)."""
