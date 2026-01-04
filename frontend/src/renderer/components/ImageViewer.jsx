@@ -671,7 +671,7 @@ export function ImageViewer() {
     'B': toggleOnOff,
     'c': () => toggleAutoCenterOnFace(true),
     'C': () => toggleAutoCenterOnFace(false),
-    'i': () => toggleFileInfo()
+    'I': () => toggleFileInfo()
   });
 
   // ============================================

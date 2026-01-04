@@ -204,10 +204,19 @@ function createApplicationMenu(mainWindow) {
           label: 'Auto-Center on Face',
           accelerator: 'c',
           type: 'checkbox',
-          checked: true, // Default: enabled
+          checked: true,
           click: (menuItem) => {
-            // Menu click toggles the setting
             sendMenuCommand(menuItem.checked ? 'auto-center-enable' : 'auto-center-disable');
+          }
+        },
+        {
+          id: 'show-file-info',
+          label: 'Show Review Progress',
+          accelerator: 'Shift+I',
+          type: 'checkbox',
+          checked: true,
+          click: (menuItem) => {
+            sendMenuCommand(menuItem.checked ? 'file-info-show' : 'file-info-hide');
           }
         },
         { type: 'separator' },
