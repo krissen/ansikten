@@ -128,16 +128,20 @@ export function ImageViewer() {
 
       // Construct file:// URL with proper encoding
       // encodeURI preserves path separators and colons while encoding spaces
+      // but doesn't encode # and ? which have special meaning in URLs
       let imageSrc;
       if (loadPath.startsWith('file://')) {
         imageSrc = loadPath;
       } else {
         const normalizedPath = loadPath.replace(/\\/g, '/');
         const isWindowsAbsolute = /^[a-zA-Z]:\//.test(normalizedPath);
-        // Windows: file:///C:/path, Unix: file:///path (encodeURI handles the rest)
+        // Windows: file:///C:/path, Unix: file:///path
+        const encoded = encodeURI(normalizedPath)
+          .replace(/#/g, '%23')   // # is URL fragment delimiter
+          .replace(/\?/g, '%3F'); // ? is URL query delimiter
         imageSrc = isWindowsAbsolute
-          ? 'file:///' + encodeURI(normalizedPath)
-          : 'file://' + encodeURI(normalizedPath);
+          ? 'file:///' + encoded
+          : 'file://' + encoded;
       }
 
       debug('ImageViewer', 'Loading image from:', imageSrc);
