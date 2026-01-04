@@ -102,26 +102,24 @@ export function ReviewModule() {
   /**
    * Navigate to face
    */
-  const navigateToFace = useCallback((direction) => {
+  const navigateToFace = useCallback((direction, skipIndex = null) => {
     if (detectedFaces.length === 0) return;
 
     setCurrentFaceIndex(prev => {
       let newIndex = prev + direction;
 
-      // Wrap around
       if (newIndex >= detectedFaces.length) newIndex = 0;
       if (newIndex < 0) newIndex = detectedFaces.length - 1;
 
-      // Skip confirmed faces
+      // Skip confirmed faces AND explicitly skipped index (handles stale closure)
       let attempts = 0;
-      while (detectedFaces[newIndex]?.is_confirmed && attempts < detectedFaces.length) {
+      while ((detectedFaces[newIndex]?.is_confirmed || newIndex === skipIndex) && attempts < detectedFaces.length) {
         newIndex += direction;
         if (newIndex >= detectedFaces.length) newIndex = 0;
         if (newIndex < 0) newIndex = detectedFaces.length - 1;
         attempts++;
       }
 
-      // Notify Image Viewer
       emit('active-face-changed', { index: newIndex });
       return newIndex;
     });
@@ -152,8 +150,7 @@ export function ReviewModule() {
       return [...prev, { face_id: face.face_id, person_name: personName.trim(), image_path: currentImagePath }];
     });
 
-    // Move to next face
-    navigateToFace(1);
+    navigateToFace(1, index);
   }, [detectedFaces, currentImagePath, navigateToFace]);
 
   /**
@@ -174,8 +171,7 @@ export function ReviewModule() {
       return [...prev, { face_id: face.face_id, image_path: currentImagePath }];
     });
 
-    // Move to next face
-    navigateToFace(1);
+    navigateToFace(1, index);
   }, [detectedFaces, currentImagePath, navigateToFace]);
 
   /**
