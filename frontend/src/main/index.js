@@ -557,11 +557,10 @@ ipcMain.on("watch-file", (event, filePath) => {
     }
 
     const dir = path.dirname(filePath);
-    const fileName = path.basename(filePath);
-    fileToDirectory.set(filePath, dir);
 
     if (directoryWatchers.has(dir)) {
       directoryWatchers.get(dir).files.add(filePath);
+      fileToDirectory.set(filePath, dir);
       return;
     }
 
@@ -578,6 +577,10 @@ ipcMain.on("watch-file", (event, filePath) => {
         mainWindow?.webContents.send("file-deleted", changedPath);
         dirEntry.files.delete(changedPath);
         fileToDirectory.delete(changedPath);
+        if (dirEntry.files.size === 0) {
+          dirEntry.watcher.close();
+          directoryWatchers.delete(dir);
+        }
       }
     });
 
@@ -589,6 +592,7 @@ ipcMain.on("watch-file", (event, filePath) => {
     });
 
     directoryWatchers.set(dir, { watcher, files });
+    fileToDirectory.set(filePath, dir);
   } catch (err) {
     console.error("[Main] Failed to watch file:", filePath, err.message);
   }
