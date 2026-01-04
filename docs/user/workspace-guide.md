@@ -135,7 +135,7 @@ Förhindrar att cachen fylls vid stora köer (1000+ bilder). Preprocessningen pa
 | Inställning | Standard | Beskrivning |
 |-------------|----------|-------------|
 | **Max Ready Items** | 15 | Max antal preprocessade filer att hålla redo |
-| **Pause Buffer** | 10 | Pausa när så här många är redo |
+| **Pause Buffer** | 10 | Pausa när så här många är redo (bör vara märkbart mindre än Max Ready Items) |
 | **Resume After** | 5 | Återuppta efter så många granskade |
 | **Status Indicator** | På | Visa status i File Queue-footer |
 | **Toast on Pause** | På | Visa meddelande vid paus |

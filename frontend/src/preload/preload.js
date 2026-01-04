@@ -58,9 +58,16 @@ contextBridge.exposeInMainWorld("bildvisareAPI", {
   onFileDeleted: (callback) => {
     const handler = (event, filePath) => callback(filePath);
     ipcRenderer.on("file-deleted", handler);
-    // Return unsubscribe function
     return () => {
       ipcRenderer.removeListener("file-deleted", handler);
+    };
+  },
+
+  onWatcherError: (callback) => {
+    const handler = (event, { dir, files }) => callback(dir, files);
+    ipcRenderer.on("watcher-error", handler);
+    return () => {
+      ipcRenderer.removeListener("watcher-error", handler);
     };
   },
 
