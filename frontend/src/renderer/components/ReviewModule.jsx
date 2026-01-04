@@ -9,7 +9,8 @@
  * - Batch mode with auto-save
  */
 
-import React, { useState, useEffect, useRef, useCallback } from 'react';
+import React, { useState, useEffect, useRef, useCallback, useMemo } from 'react';
+import { createPortal } from 'react-dom';
 import { useModuleEvent, useEmitEvent } from '../hooks/useModuleEvent.js';
 import { useBackend } from '../context/BackendContext.jsx';
 import { useWebSocket } from '../hooks/useWebSocket.js';
@@ -17,6 +18,66 @@ import { debug, debugWarn, debugError } from '../shared/debug.js';
 import { preferences } from '../workspace/preferences.js';
 import { Icon } from './Icon.jsx';
 import './ReviewModule.css';
+
+/**
+ * Hook for calculating dropdown position with flip logic.
+ * Renders dropdown below input if space available, otherwise above.
+ * @param {boolean} open - Whether dropdown is open
+ * @param {HTMLElement|null} anchorEl - The input element to anchor to
+ * @param {Object} options - Configuration options
+ * @returns {Object} Style object for the dropdown
+ */
+function useDropdownPosition(open, anchorEl, { maxHeight = 200, gap = 4 } = {}) {
+  const [style, setStyle] = useState({ display: 'none' });
+
+  useEffect(() => {
+    if (!open || !anchorEl) {
+      setStyle({ display: 'none' });
+      return;
+    }
+
+    const updatePosition = () => {
+      const rect = anchorEl.getBoundingClientRect();
+      const viewportHeight = window.innerHeight;
+
+      const spaceBelow = viewportHeight - rect.bottom - gap;
+      const spaceAbove = rect.top - gap;
+
+      const placeAbove = spaceBelow < maxHeight && spaceAbove > spaceBelow;
+      const availableHeight = placeAbove ? Math.min(spaceAbove, maxHeight) : Math.min(spaceBelow, maxHeight);
+
+      const newStyle = {
+        position: 'fixed',
+        left: `${rect.left}px`,
+        width: `${rect.width}px`,
+        maxHeight: `${availableHeight}px`,
+        zIndex: 10001,
+      };
+
+      if (placeAbove) {
+        newStyle.bottom = `${viewportHeight - rect.top + gap}px`;
+        newStyle.top = 'auto';
+      } else {
+        newStyle.top = `${rect.bottom + gap}px`;
+        newStyle.bottom = 'auto';
+      }
+
+      setStyle(newStyle);
+    };
+
+    updatePosition();
+
+    window.addEventListener('scroll', updatePosition, true);
+    window.addEventListener('resize', updatePosition);
+
+    return () => {
+      window.removeEventListener('scroll', updatePosition, true);
+      window.removeEventListener('resize', updatePosition);
+    };
+  }, [open, anchorEl, maxHeight, gap]);
+
+  return style;
+}
 
 /**
  * ReviewModule Component
@@ -773,31 +834,49 @@ function FaceCard({ face, index, isActive, imagePath, people, cardRef, inputRef,
   const isProbableIgnoreCase = face.match_case === 'ign' || face.match_case === 'uncertain_ign';
   const initialValue = isProbableIgnoreCase ? '' : (face.person_name || '');
   const [inputValue, setInputValue] = useState(initialValue);
+  const [typedValue, setTypedValue] = useState(initialValue);
   const [imageError, setImageError] = useState(false);
   const [showSuggestions, setShowSuggestions] = useState(false);
   const [selectedSuggestion, setSelectedSuggestion] = useState(-1);
+  const localInputRef = useRef(null);
   const { api } = useBackend();
+
+  const setInputRef = useCallback((el) => {
+    localInputRef.current = el;
+    if (inputRef) {
+      if (typeof inputRef === 'function') inputRef(el);
+      else inputRef.current = el;
+    }
+  }, [inputRef]);
 
   React.useEffect(() => {
     const newValue = isProbableIgnoreCase ? '' : (face.person_name || '');
     setInputValue(newValue);
+    setTypedValue(newValue);
   }, [face.face_id, face.match_case, isProbableIgnoreCase, face.person_name]);
 
   React.useEffect(() => {
     if (clearInputTrigger > 0) {
       setInputValue('');
+      setTypedValue('');
     }
   }, [clearInputTrigger]);
 
   const filteredPeople = React.useMemo(() => {
-    if (!inputValue?.trim()) return [];
-    const typed = inputValue.toLowerCase();
+    if (!typedValue?.trim()) return [];
+    const typed = typedValue.toLowerCase();
     const startsWithMatch = people.filter(p => p.toLowerCase().startsWith(typed));
     const containsMatch = people.filter(p =>
       !p.toLowerCase().startsWith(typed) && p.toLowerCase().includes(typed)
     );
     return [...startsWithMatch, ...containsMatch].slice(0, 8);
-  }, [inputValue, people]);
+  }, [typedValue, people]);
+
+  const dropdownStyle = useDropdownPosition(
+    showSuggestions && filteredPeople.length > 0,
+    localInputRef.current,
+    { maxHeight: 200, gap: 4 }
+  );
 
   // Build thumbnail URL (only for faces with bounding boxes)
   const bbox = face.bounding_box;
@@ -886,13 +965,15 @@ function FaceCard({ face, index, isActive, imagePath, people, cardRef, inputRef,
         {!face.is_confirmed ? (
           <div className="autocomplete-wrapper">
             <input
-              ref={inputRef}
+              ref={setInputRef}
               type="text"
               className={people.includes(inputValue) ? 'name-match' : ''}
               placeholder="Person name..."
               value={inputValue}
               onChange={(e) => {
-                setInputValue(e.target.value);
+                const val = e.target.value;
+                setInputValue(val);
+                setTypedValue(val);
                 setSelectedSuggestion(-1);
                 setShowSuggestions(true);
               }}
@@ -901,25 +982,24 @@ function FaceCard({ face, index, isActive, imagePath, people, cardRef, inputRef,
               onKeyDown={(e) => {
                 if (e.key === 'Escape') {
                   setShowSuggestions(false);
+                  setInputValue(typedValue);
+                  setSelectedSuggestion(-1);
                   e.target.blur();
                   e.stopPropagation();
                   return;
                 }
                 if (e.key === 'ArrowDown' && showSuggestions && filteredPeople.length > 0) {
                   e.preventDefault();
-                  setSelectedSuggestion(prev => Math.min(prev + 1, filteredPeople.length - 1));
+                  const newIdx = Math.min(selectedSuggestion + 1, filteredPeople.length - 1);
+                  setSelectedSuggestion(newIdx);
+                  setInputValue(filteredPeople[newIdx]);
                   return;
                 }
                 if (e.key === 'ArrowUp' && showSuggestions && filteredPeople.length > 0) {
                   e.preventDefault();
-                  setSelectedSuggestion(prev => Math.max(prev - 1, -1));
-                  return;
-                }
-                if (e.key === 'Enter' && selectedSuggestion >= 0 && filteredPeople[selectedSuggestion]) {
-                  e.preventDefault();
-                  setInputValue(filteredPeople[selectedSuggestion]);
-                  setShowSuggestions(false);
-                  setSelectedSuggestion(-1);
+                  const newIdx = Math.max(selectedSuggestion - 1, -1);
+                  setSelectedSuggestion(newIdx);
+                  setInputValue(newIdx >= 0 ? filteredPeople[newIdx] : typedValue);
                   return;
                 }
                 if (e.key === 'Tab' && filteredPeople.length > 0) {
@@ -928,6 +1008,7 @@ function FaceCard({ face, index, isActive, imagePath, people, cardRef, inputRef,
                     ? filteredPeople[selectedSuggestion]
                     : filteredPeople[0];
                   setInputValue(nameToUse);
+                  setTypedValue(nameToUse);
                   setShowSuggestions(false);
                   setSelectedSuggestion(-1);
                   return;
@@ -935,8 +1016,8 @@ function FaceCard({ face, index, isActive, imagePath, people, cardRef, inputRef,
               }}
               onClick={(e) => e.stopPropagation()}
             />
-            {showSuggestions && filteredPeople.length > 0 && (
-              <div className="autocomplete-dropdown">
+            {showSuggestions && filteredPeople.length > 0 && createPortal(
+              <div className="autocomplete-dropdown" style={dropdownStyle}>
                 {filteredPeople.map((name, idx) => (
                   <div
                     key={name}
@@ -944,13 +1025,15 @@ function FaceCard({ face, index, isActive, imagePath, people, cardRef, inputRef,
                     onMouseDown={(e) => {
                       e.preventDefault();
                       setInputValue(name);
+                      setTypedValue(name);
                       setShowSuggestions(false);
                     }}
                   >
                     {name}
                   </div>
                 ))}
-              </div>
+              </div>,
+              document.body
             )}
           </div>
         ) : (

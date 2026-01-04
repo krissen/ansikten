@@ -252,34 +252,31 @@
 }
 
 .autocomplete-dropdown {
-  position: absolute;
-  top: 100%;
-  left: 0;
-  right: 0;
+  position: fixed;
   background: var(--bg-elevated);
   border: 1px solid var(--border-medium);
   border-radius: var(--radius-md);
-  box-shadow: var(--shadow-md);
-  z-index: var(--z-overlay);
-  max-height: 200px;
+  box-shadow: var(--shadow-lg);
   overflow-y: auto;
-  margin-top: 2px;
 }
 
 .autocomplete-item {
-  padding: var(--space-xs) var(--space-sm);
+  padding: var(--space-sm) var(--space-md);
   cursor: pointer;
   font-size: var(--font-sm);
   color: var(--text-primary);
+  border-left: 3px solid transparent;
 }
 
-.autocomplete-item:hover,
-.autocomplete-item.selected {
+.autocomplete-item:hover {
   background: var(--bg-hover);
 }
 
 .autocomplete-item.selected {
   background: var(--color-info-bg);
+  border-left-color: var(--color-info);
+  color: var(--color-info);
+  font-weight: 500;
 }
 
 .confirm-overlay {
