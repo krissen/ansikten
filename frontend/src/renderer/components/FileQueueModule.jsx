@@ -414,12 +414,17 @@ export function FileQueueModule() {
     return () => unsubscribe?.();
   }, [showToast]);
 
-  // Handle watcher-error: re-register affected files that are still in queue
   useEffect(() => {
     const handleWatcherError = (dir, affectedFiles) => {
-      debugWarn('FileQueue', `Watcher error for ${dir}, re-registering ${affectedFiles.length} files`);
-      for (const filePath of affectedFiles) {
-        window.bildvisareAPI?.watchFile(filePath);
+      const currentQueue = queueRef.current;
+      const queuePaths = new Set(currentQueue.map(item => item.filePath));
+      const stillInQueue = affectedFiles.filter(fp => queuePaths.has(fp));
+
+      if (stillInQueue.length > 0) {
+        debugWarn('FileQueue', `Watcher error for ${dir}, re-registering ${stillInQueue.length}/${affectedFiles.length} files`);
+        for (const filePath of stillInQueue) {
+          window.bildvisareAPI?.watchFile(filePath);
+        }
       }
     };
 
