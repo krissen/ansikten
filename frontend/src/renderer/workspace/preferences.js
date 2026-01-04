@@ -57,7 +57,9 @@ export class PreferencesManager {
         maxAlternatives: 5 // Number of match alternatives to show (1-9)
       },
       fileQueue: {
-        autoLoadOnStartup: true // Auto-load first file from queue on startup/reload
+        autoLoadOnStartup: true,
+        autoRemoveMissing: true,
+        insertMode: 'alphabetical'  // 'bottom' | 'alphabetical' - how new files are inserted
       },
       preprocessing: {
         enabled: true,              // Master switch for background preprocessing

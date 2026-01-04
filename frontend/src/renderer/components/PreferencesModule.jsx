@@ -458,6 +458,16 @@ export function PreferencesModule({ api }) {
         checked={prefs.fileQueue?.autoRemoveMissing ?? true}
         onChange={(v) => updatePref('fileQueue.autoRemoveMissing', v)}
       />
+      <SelectField
+        label="Insert mode"
+        hint="How new files are added to the queue"
+        value={prefs.fileQueue?.insertMode ?? 'alphabetical'}
+        onChange={(v) => updatePref('fileQueue.insertMode', v)}
+        options={[
+          { value: 'alphabetical', label: 'Alphabetical (sorted)' },
+          { value: 'bottom', label: 'Bottom of queue' }
+        ]}
+      />
 
       <SectionHeader title="Notifications" />
       <SelectField
