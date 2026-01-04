@@ -414,23 +414,22 @@ export function ReviewModule() {
         return;
       }
 
-      // Skip if in input (for letter keys only, not navigation)
-      const isInput = e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA';
+      const isInput = e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA' || e.target.isContentEditable;
 
-      // Navigation
-      if (e.key === 'Tab') {
+      // Navigation keys - skip if in input to allow normal text editing
+      if (e.key === 'Tab' && !isInput) {
         e.preventDefault();
         navigateToFace(e.shiftKey ? -1 : 1);
         return;
       }
 
-      if (e.key === 'ArrowDown') {
+      if (e.key === 'ArrowDown' && !isInput) {
         e.preventDefault();
         navigateToFace(1);
         return;
       }
 
-      if (e.key === 'ArrowUp') {
+      if (e.key === 'ArrowUp' && !isInput) {
         e.preventDefault();
         navigateToFace(-1);
         return;
