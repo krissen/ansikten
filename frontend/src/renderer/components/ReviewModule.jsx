@@ -179,6 +179,38 @@ export function ReviewModule() {
   }, [detectedFaces, currentImagePath, navigateToFace]);
 
   /**
+   * Unconfirm a face - revert to unconfirmed state for re-review
+   */
+  const unconfirmFace = useCallback((index) => {
+    const face = detectedFaces[index];
+    if (!face || !face.is_confirmed) return;
+
+    debug('ReviewModule', 'Unconfirming face at index:', index);
+
+    setDetectedFaces(prev => {
+      const updated = [...prev];
+      const originalFace = updated[index];
+      updated[index] = {
+        ...originalFace,
+        is_confirmed: false,
+        is_rejected: false,
+        person_name: originalFace._original_person_name || null
+      };
+      return updated;
+    });
+
+    setPendingConfirmations(prev => prev.filter(p => p.face_id !== face.face_id));
+    setPendingIgnores(prev => prev.filter(p => p.face_id !== face.face_id));
+
+    setCurrentFaceIndex(index);
+    emit('active-face-changed', { index });
+
+    setTimeout(() => {
+      inputRefs.current[index]?.focus();
+    }, 50);
+  }, [detectedFaces, emit]);
+
+  /**
    * Build reviewedFaces array for rename functionality
    */
   const buildReviewedFaces = useCallback(() => {
@@ -584,6 +616,7 @@ export function ReviewModule() {
               }}
               onConfirm={(name) => confirmFace(index, name)}
               onIgnore={() => ignoreFace(index)}
+              onUnconfirm={() => unconfirmFace(index)}
               maxAlternatives={preferences.get('reviewModule.maxAlternatives', 5)}
               onSelectAlternative={(name) => {
                 if (name === 'ign') {
@@ -604,7 +637,7 @@ export function ReviewModule() {
 /**
  * FaceCard Component
  */
-function FaceCard({ face, index, isActive, imagePath, people, cardRef, inputRef, onSelect, onConfirm, onIgnore, maxAlternatives, onSelectAlternative }) {
+function FaceCard({ face, index, isActive, imagePath, people, cardRef, inputRef, onSelect, onConfirm, onIgnore, onUnconfirm, maxAlternatives, onSelectAlternative }) {
   const [inputValue, setInputValue] = useState(face.person_name || '');
   const [imageError, setImageError] = useState(false);
   const { api } = useBackend();
@@ -629,8 +662,15 @@ function FaceCard({ face, index, isActive, imagePath, people, cardRef, inputRef,
     isActive ? 'active' : ''
   ].filter(Boolean).join(' ');
 
+  const handleDoubleClick = (e) => {
+    if (face.is_confirmed && onUnconfirm) {
+      e.stopPropagation();
+      onUnconfirm();
+    }
+  };
+
   return (
-    <div ref={cardRef} className={cardClass} onClick={onSelect}>
+    <div ref={cardRef} className={cardClass} onClick={onSelect} onDoubleClick={handleDoubleClick}>
       <div className="face-number">{index + 1}</div>
 
       <div className="face-thumbnail">
@@ -714,7 +754,10 @@ function FaceCard({ face, index, isActive, imagePath, people, cardRef, inputRef,
             onClick={(e) => e.stopPropagation()}
           />
         ) : (
-          <div className={`status-text ${face.is_rejected ? 'rejected' : 'confirmed'}`}>
+          <div
+            className={`status-text ${face.is_rejected ? 'rejected' : 'confirmed'}`}
+            title="Double-click to undo"
+          >
             {face.is_rejected ? (
               <><Icon name="block" size={12} /> Ignored</>
             ) : (
