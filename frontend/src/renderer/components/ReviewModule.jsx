@@ -709,10 +709,6 @@ function FaceCard({ face, index, isActive, imagePath, people, cardRef, inputRef,
                   }
                 }
               }
-              if ((e.key === 'a' || e.key === 'A') && e.target.value?.trim()) {
-                e.preventDefault();
-                confirmFace(faceIndex, e.target.value.trim());
-              }
             }}
             list="people-names-datalist"
             onClick={(e) => e.stopPropagation()}
