@@ -402,7 +402,8 @@ export function FileQueueModule() {
       debug('FileQueue', 'File deleted from disk:', filePath);
 
       const ppStatus = preprocessingStatusRef.current[filePath];
-      const hash = ppStatus?.hash || preprocessingManager.current?.removeFile(filePath);
+      const removedHash = preprocessingManager.current?.removeFile(filePath);
+      const hash = removedHash || ppStatus?.hash;
 
       if (hash) {
         apiClient.batchDeleteCache([hash]).catch(err => {

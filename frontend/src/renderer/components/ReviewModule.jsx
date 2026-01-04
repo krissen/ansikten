@@ -804,17 +804,21 @@ function FaceCard({ face, index, isActive, imagePath, people, cardRef, inputRef,
                   setSelectedSuggestion(prev => Math.max(prev - 1, -1));
                   return;
                 }
-                if (e.key === 'Tab' || (e.key === 'Enter' && selectedSuggestion >= 0)) {
-                  if (selectedSuggestion >= 0 && filteredPeople[selectedSuggestion]) {
-                    e.preventDefault();
-                    setInputValue(filteredPeople[selectedSuggestion]);
-                    setShowSuggestions(false);
-                    setSelectedSuggestion(-1);
-                  } else if (e.key === 'Tab' && filteredPeople.length > 0) {
-                    e.preventDefault();
-                    setInputValue(filteredPeople[0]);
-                    setShowSuggestions(false);
-                  }
+                if (e.key === 'Enter' && selectedSuggestion >= 0 && filteredPeople[selectedSuggestion]) {
+                  e.preventDefault();
+                  setInputValue(filteredPeople[selectedSuggestion]);
+                  setShowSuggestions(false);
+                  setSelectedSuggestion(-1);
+                  return;
+                }
+                if (e.key === 'Tab' && filteredPeople.length > 0) {
+                  e.preventDefault();
+                  const nameToUse = selectedSuggestion >= 0
+                    ? filteredPeople[selectedSuggestion]
+                    : filteredPeople[0];
+                  setInputValue(nameToUse);
+                  setShowSuggestions(false);
+                  setSelectedSuggestion(-1);
                   return;
                 }
               }}
