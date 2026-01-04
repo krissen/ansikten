@@ -36,6 +36,7 @@ export function ReviewModule() {
   const [status, setStatus] = useState('Waiting for image...');
   const [isLoading, setIsLoading] = useState(false);
   const [clearInputTrigger, setClearInputTrigger] = useState(0);
+  const [confirmDialog, setConfirmDialog] = useState(null);
 
   // Refs
   const moduleRef = useRef(null);
@@ -130,12 +131,18 @@ export function ReviewModule() {
     });
   }, [detectedFaces, emit]);
 
-  /**
-   * Confirm face
-   */
-  const confirmFace = useCallback((index, personName) => {
-    if (!personName?.trim()) return;
+  const HIGH_CONFIDENCE_THRESHOLD = 75;
 
+  const getTopMatch = useCallback((face) => {
+    if (!face?.match_alternatives?.length) return null;
+    const top = face.match_alternatives[0];
+    if (top.confidence >= HIGH_CONFIDENCE_THRESHOLD && !top.is_ignored) {
+      return { name: top.name, confidence: top.confidence };
+    }
+    return null;
+  }, []);
+
+  const doConfirmFace = useCallback((index, personName) => {
     const face = detectedFaces[index];
     if (!face || face.is_confirmed) return;
 
@@ -158,10 +165,7 @@ export function ReviewModule() {
     navigateToFace(1, index);
   }, [detectedFaces, currentImagePath, navigateToFace]);
 
-  /**
-   * Ignore face
-   */
-  const ignoreFace = useCallback((index) => {
+  const doIgnoreFace = useCallback((index) => {
     const face = detectedFaces[index];
     if (!face || face.is_confirmed) return;
 
@@ -178,6 +182,51 @@ export function ReviewModule() {
 
     navigateToFace(1, index);
   }, [detectedFaces, currentImagePath, navigateToFace]);
+
+  const confirmFace = useCallback((index, personName) => {
+    if (!personName?.trim()) return;
+
+    const face = detectedFaces[index];
+    if (!face || face.is_confirmed) return;
+
+    const topMatch = getTopMatch(face);
+    if (topMatch && topMatch.name.toLowerCase() !== personName.trim().toLowerCase()) {
+      setConfirmDialog({
+        type: 'name-mismatch',
+        topMatch,
+        chosenName: personName.trim(),
+        onConfirm: () => {
+          doConfirmFace(index, personName);
+          setConfirmDialog(null);
+        },
+        onCancel: () => setConfirmDialog(null)
+      });
+      return;
+    }
+
+    doConfirmFace(index, personName);
+  }, [detectedFaces, getTopMatch, doConfirmFace]);
+
+  const ignoreFace = useCallback((index) => {
+    const face = detectedFaces[index];
+    if (!face || face.is_confirmed) return;
+
+    const topMatch = getTopMatch(face);
+    if (topMatch) {
+      setConfirmDialog({
+        type: 'ignore-high-confidence',
+        topMatch,
+        onConfirm: () => {
+          doIgnoreFace(index);
+          setConfirmDialog(null);
+        },
+        onCancel: () => setConfirmDialog(null)
+      });
+      return;
+    }
+
+    doIgnoreFace(index);
+  }, [detectedFaces, getTopMatch, doIgnoreFace]);
 
   /**
    * Unconfirm a face - revert to unconfirmed state for re-review
@@ -651,6 +700,68 @@ export function ReviewModule() {
         )}
       </div>
 
+      {confirmDialog && (
+        <ConfirmDialog
+          type={confirmDialog.type}
+          topMatch={confirmDialog.topMatch}
+          chosenName={confirmDialog.chosenName}
+          onConfirm={confirmDialog.onConfirm}
+          onCancel={confirmDialog.onCancel}
+        />
+      )}
+    </div>
+  );
+}
+
+function ConfirmDialog({ type, topMatch, chosenName, onConfirm, onCancel }) {
+  const dialogRef = useRef(null);
+
+  useEffect(() => {
+    const handleKeyDown = (e) => {
+      if (e.key === 'Enter') {
+        e.preventDefault();
+        onConfirm();
+      } else if (e.key === 'Escape') {
+        e.preventDefault();
+        onCancel();
+      }
+    };
+    document.addEventListener('keydown', handleKeyDown);
+    dialogRef.current?.focus();
+    return () => document.removeEventListener('keydown', handleKeyDown);
+  }, [onConfirm, onCancel]);
+
+  const isNameMismatch = type === 'name-mismatch';
+
+  return (
+    <div className="confirm-overlay" onClick={onCancel}>
+      <div
+        ref={dialogRef}
+        className="confirm-dialog"
+        tabIndex={-1}
+        onClick={(e) => e.stopPropagation()}
+      >
+        <h3>{isNameMismatch ? 'Bekräfta namnbyte' : 'Bekräfta ignorering'}</h3>
+        <div className="match-info">
+          Bästa matchning: <strong>{topMatch.name}</strong> ({topMatch.confidence}%)
+        </div>
+        <p>
+          {isNameMismatch
+            ? `Du valde "${chosenName}" istället. Är du säker?`
+            : 'Du valde att ignorera detta ansikte. Är du säker?'}
+        </p>
+        <div className="confirm-buttons">
+          <button className="btn-cancel" onClick={onCancel}>
+            Avbryt
+          </button>
+          <button className="btn-confirm" onClick={onConfirm}>
+            Bekräfta
+          </button>
+        </div>
+        <div className="confirm-hint">
+          <kbd>Enter</kbd> bekräftar · <kbd>Esc</kbd> avbryter
+        </div>
+      </div>
     </div>
   );
 }
