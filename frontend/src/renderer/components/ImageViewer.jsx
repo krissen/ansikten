@@ -126,16 +126,18 @@ export function ImageViewer() {
         reject(new Error(`Failed to load image: ${loadPath}`));
       };
 
-      // Construct file:// URL with proper encoding for special characters
-      // Use three slashes for absolute paths: file:///path/to/file
+      // Construct file:// URL with proper encoding
+      // encodeURI preserves path separators and colons while encoding spaces
       let imageSrc;
       if (loadPath.startsWith('file://')) {
         imageSrc = loadPath;
       } else {
-        // Encode path segments to handle spaces and special characters
-        // Split by /, encode each segment, rejoin
-        const encodedPath = loadPath.split('/').map(segment => encodeURIComponent(segment)).join('/');
-        imageSrc = 'file://' + encodedPath;
+        const normalizedPath = loadPath.replace(/\\/g, '/');
+        const isWindowsAbsolute = /^[a-zA-Z]:\//.test(normalizedPath);
+        // Windows: file:///C:/path, Unix: file:///path (encodeURI handles the rest)
+        imageSrc = isWindowsAbsolute
+          ? 'file:///' + encodeURI(normalizedPath)
+          : 'file://' + encodeURI(normalizedPath);
       }
 
       debug('ImageViewer', 'Loading image from:', imageSrc);

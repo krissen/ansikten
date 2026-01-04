@@ -241,11 +241,16 @@ export class PreprocessingManager {
   removeFile(filePath) {
     const entry = this.completed.get(filePath);
     const hash = entry?.hash || null;
+    const wasDone = this.doneItems.has(filePath);
 
     this.completed.delete(filePath);
     this.doneItems.delete(filePath);
     this.processing.delete(filePath);
     this.removeFromQueue(filePath);
+
+    if (wasDone && this.doneCount > 0) {
+      this.doneCount--;
+    }
 
     if (hash) {
       debug('Preprocessing', `Removed file from cache: ${filePath} (hash: ${hash.substring(0, 8)}...)`);
@@ -359,7 +364,7 @@ export class PreprocessingManager {
     this._clearDoneItems();
 
     this.isPaused = false;
-    this.doneCount = 0;
+    // doneCount already decremented by _clearDoneItems
 
     debug('Preprocessing', 'Resumed preprocessing');
     this.emit('resumed', {});
