@@ -9,7 +9,7 @@
  * - Fix mode for re-reviewing processed files
  */
 
-import React, { useState, useEffect, useCallback, useRef } from 'react';
+import React, { useState, useEffect, useCallback, useRef, useMemo } from 'react';
 import { useModuleEvent, useEmitEvent } from '../hooks/useModuleEvent.js';
 import { useBackend } from '../context/BackendContext.jsx';
 import { useToast } from '../context/ToastContext.jsx';
@@ -1410,6 +1410,17 @@ export function FileQueueModule() {
 
   const hasSelection = selectedFiles.size > 0;
 
+  // Memoize display order: active file at top, rest in original order
+  const displayOrder = useMemo(() => {
+    if (currentIndex >= 0) {
+      return [
+        { item: queue[currentIndex], originalIndex: currentIndex },
+        ...queue.map((item, i) => ({ item, originalIndex: i })).filter((_, i) => i !== currentIndex)
+      ];
+    }
+    return queue.map((item, i) => ({ item, originalIndex: i }));
+  }, [queue, currentIndex]);
+
   return (
     <div ref={moduleRef} className={`module-container file-queue-module ${hasSelection ? 'has-selection' : ''}`} tabIndex={0}>
       {/* Header */}
@@ -1507,33 +1518,23 @@ export function FileQueueModule() {
             <p className="hint">Click + to add files</p>
           </div>
         ) : (
-          // Display order: active file at top, rest in original order
-          (() => {
-            const displayOrder = currentIndex >= 0
-              ? [
-                  { item: queue[currentIndex], originalIndex: currentIndex },
-                  ...queue.map((item, i) => ({ item, originalIndex: i })).filter((_, i) => i !== currentIndex)
-                ]
-              : queue.map((item, i) => ({ item, originalIndex: i }));
-
-            return displayOrder.map(({ item, originalIndex }) => (
-              <FileQueueItem
-                key={item.id}
-                item={item}
-                index={originalIndex}
-                isActive={originalIndex === currentIndex}
-                isSelected={selectedFiles.has(item.id)}
-                onClick={(e) => handleItemClick(originalIndex, e)}
-                onDoubleClick={() => handleItemDoubleClick(originalIndex)}
-                onToggleSelect={() => toggleFileSelection(item.id)}
-                onRemove={() => removeFile(item.id)}
-                fixMode={fixMode}
-                preprocessingStatus={preprocessingStatus[item.filePath]}
-                showPreview={showPreviewNames}
-                previewInfo={previewData?.[item.filePath]}
-              />
-            ));
-          })()
+          displayOrder.map(({ item, originalIndex }) => (
+            <FileQueueItem
+              key={item.id}
+              item={item}
+              index={originalIndex}
+              isActive={originalIndex === currentIndex}
+              isSelected={selectedFiles.has(item.id)}
+              onClick={(e) => handleItemClick(originalIndex, e)}
+              onDoubleClick={() => handleItemDoubleClick(originalIndex)}
+              onToggleSelect={() => toggleFileSelection(item.id)}
+              onRemove={() => removeFile(item.id)}
+              fixMode={fixMode}
+              preprocessingStatus={preprocessingStatus[item.filePath]}
+              showPreview={showPreviewNames}
+              previewInfo={previewData?.[item.filePath]}
+            />
+          ))
         )}
       </div>
 

@@ -298,6 +298,7 @@ export class PreprocessingManager {
    */
   markDone(filePath) {
     if (!this.completed.has(filePath)) return;
+    if (this.doneItems.has(filePath)) return;
 
     this.doneItems.add(filePath);
     this.doneCount++;
