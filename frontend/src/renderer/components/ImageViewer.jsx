@@ -14,6 +14,7 @@ import { useKeyboardShortcuts, useKeyHold } from '../hooks/useKeyboardShortcuts.
 import { useCanvasDimensions } from '../hooks/useCanvas.js';
 import { debug, debugWarn, debugError } from '../shared/debug.js';
 import { apiClient } from '../shared/api-client.js';
+import { preferences } from '../workspace/preferences.js';
 import './ImageViewer.css';
 
 // Constants (will be user-configurable in Phase 4)
@@ -59,6 +60,10 @@ export function ImageViewer() {
   // Loading state
   const [isLoading, setIsLoading] = useState(false);
   const [loadingMessage, setLoadingMessage] = useState('');
+
+  // File info overlay state
+  const [showFileInfo, setShowFileInfo] = useState(() => preferences.get('imageViewer.showFileInfo') ?? true);
+  const [queueStatus, setQueueStatus] = useState(null);
 
   // Canvas dimensions
   const dimensions = useCanvasDimensions(containerRef);
@@ -222,6 +227,9 @@ export function ImageViewer() {
     ctx.font = '16px -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif';
     ctx.lineWidth = 3;
 
+    const activeHighlightColor = getComputedStyle(document.documentElement)
+      .getPropertyValue('--face-active-highlight').trim() || '#00bcd4';
+
     // Calculate placements with collision avoidance
     const placedBoxes = [];
     const placements = [];
@@ -295,14 +303,16 @@ export function ImageViewer() {
         label: labelText,
         labelPos,
         labelWidth,
-        labelHeight
+        labelHeight,
+        originalIndex
       });
     });
 
     // Draw everything
-    placements.forEach(({ face, faceBox, label, labelPos, labelWidth, labelHeight }) => {
+    placements.forEach(({ face, faceBox, label, labelPos, labelWidth, labelHeight, originalIndex }) => {
       const confidence = face.confidence || 0;
       const matchCase = face.match_case;
+      const isActiveFace = originalIndex === activeFaceIndex;
       let strokeColor, textBgColor;
 
       if (matchCase === 'ign' || matchCase === 'uncertain_ign') {
@@ -325,6 +335,17 @@ export function ImageViewer() {
         textBgColor = 'rgba(244, 67, 54, 0.9)';
       }
 
+      // Draw active face highlight (outer glow)
+      if (isActiveFace) {
+        ctx.save();
+        ctx.strokeStyle = activeHighlightColor;
+        ctx.lineWidth = 6;
+        ctx.shadowColor = activeHighlightColor;
+        ctx.shadowBlur = 10;
+        ctx.strokeRect(faceBox.x - 4, faceBox.y - 4, faceBox.width + 8, faceBox.height + 8);
+        ctx.restore();
+      }
+
       // Draw bounding box
       ctx.strokeStyle = strokeColor;
       ctx.strokeRect(faceBox.x, faceBox.y, faceBox.width, faceBox.height);
@@ -343,7 +364,17 @@ export function ImageViewer() {
         ctx.lineTo(labelCenterX, labelCenterY);
         ctx.stroke();
 
-        // Label background
+        // Label background with active highlight
+        if (isActiveFace) {
+          ctx.save();
+          ctx.strokeStyle = activeHighlightColor;
+          ctx.lineWidth = 3;
+          ctx.shadowColor = activeHighlightColor;
+          ctx.shadowBlur = 8;
+          ctx.strokeRect(labelPos.x - 2, labelPos.y - 2, labelWidth + 4, labelHeight + 4);
+          ctx.restore();
+        }
+
         ctx.fillStyle = textBgColor;
         ctx.fillRect(labelPos.x, labelPos.y, labelWidth, labelHeight);
 
@@ -415,11 +446,23 @@ export function ImageViewer() {
 
     setZoomMode('manual');
     setZoomFactor(1);
-    setPan({
-      x: (canvasWidth - image.width) / 2,
-      y: (canvasHeight - image.height) / 2
-    });
-  }, [image, dimensions]);
+
+    const face = faces[activeFaceIndex];
+    if (face?.bounding_box) {
+      const bbox = face.bounding_box;
+      const faceCenterX = bbox.x + bbox.width / 2;
+      const faceCenterY = bbox.y + bbox.height / 2;
+      setPan({
+        x: canvasWidth / 2 - faceCenterX,
+        y: canvasHeight / 2 - faceCenterY
+      });
+    } else {
+      setPan({
+        x: (canvasWidth - image.width) / 2,
+        y: (canvasHeight - image.height) / 2
+      });
+    }
+  }, [image, dimensions, faces, activeFaceIndex]);
 
   const autoFit = useCallback(() => {
     setZoomMode('auto');
@@ -612,13 +655,21 @@ export function ImageViewer() {
     onDoubleTap: () => autoFit() // Double-tap - → fit-to-window
   }, { holdDelay: ZOOM_HOLD_DELAY });
 
+  const toggleFileInfo = useCallback((enable) => {
+    const newValue = enable === undefined ? !showFileInfo : enable;
+    setShowFileInfo(newValue);
+    preferences.set('imageViewer.showFileInfo', newValue);
+    updateMenuState('show-file-info', newValue);
+  }, [showFileInfo, updateMenuState]);
+
   useKeyboardShortcuts({
     '=': resetZoom,
     '0': autoFit,
     'b': toggleSingleAll,
     'B': toggleOnOff,
     'c': () => toggleAutoCenterOnFace(true),
-    'C': () => toggleAutoCenterOnFace(false)
+    'C': () => toggleAutoCenterOnFace(false),
+    'i': () => toggleFileInfo()
   });
 
   // ============================================
@@ -704,15 +755,21 @@ export function ImageViewer() {
   useModuleEvent('auto-fit', autoFit);
   useModuleEvent('auto-center-enable', () => toggleAutoCenterOnFace(true));
   useModuleEvent('auto-center-disable', () => toggleAutoCenterOnFace(false));
+  useModuleEvent('file-info-show', () => toggleFileInfo(true));
+  useModuleEvent('file-info-hide', () => toggleFileInfo(false));
+
+  useModuleEvent('queue-status', (status) => {
+    setQueueStatus(status);
+  });
 
   // ============================================
   // Sync menu state on mount
   // ============================================
 
   useEffect(() => {
-    // Sync initial state to menu
     updateMenuState('auto-center', autoCenterOnFace);
     updateMenuState('boxes-visible', faceBoxMode !== 'none');
+    updateMenuState('show-file-info', showFileInfo);
     updateMenuState('boxes-all-faces', faceBoxMode === 'all');
   }, []); // Only on mount
 
@@ -771,6 +828,26 @@ export function ImageViewer() {
           <div className="placeholder-icon">📷</div>
           <div>No image loaded</div>
           <div className="placeholder-hint">Open an image to get started</div>
+        </div>
+      )}
+      {showFileInfo && image && (
+        <div className="file-info-overlay">
+          <div className="file-info-filename">
+            {originalImagePath?.split('/').pop() || 'Unknown'}
+          </div>
+          {queueStatus && (
+            <div className="file-info-queue">
+              <span className="file-info-progress-text">
+                {queueStatus.done} done · {queueStatus.current + 1}/{queueStatus.total} · {queueStatus.remaining} left
+              </span>
+              <div className="file-info-progress-bar">
+                <div
+                  className="file-info-progress-fill"
+                  style={{ width: `${((queueStatus.done + 1) / queueStatus.total) * 100}%` }}
+                />
+              </div>
+            </div>
+          )}
         </div>
       )}
     </div>

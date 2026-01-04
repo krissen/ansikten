@@ -50,6 +50,9 @@
   --color-info: #1888d8;        /* Bright blue (Commodore) */
   --color-info-bg: #c8dce8;     /* Subtle blue tint */
 
+  /* Canvas Highlights */
+  --face-active-highlight: #e85820;  /* Orange - visible on light bg */
+
   /* Overlay Colors */
   --overlay-bg: #987840;        /* Bronze/copper (semi-dark for light theme) */
   --overlay-text: #f8f0e0;      /* Light text on overlay */
@@ -100,6 +103,9 @@
   --color-error-bg: #2a1515;    /* Dark red */
   --color-info: #87ceeb;        /* Sky blue */
   --color-info-bg: #15202a;     /* Dark blue */
+
+  /* Canvas Highlights */
+  --face-active-highlight: #00bcd4;  /* Cyan - visible on dark bg */
 
   /* Overlay Colors */
   --overlay-bg: #0a0a0a;        /* Near black (dark for dark theme) */

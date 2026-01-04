@@ -35,6 +35,7 @@ export function ReviewModule() {
   const [pendingIgnores, setPendingIgnores] = useState([]);
   const [status, setStatus] = useState('Waiting for image...');
   const [isLoading, setIsLoading] = useState(false);
+  const [clearInputTrigger, setClearInputTrigger] = useState(0);
 
   // Refs
   const moduleRef = useRef(null);
@@ -339,8 +340,8 @@ export function ReviewModule() {
   const addManualFace = useCallback(() => {
     if (!currentImagePath) return;
 
-    const insertIndex = currentFaceIndex + 1;
-    debug('ReviewModule', 'Adding manual face at index:', insertIndex);
+    const insertIndex = detectedFaces.length === 0 ? 0 : currentFaceIndex + 1;
+    debug('ReviewModule', 'Adding manual face at index:', insertIndex, '(faces:', detectedFaces.length, ')');
 
     const manualFaceId = `manual_${Date.now()}`;
     const manualFace = {
@@ -366,7 +367,7 @@ export function ReviewModule() {
     }, 100);
 
     setStatus('Manual face added - enter name');
-  }, [currentImagePath, currentFaceIndex, emit]);
+  }, [currentImagePath, currentFaceIndex, detectedFaces.length, emit]);
 
   /**
    * Auto-save when all faces reviewed
@@ -537,8 +538,8 @@ export function ReviewModule() {
         e.preventDefault();
         const input = inputRefs.current[currentFaceIndex];
         if (input && !detectedFaces[currentFaceIndex]?.is_confirmed) {
+          setClearInputTrigger(prev => prev + 1);
           input.focus();
-          input.value = '';
         }
         return;
       }
@@ -644,6 +645,7 @@ export function ReviewModule() {
                   confirmFace(index, name);
                 }
               }}
+              clearInputTrigger={index === currentFaceIndex ? clearInputTrigger : 0}
             />
           ))
         )}
@@ -656,12 +658,25 @@ export function ReviewModule() {
 /**
  * FaceCard Component
  */
-function FaceCard({ face, index, isActive, imagePath, people, cardRef, inputRef, onSelect, onConfirm, onIgnore, onUnconfirm, maxAlternatives, onSelectAlternative }) {
-  const [inputValue, setInputValue] = useState(face.person_name || '');
+function FaceCard({ face, index, isActive, imagePath, people, cardRef, inputRef, onSelect, onConfirm, onIgnore, onUnconfirm, maxAlternatives, onSelectAlternative, clearInputTrigger }) {
+  const isProbableIgnoreCase = face.match_case === 'ign' || face.match_case === 'uncertain_ign';
+  const initialValue = isProbableIgnoreCase ? '' : (face.person_name || '');
+  const [inputValue, setInputValue] = useState(initialValue);
   const [imageError, setImageError] = useState(false);
   const [showSuggestions, setShowSuggestions] = useState(false);
   const [selectedSuggestion, setSelectedSuggestion] = useState(-1);
   const { api } = useBackend();
+
+  React.useEffect(() => {
+    const newValue = isProbableIgnoreCase ? '' : (face.person_name || '');
+    setInputValue(newValue);
+  }, [face.face_id, face.match_case, isProbableIgnoreCase, face.person_name]);
+
+  React.useEffect(() => {
+    if (clearInputTrigger > 0) {
+      setInputValue('');
+    }
+  }, [clearInputTrigger]);
 
   const filteredPeople = React.useMemo(() => {
     if (!inputValue?.trim()) return [];
