@@ -157,11 +157,13 @@ export class PreprocessingManager {
     this._processFile(filePath)
       .catch((err) => {
         debugError('Preprocessing', `Error processing ${filePath}:`, err);
-        this.processing.set(filePath, {
-          status: PreprocessingStatus.ERROR,
-          error: err.message
-        });
-        this.emit('error', { filePath, error: err.message });
+        if (this.processing.has(filePath)) {
+          this.processing.set(filePath, {
+            status: PreprocessingStatus.ERROR,
+            error: err.message
+          });
+          this.emit('error', { filePath, error: err.message });
+        }
       })
       .finally(() => {
         this.activeWorkers--;
@@ -407,19 +409,19 @@ export class PreprocessingManager {
 
       this.emit('status-change', { filePath, status: PreprocessingStatus.HASHING });
 
-      // Launch processing without awaiting - allows parallel execution
       this._processFile(filePath)
         .catch((err) => {
           debugError('Preprocessing', `Error processing ${filePath}:`, err);
-          this.processing.set(filePath, {
-            status: PreprocessingStatus.ERROR,
-            error: err.message
-          });
-          this.emit('error', { filePath, error: err.message });
+          if (this.processing.has(filePath)) {
+            this.processing.set(filePath, {
+              status: PreprocessingStatus.ERROR,
+              error: err.message
+            });
+            this.emit('error', { filePath, error: err.message });
+          }
         })
         .finally(() => {
           this.activeWorkers--;
-          // Try to start more workers if capacity available
           this._processNext();
         });
     }
@@ -538,7 +540,11 @@ export class PreprocessingManager {
       }
     }
 
-    // Mark as complete or error based on actual results
+    if (!this.processing.has(filePath)) {
+      debug('Preprocessing', `Skipping result - file was removed: ${filePath}`);
+      return;
+    }
+
     if (hasErrors) {
       this.processing.set(filePath, {
         status: PreprocessingStatus.ERROR,
@@ -565,6 +571,10 @@ export class PreprocessingManager {
    * @private
    */
   _completeFile(filePath, fileHash, cacheData) {
+    if (!this.processing.has(filePath)) {
+      debug('Preprocessing', `Skipping completion - file was removed: ${filePath}`);
+      return;
+    }
     this.processing.delete(filePath);
     this.completed.set(filePath, {
       hash: fileHash,
