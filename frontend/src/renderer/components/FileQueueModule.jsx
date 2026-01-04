@@ -1427,16 +1427,11 @@ export function FileQueueModule() {
 
   const hasSelection = selectedFiles.size > 0;
 
-  // Memoize display order: active file at top, rest in original order
   const displayOrder = useMemo(() => {
-    if (currentIndex >= 0) {
-      return [
-        { item: queue[currentIndex], originalIndex: currentIndex },
-        ...queue.map((item, i) => ({ item, originalIndex: i })).filter((_, i) => i !== currentIndex)
-      ];
-    }
     return queue.map((item, i) => ({ item, originalIndex: i }));
-  }, [queue, currentIndex]);
+  }, [queue]);
+
+  const activeFile = currentIndex >= 0 ? queue[currentIndex] : null;
 
   return (
     <div ref={moduleRef} className={`module-container file-queue-module ${hasSelection ? 'has-selection' : ''}`} tabIndex={0}>
@@ -1526,6 +1521,18 @@ export function FileQueueModule() {
           </>
         )}
       </div>
+
+      {/* Current file status bar */}
+      {activeFile && (
+        <div className="current-file-bar" onClick={() => {
+          const activeEl = listRef.current?.querySelector('.file-item.active');
+          activeEl?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+        }}>
+          <Icon name="play" size={12} />
+          <span className="current-file-name">{activeFile.fileName}</span>
+          <span className="current-file-hint">click to scroll</span>
+        </div>
+      )}
 
       {/* File list */}
       <div ref={listRef} className="module-body file-queue-list">
