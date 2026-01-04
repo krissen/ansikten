@@ -339,10 +339,10 @@ export function ImageViewer() {
       if (isActiveFace) {
         ctx.save();
         ctx.strokeStyle = activeHighlightColor;
-        ctx.lineWidth = 6;
+        ctx.lineWidth = 2;
         ctx.shadowColor = activeHighlightColor;
-        ctx.shadowBlur = 10;
-        ctx.strokeRect(faceBox.x - 4, faceBox.y - 4, faceBox.width + 8, faceBox.height + 8);
+        ctx.shadowBlur = 6;
+        ctx.strokeRect(faceBox.x - 2, faceBox.y - 2, faceBox.width + 4, faceBox.height + 4);
         ctx.restore();
       }
 
@@ -368,10 +368,10 @@ export function ImageViewer() {
         if (isActiveFace) {
           ctx.save();
           ctx.strokeStyle = activeHighlightColor;
-          ctx.lineWidth = 3;
+          ctx.lineWidth = 2;
           ctx.shadowColor = activeHighlightColor;
-          ctx.shadowBlur = 8;
-          ctx.strokeRect(labelPos.x - 2, labelPos.y - 2, labelWidth + 4, labelHeight + 4);
+          ctx.shadowBlur = 6;
+          ctx.strokeRect(labelPos.x - 1, labelPos.y - 1, labelWidth + 2, labelHeight + 2);
           ctx.restore();
         }
 
