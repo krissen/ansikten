@@ -9,11 +9,21 @@
  * - Purge encodings
  */
 
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import { useBackend } from '../context/BackendContext.jsx';
 import { useModuleEvent } from '../hooks/useModuleEvent.js';
 import { debug, debugWarn, debugError } from '../shared/debug.js';
 import './DatabaseManagement.css';
+
+function fuzzyMatch(text, query) {
+  if (!query) return { match: true, score: 0 };
+  const t = text.toLowerCase();
+  const q = query.toLowerCase();
+  if (t === q) return { match: true, score: 3 };
+  if (t.startsWith(q)) return { match: true, score: 2 };
+  if (t.includes(q)) return { match: true, score: 1 };
+  return { match: false, score: 0 };
+}
 
 /**
  * DatabaseManagement Component
@@ -26,6 +36,8 @@ export function DatabaseManagement() {
   const [isLoading, setIsLoading] = useState(true);
   const [status, setStatus] = useState({ type: '', message: '' });
 
+  const [searchTerm, setSearchTerm] = useState('');
+
   // Form states
   const [renameForm, setRenameForm] = useState({ oldName: '', newName: '' });
   const [mergeForm, setMergeForm] = useState({ source1: '', source2: '', target: '' });
@@ -34,6 +46,16 @@ export function DatabaseManagement() {
   const [moveFromIgnoreForm, setMoveFromIgnoreForm] = useState({ count: '', target: '' });
   const [undoForm, setUndoForm] = useState({ pattern: '' });
   const [purgeForm, setPurgeForm] = useState({ name: '', count: '' });
+
+  const filteredPeople = useMemo(() => {
+    if (!databaseState?.people) return [];
+    if (!searchTerm.trim()) return databaseState.people;
+    
+    return databaseState.people
+      .map(person => ({ ...person, ...fuzzyMatch(person.name, searchTerm) }))
+      .filter(p => p.match)
+      .sort((a, b) => b.score - a.score);
+  }, [databaseState?.people, searchTerm]);
 
   /**
    * Load database state
@@ -267,12 +289,22 @@ export function DatabaseManagement() {
               <strong>{databaseState.ignored_count || 0}</strong> ignored,{' '}
               <strong>{databaseState.processed_files_count || 0}</strong> files processed
             </div>
+            <input
+              type="text"
+              className="people-search"
+              placeholder="Filter names..."
+              value={searchTerm}
+              onChange={(e) => setSearchTerm(e.target.value)}
+            />
             <div className="people-list">
-              {databaseState.people?.map(person => (
+              {filteredPeople.map(person => (
                 <div key={person.name} className="person-item">
                   {person.name} ({person.encoding_count})
                 </div>
               ))}
+              {searchTerm && filteredPeople.length === 0 && (
+                <div className="person-item no-match">No matches</div>
+              )}
             </div>
           </>
         ) : (

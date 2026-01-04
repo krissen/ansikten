@@ -12,7 +12,22 @@
   margin-bottom: var(--space-md);
 }
 
-/* People grid list */
+.people-search {
+  width: 100%;
+  padding: var(--space-xs) var(--space-sm);
+  margin-bottom: var(--space-sm);
+  border: 1px solid var(--border-medium);
+  border-radius: var(--radius-sm);
+  font-size: var(--font-sm);
+  background: var(--bg-elevated);
+  color: var(--text-primary);
+}
+
+.people-search:focus {
+  outline: none;
+  border-color: var(--accent-primary);
+}
+
 .people-list {
   max-height: 200px;
   overflow-y: auto;
@@ -28,6 +43,14 @@
   border: 1px solid var(--border-medium);
   border-radius: var(--radius-sm);
   color: var(--text-primary);
+}
+
+.person-item.no-match {
+  grid-column: 1 / -1;
+  color: var(--text-tertiary);
+  font-style: italic;
+  background: transparent;
+  border: none;
 }
 
 /* Operations panel */
