@@ -339,34 +339,34 @@ export function ReviewModule() {
   const addManualFace = useCallback(() => {
     if (!currentImagePath) return;
 
-    debug('ReviewModule', 'Adding manual face');
+    const insertIndex = currentFaceIndex + 1;
+    debug('ReviewModule', 'Adding manual face at index:', insertIndex);
 
-    // Create a virtual face with no bounding box
     const manualFaceId = `manual_${Date.now()}`;
     const manualFace = {
       face_id: manualFaceId,
-      bounding_box: null,  // No bounding box
-      confidence: null,    // No confidence
+      bounding_box: null,
+      confidence: null,
       person_name: '',
-      is_manual: true,     // Mark as manually added
+      is_manual: true,
       is_confirmed: false
     };
 
-    setDetectedFaces(prev => [...prev, manualFace]);
+    setDetectedFaces(prev => {
+      const updated = [...prev];
+      updated.splice(insertIndex, 0, manualFace);
+      return updated;
+    });
 
-    // Focus the new face's input after render
-    const newIndex = detectedFaces.length;
-    setCurrentFaceIndex(newIndex);
+    setCurrentFaceIndex(insertIndex);
+    emit('active-face-changed', { index: insertIndex });
 
     setTimeout(() => {
-      const input = inputRefs.current[newIndex];
-      if (input) {
-        input.focus();
-      }
+      inputRefs.current[insertIndex]?.focus();
     }, 100);
 
     setStatus('Manual face added - enter name');
-  }, [currentImagePath, detectedFaces.length]);
+  }, [currentImagePath, currentFaceIndex, emit]);
 
   /**
    * Auto-save when all faces reviewed
