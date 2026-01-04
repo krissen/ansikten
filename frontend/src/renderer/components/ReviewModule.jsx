@@ -485,13 +485,22 @@ export function ReviewModule() {
       // Enter to confirm (works both in input and outside)
       if (e.key === 'Enter') {
         e.preventDefault();
-        // If we're in an input, use that input's value directly
-        // Otherwise use the current face's input ref
+        const currentFace = detectedFaces[currentFaceIndex];
+        if (currentFace?.is_confirmed) return;
+
         const inputValue = isInput
           ? e.target.value?.trim()
           : inputRefs.current[currentFaceIndex]?.value?.trim();
+
         if (inputValue) {
           confirmFace(currentFaceIndex, inputValue);
+        } else if (currentFace?.match_alternatives?.length > 0) {
+          const firstAlt = currentFace.match_alternatives[0];
+          if (firstAlt.is_ignored || firstAlt.name === 'ign') {
+            ignoreFace(currentFaceIndex);
+          } else {
+            confirmFace(currentFaceIndex, firstAlt.name);
+          }
         }
         return;
       }
@@ -499,9 +508,19 @@ export function ReviewModule() {
       // A to confirm
       if ((e.key === 'a' || e.key === 'A') && !isInput) {
         e.preventDefault();
+        const currentFace = detectedFaces[currentFaceIndex];
+        if (currentFace?.is_confirmed) return;
+
         const input = inputRefs.current[currentFaceIndex];
         if (input?.value?.trim()) {
           confirmFace(currentFaceIndex, input.value);
+        } else if (currentFace?.match_alternatives?.length > 0) {
+          const firstAlt = currentFace.match_alternatives[0];
+          if (firstAlt.is_ignored || firstAlt.name === 'ign') {
+            ignoreFace(currentFaceIndex);
+          } else {
+            confirmFace(currentFaceIndex, firstAlt.name);
+          }
         }
         return;
       }
