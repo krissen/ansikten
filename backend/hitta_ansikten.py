@@ -29,8 +29,6 @@ from pathlib import Path
 import numpy as np
 import rawpy
 from PIL import Image, ImageDraw, ImageFont
-from prompt_toolkit import prompt
-from prompt_toolkit.completion import WordCompleter
 
 from faceid_db import (ARCHIVE_DIR, ATTEMPT_SETTINGS_SIG, BASE_DIR,
                        CONFIG_PATH, LOGGING_PATH, SUPPORTED_EXT, get_file_hash,
@@ -1480,6 +1478,8 @@ def input_name(known_names, prompt_txt="Ange namn (eller 'i' för ignorera, n = 
     Ber användaren om ett namn med autocomplete.
     Reserverade kommandon (i, a, r, n, o, m, x) returneras som är för vidare hantering.
     """
+    from prompt_toolkit import prompt
+    from prompt_toolkit.completion import WordCompleter
     completer = WordCompleter(sorted(known_names), ignore_case=True, sentence=True)
     try:
         name = prompt(prompt_txt, completer=completer)
