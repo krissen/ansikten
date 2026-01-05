@@ -26,7 +26,6 @@ import unicodedata
 from datetime import datetime
 from pathlib import Path
 
-import matplotlib.font_manager as fm
 import numpy as np
 import rawpy
 from PIL import Image, ImageDraw, ImageFont
@@ -41,7 +40,10 @@ from face_backends import create_backend, FaceBackend
 
 def init_logging(level=logging.DEBUG, logfile=LOGGING_PATH):
     logger = logging.getLogger()
-    logging.getLogger("matplotlib.font_manager").setLevel(logging.WARNING)
+    try:
+        logging.getLogger("matplotlib.font_manager").setLevel(logging.WARNING)
+    except Exception:
+        pass
     logger.setLevel(level)
     # Ta bort eventuella gamla handlers (viktigt vid utveckling/omstart)
     logger.handlers.clear()
@@ -953,6 +955,7 @@ def robust_word_wrap(label_text, max_label_width, draw, font):
 def create_labeled_image(rgb_image, face_locations, labels, config, suffix=""):
 
     from PIL import Image
+    import matplotlib.font_manager as fm
 
     font_size = max(10, rgb_image.shape[1] // config.get("font_size_factor"))
     font_path = fm.findfont(fm.FontProperties(family="DejaVu Sans"))
