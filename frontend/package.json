@@ -18,8 +18,12 @@
     "dist": "npm run build"
   },
   "keywords": [],
-  "author": "",
+  "author": "krissen",
   "license": "ISC",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/krissen/hitta_ansikten.git"
+  },
   "type": "commonjs",
   "dependencies": {
     "dockview": "^1.17.2",
