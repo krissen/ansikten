@@ -16,3 +16,6 @@ onnxruntime>=1.15
 fastapi>=0.100.0
 uvicorn[standard]>=0.23.0
 websockets>=11.0
+
+# Development only (for building distributable app)
+# pyinstaller>=6.0

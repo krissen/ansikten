@@ -5,11 +5,16 @@
  * - Auto-start on app launch
  * - Health check polling
  * - Graceful shutdown
+ *
+ * In development: Uses system Python with uvicorn
+ * In production (packaged): Uses bundled PyInstaller executable
  */
 
 const { spawn } = require('child_process');
+const { app } = require('electron');
 const http = require('http');
 const path = require('path');
+const fs = require('fs');
 
 const DEBUG = true;
 
@@ -24,6 +29,84 @@ class BackendService {
   }
 
   /**
+   * Get the path to the backend executable or Python
+   * @returns {{ executable: string, args: string[], cwd: string, env: object }}
+   */
+  getBackendConfig() {
+    const isPackaged = app.isPackaged;
+
+    if (isPackaged) {
+      // Production: Use bundled PyInstaller executable
+      const resourcesPath = process.resourcesPath;
+      const execName = process.platform === 'win32' ? 'bildvisare-backend.exe' : 'bildvisare-backend';
+      const backendPath = path.join(resourcesPath, 'backend', execName);
+
+      console.log('[BackendService] Running in packaged mode');
+      console.log('[BackendService] Backend path:', backendPath);
+
+      if (!fs.existsSync(backendPath)) {
+        throw new Error(`Bundled backend not found at: ${backendPath}`);
+      }
+
+      return {
+        executable: backendPath,
+        args: [
+          '--host', this.host,
+          '--port', this.port.toString()
+        ],
+        cwd: path.dirname(backendPath),
+        env: {
+          ...process.env,
+          BILDVISARE_PORT: this.port.toString()
+        }
+      };
+    } else {
+      // Development: Use system Python with uvicorn
+      const backendDir = path.join(__dirname, '../../../backend');
+
+      // Try to find Python in common locations
+      const pythonPaths = [
+        process.env.BILDVISARE_PYTHON,  // Custom path via env var
+        '/Users/krisniem/.local/share/miniforge3/envs/hitta_ansikten/bin/python3',  // Dev default
+        'python3',  // System Python
+        'python',   // Fallback
+      ].filter(Boolean);
+
+      let pythonPath = pythonPaths[0];
+      for (const p of pythonPaths) {
+        try {
+          if (p.includes('/') && fs.existsSync(p)) {
+            pythonPath = p;
+            break;
+          }
+        } catch (e) {
+          // Continue to next
+        }
+      }
+
+      console.log('[BackendService] Running in development mode');
+      console.log('[BackendService] Python path:', pythonPath);
+
+      return {
+        executable: pythonPath,
+        args: [
+          '-m', 'uvicorn',
+          'api.server:app',
+          '--host', this.host,
+          '--port', this.port.toString(),
+          '--log-level', 'info'
+        ],
+        cwd: backendDir,
+        env: {
+          ...process.env,
+          PYTHONPATH: backendDir,
+          BILDVISARE_PORT: this.port.toString()
+        }
+      };
+    }
+  }
+
+  /**
    * Start the FastAPI backend server
    * @returns {Promise<void>}
    */
@@ -35,27 +118,15 @@ class BackendService {
 
     console.log('[BackendService] Starting FastAPI backend...');
 
-    // Get paths
-    const backendDir = path.join(__dirname, '../../../backend/api');
-    const pythonPath = '/Users/krisniem/.local/share/miniforge3/envs/hitta_ansikten/bin/python3';
+    const config = this.getBackendConfig();
 
-    // Spawn uvicorn server
+    // Spawn backend process
     this.process = spawn(
-      pythonPath,
-      [
-        '-m', 'uvicorn',
-        'api.server:app',
-        '--host', this.host,
-        '--port', this.port.toString(),
-        '--log-level', 'info'
-      ],
+      config.executable,
+      config.args,
       {
-        cwd: path.join(__dirname, '../../../backend'),
-        env: {
-          ...process.env,
-          PYTHONPATH: path.join(__dirname, '../../../backend'),
-          BILDVISARE_PORT: this.port.toString()
-        },
+        cwd: config.cwd,
+        env: config.env,
         stdio: 'pipe'
       }
     );
