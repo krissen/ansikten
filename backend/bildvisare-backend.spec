@@ -82,7 +82,7 @@ except Exception:
     print("Warning: Could not collect face_recognition_models data")
 
 a = Analysis(
-    ['api/server.py'],  # Entry point
+    ['run_server.py'],  # Entry point wrapper (avoids relative import issues)
     pathex=['.'],
     binaries=[],
     datas=datas,
