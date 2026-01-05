@@ -2,7 +2,7 @@
 
 Konsoliderad lista över planerade förbättringar, kända brister och teknisk skuld.
 
-**Senast uppdaterad:** 2026-01-02
+**Senast uppdaterad:** 2026-01-05
 
 ---
 
@@ -79,6 +79,13 @@ Konsoliderad lista över planerade förbättringar, kända brister och teknisk s
 ---
 
 ## Slutfört (referens)
+
+### 2026-01-05: UX-förbättringar och rakna_spelare
+- [x] ReviewModule autocomplete: portal-positionering, pil-förval, bättre highlight
+- [x] View > Show Review Progress menyval (Shift+I)
+- [x] DatabaseManagement: fuzzy-sök för namnlistan
+- [x] Bekräftelsedialog vid avvikelse från >75% matchning
+- [x] rakna_spelare.py: bar, spark, färg, tränare/publik-config, Δ%-sortering
 
 ### 2026-01-02: Styling och tema-system
 - [x] `theme.css` med CSS-variabler (light/dark mode)

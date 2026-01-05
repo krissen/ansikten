@@ -44,17 +44,21 @@ Workspace är ett modulärt gränssnitt byggt med FlexLayout. Paneler kan dockas
 | `B` | Visa/dölj bounding boxes |
 | `b` | Växla enstaka/alla boxar |
 | `c` / `C` | Aktivera/avaktivera auto-centrering |
+| `Shift+I` | Visa/dölj "Review Progress" (filnamn + köstatus) |
+
+*Review Progress finns även i menyn: View → Show Review Progress.*
 
 ### Ansiktsgranskning
 
 | Genväg | Funktion |
 |--------|----------|
 | `Enter` / `A` | Acceptera föreslagen matchning |
-| `I` | Ignorera ansikte |
-| `R` | Byt namn / ange namn |
+| `i` | Ignorera ansikte |
+| `r` | Byt namn / ange namn (rensar fältet) |
 | `1-9` | Välj matchningsalternativ |
 | `↑` / `↓` | Föregående/nästa ansikte |
-| `X` | Hoppa till nästa fil |
+| `Tab` | Komplettera autocomplete-förslag |
+| `x` | Hoppa till nästa fil |
 | `Esc` | Avbryt ändringar |
 
 ### Layout
@@ -162,3 +166,5 @@ Theme Editor ger full kontroll över färger och presets.
 3. **Fix-läge**: Aktivera för att omgranska redan bearbetade filer
 4. **Stora köer**: Rolling Window hanterar 1000+ bilder utan att fylla minnet
 5. **Ångra**: Använd Database-modulen för att ångra filändringar
+6. **Autocomplete**: Använd `↑`/`↓` för att bläddra i förslag och `Tab` för att komplettera valt namn
+7. **Database-filter**: I Database-modulen finns ett filterfält ("Filter names...") med fuzzy-matchning
