@@ -81,6 +81,79 @@ Visar:
 
 ---
 
+## rakna_spelare.py
+
+Räknar bilder per person och visar statistik för att identifiera över-/underrepresenterade spelare.
+
+### Grundläggande användning
+
+```bash
+# Räkna bilder i en match
+./rakna_spelare.py "260104*.jpg"
+
+# Visa per match-statistik
+./rakna_spelare.py --per-match "*.jpg"
+
+# Använd mean istället för median
+./rakna_spelare.py --baseline mean "*.jpg"
+
+# Längre gap mellan matcher (45 min)
+./rakna_spelare.py --gap-minutes 45 "*.jpg"
+```
+
+### Flaggor
+
+| Flagga | Standard | Beskrivning |
+|--------|----------|-------------|
+| `--baseline {median,mean}` | `median` | Baseline-metod för deviation |
+| `--min-images N` | `3` | Minsta antal bilder för baseline |
+| `-p, --per-match` | - | Visa resultat per match |
+| `-g, --gap-minutes N` | `30` | Minuter mellan matcher |
+| `--tranare "A,B"` | - | Ersätt tränare-listan |
+| `--add-tranare "X"` | - | Lägg till tränare |
+| `--publik "A,B"` | - | Ersätt publik-listan |
+| `--add-publik "X"` | - | Lägg till publik |
+| `--no-color` | - | Stäng av färger |
+| `--ascii` | - | Endast ASCII-tecken |
+
+### Konfiguration
+
+Config-fil: `~/.local/share/faceid/rakna_spelare.json`
+
+```json
+{
+  "tranare": ["Martin", "Ronnie"],
+  "publik": ["Jasenko", "Jelena"]
+}
+```
+
+Miljövariabler: `RAKNA_TRANARE`, `RAKNA_PUBLIK`, `NO_COLOR`
+
+**Prioritet:** CLI-flaggor > miljövariabler > config-fil > standardvärden
+
+### Output
+
+```
+=== Totalt (12:01 → 14:27, 146 min) ===
+Bilder: 155   Spelare: 15   Baseline: median=18.0
+
+NAMN        ANT      %      Δ%      ΔN  BAR                     SPARK
+Hugo         25   16.1%   +39%    (+7)  [##############------]  ···:*·::·**:*·:*·*·:
+...
+Albin         8    5.2%   -56%   (-10)  [####----------------]  ····:·::···········*
+
+--- Tränare (5 st) ---
+  HenrikA: 11 (7.1%)
+```
+
+- **Δ%**: Deviation från baseline (positiv = för många, negativ = för få)
+- **ΔN**: Antal bilder över/under baseline
+- **BAR**: Visuell representation relativt baseline
+- **SPARK**: Temporal fördelning (när bilderna togs)
+- Färgkodning: OK (±10%), WARN (10-20%), HIGH/LOW (>20%)
+
+---
+
 ## Övriga verktyg
 
 ### ratta_ansikten.py
