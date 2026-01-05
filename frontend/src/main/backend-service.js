@@ -21,11 +21,17 @@ const DEBUG = true;
 class BackendService {
   constructor() {
     this.process = null;
-    // Default to 5001 to avoid conflict with macOS Control Center on 5000
     this.port = parseInt(process.env.BILDVISARE_PORT || '5001');
     this.host = '127.0.0.1';
-    this.maxRetries = 30; // 30 seconds max wait
-    this.retryDelay = 1000; // 1 second between retries
+    this.maxRetries = 30;
+    this.retryDelay = 1000;
+    this.onStatusUpdate = null;
+  }
+
+  _updateStatus(message, progress = null) {
+    if (typeof this.onStatusUpdate === 'function') {
+      this.onStatusUpdate(message, progress);
+    }
   }
 
   /**
@@ -167,31 +173,30 @@ class BackendService {
    * @returns {Promise<void>}
    */
   async waitForReady() {
-    console.log('[BackendService] ⏳ Starting backend server, please wait...');
-    console.log('[BackendService] This may take 5-10 seconds on first start');
+    console.log('[BackendService] Starting backend server, please wait...');
+    this._updateStatus('Initierar Python...', 10);
 
-    // Initial delay to let Python start (reduces noise from failed health checks)
     await new Promise(resolve => setTimeout(resolve, 2000));
 
     for (let i = 0; i < this.maxRetries; i++) {
       const isHealthy = await this.checkHealth();
       if (isHealthy) {
-        console.log(`[BackendService] ✅ Backend server ready! (took ${(i + 1) * this.retryDelay / 1000}s)`);
+        console.log(`[BackendService] Backend server ready! (took ${(i + 1) * this.retryDelay / 1000}s)`);
+        this._updateStatus('Backend redo!', 80);
         return;
       }
 
-      // More user-friendly progress messages
+      const progress = Math.min(10 + (i / this.maxRetries) * 60, 70);
       if (i === 0) {
-        console.log('[BackendService] ⏳ Initializing Python environment...');
+        this._updateStatus('Laddar Python-moduler...', progress);
       } else if (i === 3) {
-        console.log('[BackendService] ⏳ Loading FastAPI modules...');
+        this._updateStatus('Startar FastAPI...', progress);
       } else if (i === 6) {
-        console.log('[BackendService] ⏳ Starting web server...');
-      } else if (i > 15 && i % 5 === 0) {
-        console.log(`[BackendService] ⏳ Still waiting... (${i}/${this.maxRetries} attempts)`);
+        this._updateStatus('Startar webbserver...', progress);
+      } else if (i > 10) {
+        this._updateStatus('Väntar på backend...', progress);
       }
 
-      // Wait before next retry
       await new Promise(resolve => setTimeout(resolve, this.retryDelay));
     }
 
