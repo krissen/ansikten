@@ -1,6 +1,7 @@
 face_recognition
 numpy
 pillow
+opencv-python
 rawpy
 prompt_toolkit
 rich
