@@ -14,10 +14,48 @@ const { BackendService } = require("./backend-service");
 const { createApplicationMenu } = require("./menu");
 
 let mainWindow = null;
+let splashWindow = null;
 let backendService = null;
 let initialFilePath = null;
 let initialQueueFiles = [];
 let isQuitting = false;
+
+/**
+ * Create splash window for startup
+ */
+function createSplashWindow() {
+  splashWindow = new BrowserWindow({
+    width: 300,
+    height: 350,
+    frame: false,
+    transparent: true,
+    resizable: false,
+    center: true,
+    alwaysOnTop: true,
+    webPreferences: {
+      nodeIntegration: true,
+      contextIsolation: false,
+    },
+  });
+
+  const splashPath = path.join(__dirname, "../renderer/splash.html");
+  splashWindow.loadFile(splashPath);
+
+  splashWindow.on("closed", () => {
+    splashWindow = null;
+  });
+
+  return splashWindow;
+}
+
+/**
+ * Send status update to splash window
+ */
+function updateSplashStatus(message, progress = null) {
+  if (splashWindow && !splashWindow.isDestroyed()) {
+    splashWindow.webContents.send("splash-status", { message, progress });
+  }
+}
 
 // Parse command line arguments
 // Position-agnostic parsing: scan for known flags anywhere in argv
@@ -139,11 +177,12 @@ function createWorkspaceWindow() {
   mainWindow = new BrowserWindow({
     width: 1200,
     height: 800,
+    show: false,
     webPreferences: {
       nodeIntegration: false,
       contextIsolation: true,
       preload: path.join(__dirname, "../preload/preload.js"),
-      partition: "persist:bildvisare", // Persist localStorage between sessions
+      partition: "persist:bildvisare",
     },
     title: "Hitta ansikten",
   });
@@ -234,20 +273,38 @@ app.on("second-instance", async (event, argv, workingDirectory) => {
 
 // App lifecycle - only runs if we got the lock
 app.whenReady().then(async () => {
-  console.log("[Main] App ready, starting backend...");
+  console.log("[Main] App ready, showing splash...");
+
+  // Show splash immediately
+  createSplashWindow();
+  updateSplashStatus("Startar backend...");
 
   // Start backend service
   try {
     backendService = new BackendService();
+    backendService.onStatusUpdate = (message) => {
+      updateSplashStatus(message);
+    };
     await backendService.start();
     console.log(`[Main] Backend ready at ${backendService.getUrl()}`);
+    updateSplashStatus("Laddar gränssnitt...", 90);
   } catch (err) {
     console.error("[Main] Failed to start backend:", err);
-    // TODO: Show error dialog to user
+    updateSplashStatus("Backend-fel: " + err.message);
+    await new Promise(resolve => setTimeout(resolve, 2000));
   }
 
   // Create workspace window
+  updateSplashStatus("Redo!", 100);
   createWorkspaceWindow();
+
+  // Close splash when main window is ready
+  mainWindow.once("ready-to-show", () => {
+    if (splashWindow && !splashWindow.isDestroyed()) {
+      splashWindow.close();
+    }
+    mainWindow.show();
+  });
 
   // Handle initial files from command line
   if (initialArgs.files.length > 0) {
