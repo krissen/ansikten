@@ -43,7 +43,21 @@ async def lifespan(app: FastAPI):
             startup_state.set_state("database", LoadingState.ERROR, 
                                     "Failed to load database", error=str(e))
     
+    async def warmup_ml_models():
+        startup_state.set_state("mlModels", LoadingState.LOADING, "Loading ML models...")
+        await asyncio.sleep(0.5)
+        try:
+            from .services.detection_service import detection_service
+            _ = detection_service.backend
+            startup_state.set_state("mlModels", LoadingState.READY, 
+                                    f"Loaded {detection_service.backend.backend_name}")
+        except Exception as e:
+            logger.error(f"Failed to warm up ML models: {e}")
+            startup_state.set_state("mlModels", LoadingState.ERROR,
+                                    "Failed to load ML models", error=str(e))
+    
     asyncio.create_task(preload_database())
+    asyncio.create_task(warmup_ml_models())
     
     # Setup WS broadcast for startup status changes
     from .websocket.progress import setup_startup_listener
