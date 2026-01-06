@@ -54,6 +54,9 @@ export function ImageViewer() {
   const [activeFaceIndex, setActiveFaceIndex] = useState(0);
   const previousFaceBoxModeRef = useRef('all');
 
+  // Track skipAutoDetect for re-emission on request-current-image
+  const lastSkipAutoDetectRef = useRef(false);
+
   // Auto-center state (enabled by default for review workflow)
   const [autoCenterOnFace, setAutoCenterOnFace] = useState(true);
 
@@ -681,6 +684,7 @@ export function ImageViewer() {
   useModuleEvent('load-image', async ({ imagePath: path, skipAutoDetect }) => {
     try {
       const { img, originalPath } = await loadImage(path);
+      lastSkipAutoDetectRef.current = !!skipAutoDetect;
       debug('ImageViewer', 'Loaded image:', path, { skipAutoDetect });
       emit('image-loaded', {
         imagePath: originalPath,
@@ -692,7 +696,6 @@ export function ImageViewer() {
     }
   });
 
-  // Listen for clear-image events (when file is removed from queue)
   useModuleEvent('clear-image', () => {
     debug('ImageViewer', 'Clearing image');
     setImage(null);
@@ -700,6 +703,7 @@ export function ImageViewer() {
     setOriginalImagePath(null);
     setFaces([]);
     setActiveFaceIndex(-1);
+    lastSkipAutoDetectRef.current = false;
   });
 
   // Listen for faces-detected events - reset activeFaceIndex to sync with ReviewModule
@@ -734,12 +738,12 @@ export function ImageViewer() {
     }
   });
 
-  // Listen for request-current-image
   useModuleEvent('request-current-image', () => {
     if (imagePath) {
       emit('image-loaded', {
         imagePath: originalImagePath || imagePath,
-        dimensions: { width: image?.width, height: image?.height }
+        dimensions: { width: image?.width, height: image?.height },
+        skipAutoDetect: lastSkipAutoDetectRef.current
       });
     }
   });

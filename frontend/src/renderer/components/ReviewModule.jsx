@@ -692,11 +692,15 @@ export function ReviewModule() {
       debug('ReviewModule', 'Skipping auto-detect for already-processed file:', imagePath);
       setCurrentImagePath(imagePath);
       setDetectedFaces([]);
-      setStatus('Redan behandlad - använd 🔄 för att köra igen');
+      setStatus('Already processed - click 🔄 to reprocess');
+      return;
+    }
+    if (imagePath === currentImagePath && detectedFaces.length > 0) {
+      debug('ReviewModule', 'Ignoring duplicate image-loaded for same file with faces');
       return;
     }
     detectFaces(imagePath);
-  }, [detectFaces]));
+  }, [detectFaces, currentImagePath, detectedFaces.length]));
 
   /**
    * Listen for clear-image events (when file is removed from queue)
