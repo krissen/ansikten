@@ -8,3 +8,4 @@ export { LogViewer } from './LogViewer.jsx';
 export { StatisticsDashboard } from './StatisticsDashboard.jsx';
 export { ReviewModule } from './ReviewModule.jsx';
 export { DatabaseManagement } from './DatabaseManagement.jsx';
+export { StartupStatus } from './StartupStatus.jsx';
