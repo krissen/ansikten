@@ -32,16 +32,26 @@ async def lifespan(app: FastAPI):
     logger.info("Bildvisare Backend API starting up...")
     logger.info(f"Server ready on http://127.0.0.1:{port}")
     
+    def _load_database_sync():
+        """Sync function for thread pool - loads database"""
+        from .services.management_service import get_management_service
+        svc = get_management_service()
+        return len(svc.known_faces)
+    
+    def _warmup_ml_sync():
+        """Sync function for thread pool - initializes ML backend"""
+        from .services.detection_service import detection_service
+        _ = detection_service.backend
+        return detection_service.backend.backend_name
+    
     async def preload_database():
         t0 = time.perf_counter()
         startup_state.set_state("database", LoadingState.LOADING, "Loading face database...")
-        await asyncio.sleep(0.1)
         try:
-            from .services.management_service import get_management_service
-            svc = get_management_service()
+            people_count = await asyncio.to_thread(_load_database_sync)
             elapsed = time.perf_counter() - t0
             startup_state.set_state("database", LoadingState.READY, 
-                                    f"Loaded {len(svc.known_faces)} people")
+                                    f"Loaded {people_count} people")
             logger.info(f"[Startup Profile] Database loaded in {elapsed:.2f}s")
         except Exception as e:
             logger.error(f"Failed to pre-load database: {e}")
@@ -51,13 +61,11 @@ async def lifespan(app: FastAPI):
     async def warmup_ml_models():
         t0 = time.perf_counter()
         startup_state.set_state("mlModels", LoadingState.LOADING, "Loading ML models...")
-        await asyncio.sleep(0.5)
         try:
-            from .services.detection_service import detection_service
-            _ = detection_service.backend
+            backend_name = await asyncio.to_thread(_warmup_ml_sync)
             elapsed = time.perf_counter() - t0
             startup_state.set_state("mlModels", LoadingState.READY, 
-                                    f"Loaded {detection_service.backend.backend_name}")
+                                    f"Loaded {backend_name}")
             logger.info(f"[Startup Profile] ML models loaded in {elapsed:.2f}s")
             logger.info(f"[Startup Profile] Total startup time: {time.perf_counter() - startup_start:.2f}s")
         except Exception as e:
