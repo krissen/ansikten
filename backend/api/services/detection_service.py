@@ -19,7 +19,6 @@ sys.path.insert(0, str(Path(__file__).parent.parent.parent))
 from face_backends import create_backend
 from faceid_db import load_database, save_database, get_file_hash, BASE_DIR
 from hitta_ansikten import load_config, log_attempt_stats
-import face_recognition
 import rawpy
 from PIL import Image
 import numpy as np

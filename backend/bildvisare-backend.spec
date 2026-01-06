@@ -32,11 +32,6 @@ hiddenimports = [
     'pydantic',
     'pydantic_core',
     
-    # Face recognition
-    'face_recognition',
-    'face_recognition_models',
-    'dlib',
-    
     # Image processing
     'cv2',
     'PIL',
@@ -49,9 +44,9 @@ hiddenimports = [
     'matplotlib.pyplot',
     'matplotlib.font_manager',
     
-    # Optional: InsightFace (may not be installed)
-    # 'insightface',
-    # 'onnxruntime',
+    # InsightFace and ONNX runtime
+    'insightface',
+    'onnxruntime',
     
     # API modules
     'api',
@@ -76,15 +71,7 @@ hiddenimports = [
 ]
 
 # Collect data files needed at runtime
-datas = [
-    # face_recognition_models data
-]
-
-# Try to collect face_recognition_models data
-try:
-    datas += collect_data_files('face_recognition_models')
-except Exception:
-    print("Warning: Could not collect face_recognition_models data")
+datas = []
 
 a = Analysis(
     ['run_server.py'],  # Entry point wrapper (avoids relative import issues)
