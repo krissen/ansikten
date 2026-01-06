@@ -488,9 +488,13 @@ export function FileQueueModule() {
       // Check if auto-load is enabled in preferences
       if (!getAutoLoadPreference()) {
         debug('FileQueue', 'Auto-load disabled in preferences');
-        // Still start preprocessing for all pending items
+        // Still start preprocessing for all pending items (respecting fix-mode)
         if (preprocessingManager.current) {
-          const pendingItems = queue.filter(item => item.status !== 'completed');
+          const currentFixMode = fixModeRef.current;
+          const pendingItems = queue.filter(item => 
+            item.status !== 'completed' && 
+            (currentFixMode || !item.isAlreadyProcessed)
+          );
           pendingItems.forEach(item => preprocessingManager.current.addToQueue(item.filePath));
         }
         return;
@@ -518,9 +522,12 @@ export function FileQueueModule() {
           preprocessingManager.current.addToQueue(queue[indexToLoad].filePath, { priority: true });
         }
 
-        // Then add remaining pending items
+        // Then add remaining pending items (respecting fix-mode)
+        const currentFixMode = fixModeRef.current;
         const pendingItems = queue.filter((item, i) =>
-          item.status !== 'completed' && i !== indexToLoad
+          item.status !== 'completed' && 
+          i !== indexToLoad &&
+          (currentFixMode || !item.isAlreadyProcessed)
         );
         debug('FileQueue', 'Starting preprocessing for', pendingItems.length + (indexToLoad >= 0 ? 1 : 0), 'items');
         pendingItems.forEach(item => {
@@ -735,7 +742,13 @@ export function FileQueueModule() {
       addedCount = uniqueNew.length;
 
       if (preprocessingManager.current) {
+        const currentFixMode = fixModeRef.current;
         uniqueNew.forEach(item => {
+          // Skip preprocessing for already-processed files when fix-mode is OFF
+          if (!currentFixMode && item.isAlreadyProcessed) {
+            debug('FileQueue', 'Skipping preprocessing (already processed, fix-mode OFF):', item.fileName);
+            return;
+          }
           preprocessingManager.current.addToQueue(item.filePath);
         });
       }
@@ -913,6 +926,12 @@ export function FileQueueModule() {
     }
 
     const item = currentQueue[index];
+
+    // If fix-mode OFF and file already processed, show info toast
+    if (!fixMode && item.isAlreadyProcessed) {
+      debug('FileQueue', 'File already processed (fix-mode OFF), showing info:', item.fileName);
+      showToast(`ℹ️ ${item.fileName} redan behandlad. Aktivera fix-mode för att bearbeta igen.`, 'info', 4000);
+    }
 
     // If fix mode and file is already processed, undo it first
     if (fixMode && item.isAlreadyProcessed) {
