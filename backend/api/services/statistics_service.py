@@ -309,13 +309,9 @@ class StatisticsService:
         Combines all statistics into one response.
         Results are cached for 2 seconds to handle multiple concurrent requests.
         """
-        # Check cache
         cached = self._get_cached("summary")
         if cached:
-            logger.debug("[StatisticsService] Returning cached summary")
             return cached
-
-        logger.debug("[StatisticsService] Computing fresh summary")
 
         known_faces, _, _, processed_files = load_database()
         stats = load_attempt_log(all_files=False)

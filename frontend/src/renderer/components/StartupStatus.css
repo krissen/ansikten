@@ -6,7 +6,8 @@
   border: 1px solid var(--border-medium);
   border-radius: var(--radius-lg);
   padding: var(--space-md);
-  min-width: 200px;
+  min-width: 280px;
+  max-width: 400px;
   box-shadow: var(--shadow-lg);
   z-index: 9999;
   opacity: 1;
@@ -54,6 +55,7 @@
   gap: var(--space-sm);
   font-size: var(--font-sm);
   color: var(--text-secondary);
+  min-height: 24px;
 }
 
 .startup-icon {
@@ -62,6 +64,7 @@
   justify-content: center;
   width: 18px;
   height: 18px;
+  flex-shrink: 0;
 }
 
 .startup-icon.pending {
@@ -87,15 +90,35 @@
 }
 
 .startup-label {
-  flex: 1;
+  font-weight: var(--font-medium);
+  flex-shrink: 0;
+  min-width: 90px;
 }
 
-.startup-progress {
+.startup-message {
   color: var(--text-tertiary);
   font-size: var(--font-xs);
+  flex: 1;
+  text-align: right;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
-.startup-error {
+.startup-message.ready {
+  color: var(--color-success);
+}
+
+.startup-message.error {
   color: var(--color-error);
-  font-weight: var(--font-bold);
+}
+
+.startup-message.loading {
+  color: var(--color-info);
+}
+
+.startup-error-detail {
+  color: var(--color-error);
+  cursor: help;
+  flex-shrink: 0;
 }

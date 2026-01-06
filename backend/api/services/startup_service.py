@@ -45,9 +45,11 @@ class StartupState:
             return
         self._initialized = True
         
+        # Components shown in startup toast (order matters for display)
         self.components: Dict[str, ComponentStatus] = {
-            "database": ComponentStatus(message="Face database"),
-            "mlModels": ComponentStatus(message="ML models (InsightFace)"),
+            "backend": ComponentStatus(state=LoadingState.READY, message="Ansluten"),
+            "database": ComponentStatus(message="Väntar..."),
+            "mlModels": ComponentStatus(message="Väntar..."),
         }
         self._listeners: List[Callable] = []
         logger.info("[StartupState] Initialized")
