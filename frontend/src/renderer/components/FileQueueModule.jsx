@@ -170,9 +170,10 @@ export function FileQueueModule() {
   const [currentIndex, setCurrentIndex] = useState(-1);
   const [autoAdvance, setAutoAdvance] = useState(true);
   const [fixMode, setFixMode] = useState(false);
-  const [processedFiles, setProcessedFiles] = useState(new Set()); // Set of filenames
-  const [processedHashes, setProcessedHashes] = useState(new Set()); // Set of file hashes
-  const [preprocessingStatus, setPreprocessingStatus] = useState({}); // filePath -> status
+  const [processedFiles, setProcessedFiles] = useState(new Set());
+  const [processedHashes, setProcessedHashes] = useState(new Set());
+  const [processedFilesLoaded, setProcessedFilesLoaded] = useState(false);
+  const [preprocessingStatus, setPreprocessingStatus] = useState({});
   const [preprocessingPaused, setPreprocessingPaused] = useState(false);
   const [selectedFiles, setSelectedFiles] = useState(new Set()); // Selected file IDs
 
@@ -195,6 +196,10 @@ export function FileQueueModule() {
   // Track missing files for batched removal
   const missingFilesRef = useRef([]);
   const missingFilesTimeoutRef = useRef(null);
+
+  // Ref for processedFilesLoaded (for use in callbacks without stale closure)
+  const processedFilesLoadedRef = useRef(false);
+  processedFilesLoadedRef.current = processedFilesLoaded;
 
   // Get preprocessing manager (singleton)
   const preprocessingManager = useRef(null);
@@ -220,20 +225,19 @@ export function FileQueueModule() {
   const loadProcessedFilesFailedRef = useRef(false);
   const loadProcessedFiles = useCallback(async () => {
     try {
-      // Use smaller n to avoid validation errors with legacy data
       const response = await api.get('/api/management/recent-files?n=1000');
       if (response && Array.isArray(response)) {
         const fileNames = new Set(response.map(f => f.name));
         const fileHashes = new Set(response.map(f => f.hash).filter(Boolean));
         setProcessedFiles(fileNames);
         setProcessedHashes(fileHashes);
+        setProcessedFilesLoaded(true);
         debug('FileQueue', 'Loaded', fileNames.size, 'processed files,', fileHashes.size, 'hashes');
-        loadProcessedFilesFailedRef.current = false; // Reset on success
+        loadProcessedFilesFailedRef.current = false;
       }
     } catch (err) {
-      // Non-fatal error - processed files indicator will be missing
       debugWarn('FileQueue', 'Could not load processed files (non-fatal):', err.message);
-      // Show toast only once to avoid spam on retries
+      setProcessedFilesLoaded(true);
       if (!loadProcessedFilesFailedRef.current) {
         loadProcessedFilesFailedRef.current = true;
         showToast('⚠️ Could not load processed files status', 'warning', 3000);
@@ -255,6 +259,24 @@ export function FileQueueModule() {
   useEffect(() => {
     loadProcessedFiles();
   }, [loadProcessedFiles]);
+
+  // Sync isAlreadyProcessed flags when processedFiles loads (fixes stale localStorage data)
+  useEffect(() => {
+    if (!processedFilesLoaded || processedFiles.size === 0) return;
+    
+    setQueue(prev => {
+      let hasChanges = false;
+      const updated = prev.map(item => {
+        const shouldBeProcessed = processedFiles.has(item.fileName);
+        if (shouldBeProcessed && !item.isAlreadyProcessed) {
+          hasChanges = true;
+          return { ...item, isAlreadyProcessed: true };
+        }
+        return item;
+      });
+      return hasChanges ? updated : prev;
+    });
+  }, [processedFilesLoaded, processedFiles]);
 
   // Subscribe to preprocessing manager events
   useEffect(() => {
@@ -482,67 +504,64 @@ export function FileQueueModule() {
   // Auto-load effect - runs after queue is restored from localStorage
   // Sets pendingAutoLoad, actual load happens in a later effect
   useEffect(() => {
-    if (shouldAutoLoad && queue.length > 0) {
-      setShouldAutoLoad(false);
+    if (!processedFilesLoaded) return;
+    if (!shouldAutoLoad || queue.length === 0) return;
+    setShouldAutoLoad(false);
 
-      // Check if auto-load is enabled in preferences
-      if (!getAutoLoadPreference()) {
-        debug('FileQueue', 'Auto-load disabled in preferences');
-        // Still start preprocessing for all pending items (respecting fix-mode)
-        if (preprocessingManager.current) {
-          const currentFixMode = fixModeRef.current;
-          const pendingItems = queue.filter(item => 
-            item.status !== 'completed' && 
-            (currentFixMode || !item.isAlreadyProcessed)
-          );
-          pendingItems.forEach(item => preprocessingManager.current.addToQueue(item.filePath));
-        }
-        return;
-      }
-
-      // Determine which file to load
-      let indexToLoad = savedIndexRef.current;
-
-      // Validate the saved index
-      if (indexToLoad < 0 || indexToLoad >= queue.length) {
-        indexToLoad = queue.findIndex(item => item.status === 'pending');
-      }
-
-      // If saved index was completed, find next pending
-      if (indexToLoad >= 0 && queue[indexToLoad]?.status === 'completed') {
-        const nextPending = queue.findIndex((item, i) => i > indexToLoad && item.status === 'pending');
-        indexToLoad = nextPending >= 0 ? nextPending : queue.findIndex(item => item.status === 'pending');
-      }
-
-      // Start preprocessing for restored queue items
+    if (!getAutoLoadPreference()) {
+      debug('FileQueue', 'Auto-load disabled in preferences');
       if (preprocessingManager.current) {
-        // First, check the file we're about to load (with priority)
-        // This ensures we detect if it's missing before trying to load it
-        if (indexToLoad >= 0 && queue[indexToLoad]) {
-          preprocessingManager.current.addToQueue(queue[indexToLoad].filePath, { priority: true });
-        }
-
-        // Then add remaining pending items (respecting fix-mode)
         const currentFixMode = fixModeRef.current;
-        const pendingItems = queue.filter((item, i) =>
+        const pendingItems = queue.filter(item => 
           item.status !== 'completed' && 
-          i !== indexToLoad &&
           (currentFixMode || !item.isAlreadyProcessed)
         );
-        debug('FileQueue', 'Starting preprocessing for', pendingItems.length + (indexToLoad >= 0 ? 1 : 0), 'items');
-        pendingItems.forEach(item => {
-          preprocessingManager.current.addToQueue(item.filePath);
-        });
+        pendingItems.forEach(item => preprocessingManager.current.addToQueue(item.filePath));
       }
-
-      if (indexToLoad >= 0) {
-        debug('FileQueue', 'Will auto-load file at index', indexToLoad);
-        setPendingAutoLoad(indexToLoad);
-      } else {
-        debug('FileQueue', 'No pending files to auto-load');
-      }
+      return;
     }
-  }, [shouldAutoLoad, queue]);
+
+    let indexToLoad = savedIndexRef.current;
+    const currentFixMode = fixModeRef.current;
+
+    const shouldSkipFile = (item) => {
+      if (item.status === 'completed') return true;
+      if (!currentFixMode) {
+        const isProcessed = item.isAlreadyProcessed || processedFiles.has(item.fileName);
+        if (isProcessed) return true;
+      }
+      return false;
+    };
+
+    if (indexToLoad < 0 || indexToLoad >= queue.length || shouldSkipFile(queue[indexToLoad])) {
+      indexToLoad = queue.findIndex(item => !shouldSkipFile(item));
+    }
+
+    if (preprocessingManager.current) {
+      const pendingItems = queue.filter((item, i) =>
+        !shouldSkipFile(item) && i !== indexToLoad
+      );
+      
+      if (indexToLoad >= 0 && queue[indexToLoad] && !shouldSkipFile(queue[indexToLoad])) {
+        preprocessingManager.current.addToQueue(queue[indexToLoad].filePath, { priority: true });
+      }
+      
+      debug('FileQueue', 'Starting preprocessing for', pendingItems.length + (indexToLoad >= 0 ? 1 : 0), 'items');
+      pendingItems.forEach(item => {
+        preprocessingManager.current.addToQueue(item.filePath);
+      });
+    }
+
+    if (indexToLoad >= 0) {
+      debug('FileQueue', 'Will auto-load file at index', indexToLoad);
+      setPendingAutoLoad(indexToLoad);
+    } else if (queue.length > 0) {
+      debug('FileQueue', 'No eligible files to auto-load (all processed, fix-mode OFF)');
+      setTimeout(() => {
+        showToast('All files already processed. Enable fix-mode to reprocess.', 'info', 5000);
+      }, 500);
+    }
+  }, [shouldAutoLoad, queue, showToast, processedFilesLoaded, processedFiles]);
 
   // Save queue to localStorage on change
   useEffect(() => {
@@ -642,23 +661,27 @@ export function FileQueueModule() {
     prevPreprocessingCountRef.current = { pending: pendingPreprocessing, total: queue.length };
   }, [queue, preprocessingStatus, showToast]);
 
-  // Backend connection status tracking
-  const prevConnectedRef = useRef(null);
+  // Backend connection status - only show toast on RECONNECTION (not initial connect)
+  const connectionStateRef = useRef({ prev: null, hasEverConnected: false });
   useEffect(() => {
-    // Skip initial render (prevConnectedRef.current is null)
-    if (prevConnectedRef.current === null) {
-      prevConnectedRef.current = isConnected;
+    const state = connectionStateRef.current;
+    
+    if (state.prev === null) {
+      state.prev = isConnected;
+      if (isConnected) state.hasEverConnected = true;
       return;
     }
 
-    // Only show toast if status actually changed
-    if (prevConnectedRef.current !== isConnected) {
+    if (state.prev !== isConnected) {
       if (isConnected) {
-        showToast('🟢 Backend connected', 'success', 2500);
+        if (state.hasEverConnected) {
+          showToast('🟢 Backend reconnected', 'success', 2500);
+        }
+        state.hasEverConnected = true;
       } else {
         showToast('🔴 Backend disconnected', 'error', 4000);
       }
-      prevConnectedRef.current = isConnected;
+      state.prev = isConnected;
     }
   }, [isConnected, showToast]);
 
@@ -681,16 +704,7 @@ export function FileQueueModule() {
         }
       }
 
-      // Get database stats (faces loaded)
-      try {
-        const stats = await api.get('/api/management/stats');
-        if (stats && stats.unique_persons > 0) {
-          queueToast(`${stats.unique_persons} known faces loaded`, 'info', 3000);
-        }
-      } catch (err) {
-        // Non-fatal - skip this toast
-        debug('FileQueue', 'Could not fetch database stats:', err.message);
-      }
+      // Database stats now shown in StartupStatus - no separate toast needed
 
       // Check cache status
       try {
@@ -897,11 +911,15 @@ export function FileQueueModule() {
   // Track last selected index for shift-click range selection
   const lastSelectedIndexRef = useRef(-1);
 
-  // Load file by index
   const loadFile = useCallback(async (index) => {
     const currentQueue = queueRef.current;
     if (index < 0 || index >= currentQueue.length) {
       debug('FileQueue', 'loadFile: Invalid index', index, 'queue length:', currentQueue.length);
+      return;
+    }
+
+    if (!processedFilesLoadedRef.current) {
+      debug('FileQueue', 'loadFile: Waiting for processed files to load...');
       return;
     }
 
@@ -927,11 +945,13 @@ export function FileQueueModule() {
 
     const item = currentQueue[index];
 
-    const skipAutoDetect = !fixMode && item.isAlreadyProcessed;
+    const fileIsProcessed = item.isAlreadyProcessed || isFileProcessed(item.fileName);
+    const skipAutoDetect = !fixMode && fileIsProcessed;
     
     if (skipAutoDetect) {
-      debug('FileQueue', 'File already processed (fix-mode OFF), skipping auto-detect:', item.fileName);
-      showToast(`ℹ️ ${item.fileName} redan behandlad. Använd 🔄 eller aktivera fix-mode.`, 'info', 4000);
+      debug('FileQueue', 'File already processed (fix-mode OFF), skipping:', item.fileName);
+      showToast(`${item.fileName} already processed. Enable fix-mode or click 🔄 to reprocess.`, 'info', 5000);
+      return;
     }
 
     if (fixMode && item.isAlreadyProcessed) {
@@ -941,10 +961,10 @@ export function FileQueueModule() {
           filename_pattern: item.fileName
         });
         await loadProcessedFiles();
-        showToast(`🔄 Ångrade ${item.fileName}`, 'info', 2500);
+        showToast(`🔄 Undid ${item.fileName}`, 'info', 2500);
       } catch (err) {
         debugError('FileQueue', 'Failed to undo file:', err);
-        showToast(`Kunde inte ångra ${item.fileName}`, 'error', 3000);
+        showToast(`Failed to undo ${item.fileName}`, 'error', 3000);
       }
     }
 
@@ -959,7 +979,7 @@ export function FileQueueModule() {
     debug('FileQueue', 'Emitting load-image for:', item.filePath, { skipAutoDetect });
     emit('load-image', { imagePath: item.filePath, skipAutoDetect });
     emitQueueStatus(index);
-  }, [fixMode, api, loadProcessedFiles, emit, showToast, emitQueueStatus]);
+  }, [fixMode, api, loadProcessedFiles, emit, showToast, emitQueueStatus, isFileProcessed]);
 
   // Force reprocess a file (when fix-mode is OFF but user wants to reprocess)
   const forceReprocess = useCallback(async (index) => {
@@ -1367,9 +1387,18 @@ export function FileQueueModule() {
       if (filePaths && filePaths.length > 0) {
         addFiles(filePaths);
 
-        // Auto-start if queue was empty
         if (queue.length === 0 && filePaths.length > 0) {
-          setTimeout(() => loadFile(0), 100);
+          setTimeout(() => {
+            if (!processedFilesLoadedRef.current) return;
+            const firstEligible = queueRef.current.findIndex(q =>
+              q.status === 'pending' && (fixModeRef.current || !q.isAlreadyProcessed)
+            );
+            if (firstEligible >= 0) {
+              loadFile(firstEligible);
+            } else if (queueRef.current.length > 0) {
+              showToast('All files already processed. Enable fix-mode to reprocess.', 'info', 5000);
+            }
+          }, 100);
         }
       }
     } catch (err) {
@@ -1385,9 +1414,18 @@ export function FileQueueModule() {
       if (filePaths && filePaths.length > 0) {
         addFiles(filePaths);
 
-        // Auto-start if queue was empty
         if (queue.length === 0 && filePaths.length > 0) {
-          setTimeout(() => loadFile(0), 100);
+          setTimeout(() => {
+            if (!processedFilesLoadedRef.current) return;
+            const firstEligible = queueRef.current.findIndex(q =>
+              q.status === 'pending' && (fixModeRef.current || !q.isAlreadyProcessed)
+            );
+            if (firstEligible >= 0) {
+              loadFile(firstEligible);
+            } else if (queueRef.current.length > 0) {
+              showToast('All files already processed. Enable fix-mode to reprocess.', 'info', 5000);
+            }
+          }, 100);
         }
       }
     } catch (err) {
@@ -1401,7 +1439,17 @@ export function FileQueueModule() {
       debug('FileQueue', `Received ${files.length} files from main process (position: ${position})`);
       addFiles(files, position || 'default');
       if (startQueue && files.length > 0) {
-        setTimeout(() => loadFile(0), 100);
+        setTimeout(() => {
+          if (!processedFilesLoadedRef.current) return;
+          const firstEligible = queueRef.current.findIndex(q =>
+            q.status === 'pending' && (fixModeRef.current || !q.isAlreadyProcessed)
+          );
+          if (firstEligible >= 0) {
+            loadFile(firstEligible);
+          } else if (queueRef.current.length > 0) {
+            showToast('All files already processed. Enable fix-mode to reprocess.', 'info', 5000);
+          }
+        }, 100);
       }
     };
 
