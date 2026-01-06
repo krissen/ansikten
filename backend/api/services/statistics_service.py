@@ -53,9 +53,10 @@ class StatisticsService:
         self.cache[key] = value
         self.cache_timestamps[key] = time.time()
 
-    def count_faces_per_name(self) -> Dict[str, int]:
+    def count_faces_per_name(self, known_faces: Dict = None) -> Dict[str, int]:
         """Count number of face encodings per person"""
-        known_faces, _, _, _ = load_database()
+        if known_faces is None:
+            known_faces, _, _, _ = load_database()
         return {name: len(entries) for name, entries in known_faces.items()}
 
     def calc_ignored_fraction(self, stats: List[Dict]) -> tuple[int, int, float]:
@@ -172,7 +173,7 @@ class StatisticsService:
 
         return result
 
-    async def get_top_faces(self, stats: List[Dict] = None) -> Dict[str, Any]:
+    async def get_top_faces(self, stats: List[Dict] = None, known_faces: Dict = None) -> Dict[str, Any]:
         """
         Get top 19 faces plus ignored count
 
@@ -183,7 +184,7 @@ class StatisticsService:
         - ignored_total: Total faces that were ignored in processing
         - ignored_fraction: Fraction of faces ignored (0.0-1.0)
         """
-        face_counts = self.count_faces_per_name()
+        face_counts = self.count_faces_per_name(known_faces)
 
         if stats is None:
             stats = load_attempt_log(all_files=False)
@@ -316,17 +317,13 @@ class StatisticsService:
 
         logger.debug("[StatisticsService] Computing fresh summary")
 
-        # Load attempt log once
+        known_faces, _, _, processed_files = load_database()
         stats = load_attempt_log(all_files=False)
 
-        # Compute all statistics
         attempt_stats = await self.get_attempt_stats(stats)
-        top_faces = await self.get_top_faces(stats)
+        top_faces = await self.get_top_faces(stats, known_faces)
         recent_images = await self.get_recent_images(n=3)
         recent_logs = await self.get_recent_logs(n=3)
-
-        # Get total files processed
-        _, _, _, processed_files = load_database()
 
         summary = {
             "attempt_stats": attempt_stats,

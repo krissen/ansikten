@@ -222,15 +222,12 @@ def load_database():
                 normalized.append(norm_entry)
         hard_negatives[name] = normalized
 
-    # Log migration statistics if any migration occurred
     total_migrated = sum(migration_stats.values())
     if total_migrated > 0:
         logging.info(f"[DATABASE] Migrated {total_migrated} encodings to new format:")
         logging.info(f"  Known faces: {migration_stats['known_faces_migrated']}")
         logging.info(f"  Ignored faces: {migration_stats['ignored_faces_migrated']}")
         logging.info(f"  Hard negatives: {migration_stats['hard_negatives_migrated']}")
-    else:
-        logging.debug("[DATABASE] Database already in current format, no migration needed")
 
     return known_faces, ignored_faces, hard_negatives, processed_files
 
