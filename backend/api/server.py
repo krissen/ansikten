@@ -54,7 +54,7 @@ async def lifespan(app: FastAPI):
                                     f"Loaded {people_count} people")
             logger.info(f"[Startup Profile] Database loaded in {elapsed:.2f}s")
         except Exception as e:
-            logger.error(f"Failed to pre-load database: {e}")
+            logger.error(f"Failed to pre-load database: {e}", exc_info=True)
             startup_state.set_state("database", LoadingState.ERROR, 
                                     "Failed to load database", error=str(e))
     
@@ -69,7 +69,7 @@ async def lifespan(app: FastAPI):
             logger.info(f"[Startup Profile] ML models loaded in {elapsed:.2f}s")
             logger.info(f"[Startup Profile] Total startup time: {time.perf_counter() - startup_start:.2f}s")
         except Exception as e:
-            logger.error(f"Failed to warm up ML models: {e}")
+            logger.error(f"Failed to warm up ML models: {e}", exc_info=True)
             startup_state.set_state("mlModels", LoadingState.ERROR,
                                     "Failed to load ML models", error=str(e))
     
