@@ -3,9 +3,11 @@
  *
  * Provides toast notifications that are visible regardless of which tab is active.
  * Toasts stack from bottom-right with smooth animations.
+ * StartupStatus is integrated as a sticky toast at the bottom of the stack.
  */
 
 import React, { createContext, useContext, useState, useCallback, useRef } from 'react';
+import { StartupStatus } from '../components/StartupStatus.jsx';
 
 // Create the context
 const ToastContext = createContext(null);
@@ -17,19 +19,18 @@ export function ToastProvider({ children }) {
   const [toasts, setToasts] = useState([]);
   const toastIdRef = useRef(0);
 
-  const showToast = useCallback((message, type = 'success', duration = 4000) => {
+  const showToast = useCallback((message, type = 'success', duration = 5000) => {
     const id = ++toastIdRef.current;
+    const minDuration = 3000;
+    const actualDuration = Math.max(duration, minDuration);
     setToasts(prev => [...prev, { id, message, type, exiting: false }]);
 
-    // Auto-remove after duration
     setTimeout(() => {
-      // Mark as exiting first (for fade-out animation)
       setToasts(prev => prev.map(t => t.id === id ? { ...t, exiting: true } : t));
-      // Remove after animation
       setTimeout(() => {
         setToasts(prev => prev.filter(t => t.id !== id));
       }, 300);
-    }, duration);
+    }, actualDuration);
   }, []);
 
   const value = { showToast, toasts };
@@ -42,14 +43,10 @@ export function ToastProvider({ children }) {
   );
 }
 
-/**
- * ToastContainer - Renders the toast stack (fixed position, always visible)
- */
 function ToastContainer({ toasts }) {
-  if (toasts.length === 0) return null;
-
   return (
     <div className="global-toast-container">
+      <StartupStatus />
       {toasts.map((t) => (
         <div
           key={t.id}

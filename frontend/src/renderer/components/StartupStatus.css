@@ -1,7 +1,4 @@
 .startup-status {
-  position: fixed;
-  bottom: calc(var(--space-xl) + 80px);
-  right: var(--space-xl);
   background: var(--bg-secondary);
   border: 1px solid var(--border-medium);
   border-radius: var(--radius-lg);
@@ -9,10 +6,10 @@
   min-width: 280px;
   max-width: 400px;
   box-shadow: var(--shadow-lg);
-  z-index: 9999;
   opacity: 1;
   transition: opacity 0.5s ease-out, transform 0.5s ease-out;
   cursor: pointer;
+  pointer-events: auto;
 }
 
 .startup-status.fade-out {
@@ -115,6 +112,12 @@
 
 .startup-message.loading {
   color: var(--color-info);
+  animation: pulse-loading 1.5s ease-in-out infinite;
+}
+
+@keyframes pulse-loading {
+  0%, 100% { opacity: 0.5; }
+  50% { opacity: 1; }
 }
 
 .startup-error-detail {
