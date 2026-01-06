@@ -1,0 +1,103 @@
+/**
+ * DatabaseManagement Styles
+ *
+ * Module-specific styles only.
+ * Layout and common elements use centralized classes from theme.css
+ */
+
+/* Database stats text */
+.db-stats {
+  font-size: var(--font-base);
+  color: var(--text-secondary);
+  margin-bottom: var(--space-md);
+}
+
+.people-search {
+  width: 100%;
+  padding: var(--space-xs) var(--space-sm);
+  margin-bottom: var(--space-sm);
+  border: 1px solid var(--border-medium);
+  border-radius: var(--radius-sm);
+  font-size: var(--font-sm);
+  background: var(--bg-elevated);
+  color: var(--text-primary);
+}
+
+.people-search:focus {
+  outline: none;
+  border-color: var(--accent-primary);
+}
+
+.people-list {
+  max-height: 200px;
+  overflow-y: auto;
+  font-size: var(--font-sm);
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(180px, 1fr));
+  gap: var(--space-xs);
+}
+
+.person-item {
+  padding: var(--space-xs) var(--space-sm);
+  background: var(--bg-elevated);
+  border: 1px solid var(--border-medium);
+  border-radius: var(--radius-sm);
+  color: var(--text-primary);
+}
+
+.person-item.no-match {
+  grid-column: 1 / -1;
+  color: var(--text-tertiary);
+  font-style: italic;
+  background: transparent;
+  border: none;
+}
+
+/* Operations panel */
+.operations-panel {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-md);
+}
+
+/* Form layouts */
+.form-row {
+  display: flex;
+  gap: var(--space-sm);
+  align-items: center;
+}
+
+.form-row span {
+  color: var(--text-secondary);
+}
+
+.form-column {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-sm);
+}
+
+.button-row {
+  display: flex;
+  gap: var(--space-sm);
+}
+
+/* Operation form inputs */
+.operation-form input {
+  flex: 1;
+  padding: 6px var(--space-sm);
+  border: 1px solid var(--border-medium);
+  border-radius: var(--radius-sm);
+  font-size: var(--font-base);
+  background: var(--bg-elevated);
+  color: var(--text-primary);
+}
+
+.operation-form input:focus {
+  outline: none;
+  border-color: var(--accent-primary);
+}
+
+.operation-form button {
+  white-space: nowrap;
+}

@@ -1,0 +1,28 @@
+{
+  "name": "bildvisare",
+  "productName": "Bildvisare",
+  "version": "1.0.0",
+  "description": "",
+  "main": "main.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1",
+    "build:workspace": "node scripts/build-workspace.js",
+    "watch:workspace": "node scripts/build-workspace.js --watch --dev",
+    "start": "npm run build:workspace && npx electron .",
+    "dev": "npm run build:workspace -- --dev && npx electron ."
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "type": "commonjs",
+  "dependencies": {
+    "dockview": "^1.17.2",
+    "electron": "^36.3.2",
+    "flexlayout-react": "^0.8.17",
+    "react": "^19.2.3",
+    "react-dom": "^19.2.3"
+  },
+  "devDependencies": {
+    "esbuild": "^0.27.2"
+  }
+}

@@ -1,0 +1,366 @@
+/**
+ * ReviewModule Styles
+ *
+ * Module-specific styles only.
+ * Layout and common elements use centralized classes from theme.css
+ */
+
+/* Review header - just the status text */
+.review-status {
+  font-size: var(--font-sm);
+  color: var(--text-secondary);
+}
+
+/* Face grid - override module-body for grid layout */
+.review-module .face-grid {
+  padding: var(--space-sm);
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(120px, 1fr));
+  gap: var(--space-sm);
+  align-content: start;
+}
+
+.face-card {
+  background: var(--bg-elevated);
+  border-radius: var(--radius-lg);
+  padding: var(--space-sm);
+  box-shadow: var(--shadow-sm);
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-xs);
+  position: relative;
+  cursor: pointer;
+  border: 2px solid transparent;
+}
+
+.face-card:hover {
+  background: var(--bg-hover);
+}
+
+.face-card.active {
+  background: var(--color-info-bg);
+  border-color: var(--color-info);
+  box-shadow: 0 0 0 2px var(--color-info);
+}
+
+.face-card.confirmed {
+  border-color: var(--color-success);
+}
+
+.face-card.rejected {
+  border-color: var(--color-warning);
+  opacity: 0.7;
+}
+
+.face-card.manual {
+  border-style: dashed;
+  border-color: var(--accent-secondary);
+}
+
+.face-card.manual .face-thumbnail {
+  background: linear-gradient(135deg, var(--bg-elevated) 25%, var(--bg-hover) 25%, var(--bg-hover) 50%, var(--bg-elevated) 50%, var(--bg-elevated) 75%, var(--bg-hover) 75%);
+  background-size: 10px 10px;
+}
+
+.face-number {
+  position: absolute;
+  top: var(--space-xs);
+  left: var(--space-xs);
+  background: color-mix(in srgb, var(--bg-primary) 85%, transparent);
+  color: var(--text-primary);
+  font-size: var(--font-sm);
+  font-weight: bold;
+  padding: 2px var(--space-xs);
+  border-radius: var(--radius-sm);
+  z-index: var(--z-base);
+}
+
+.face-thumbnail {
+  width: 100%;
+  aspect-ratio: 1;
+  background: var(--bg-primary);
+  border-radius: var(--radius-md);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 48px;
+  overflow: hidden;
+}
+
+.face-thumbnail img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.face-info {
+  font-size: var(--font-xs);
+  color: var(--text-secondary);
+}
+
+/* Match case styling for manual entries */
+.match-case.manual {
+  background: color-mix(in srgb, var(--accent-secondary) 20%, transparent);
+  color: var(--accent-secondary);
+  font-style: italic;
+}
+
+.face-actions {
+  display: flex;
+  gap: var(--space-xs);
+}
+
+.face-actions input {
+  flex: 1;
+  padding: var(--space-xs) var(--space-xs);
+  border: 1px solid var(--border-medium);
+  border-radius: var(--radius-md);
+  font-size: var(--font-sm);
+  min-width: 0;
+  background: var(--bg-primary);
+  color: var(--text-primary);
+}
+
+.face-actions input:focus {
+  outline: none;
+  border-color: var(--color-info);
+}
+
+.face-actions input.name-match {
+  border-color: var(--color-success);
+  background: var(--color-success-bg);
+}
+
+.status-text {
+  font-size: var(--font-sm);
+  padding: var(--space-xs);
+}
+
+.status-text.confirmed {
+  color: var(--color-success);
+}
+
+.status-text.rejected {
+  color: var(--color-warning);
+}
+
+.loading {
+  text-align: center;
+  padding: var(--space-2xl);
+  color: var(--text-secondary);
+  grid-column: 1 / -1;
+}
+
+/* Probable ignore styling */
+.face-card.probable-ignore {
+  border-color: var(--text-tertiary);
+  opacity: 0.8;
+}
+
+.face-card.probable-ignore .face-thumbnail {
+  filter: grayscale(50%);
+}
+
+.match-case {
+  font-size: 9px;
+  padding: 2px var(--space-xs);
+  border-radius: 2px;
+  margin-top: 2px;
+}
+
+.match-case.probable-ignore {
+  background: color-mix(in srgb, var(--text-tertiary) 30%, transparent);
+  color: var(--text-tertiary);
+}
+
+.match-case.uncertain {
+  background: var(--color-warning-bg);
+  color: var(--color-warning);
+}
+
+/* Face card inline alternatives */
+.face-alternatives {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  margin-top: var(--space-xs);
+  padding-top: var(--space-xs);
+  border-top: 1px solid var(--border-medium);
+}
+
+.alt-chip {
+  display: flex;
+  align-items: center;
+  gap: var(--space-xs);
+  padding: var(--space-xs) var(--space-xs);
+  border-radius: var(--radius-sm);
+  cursor: pointer;
+  background: color-mix(in srgb, var(--text-primary) 5%, transparent);
+  font-size: var(--font-sm);
+}
+
+.alt-chip:hover {
+  background: color-mix(in srgb, var(--text-primary) 15%, transparent);
+}
+
+.alt-chip.recommended {
+  background: var(--color-success-bg);
+  border: 1px solid var(--color-success);
+  box-shadow: 0 0 0 1px var(--color-success);
+  font-weight: 500;
+}
+
+.alt-chip.recommended .alt-name {
+  color: var(--color-success);
+  font-weight: 600;
+}
+
+.alt-chip.recommended .alt-conf {
+  color: var(--color-success);
+}
+
+.alt-chip.ignored {
+  opacity: 0.7;
+}
+
+.alt-chip .alt-name {
+  flex: 1;
+  color: var(--text-primary);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.alt-chip .alt-conf {
+  color: var(--text-primary);
+  font-size: var(--font-xs);
+  flex-shrink: 0;
+}
+
+.alt-chip.ignored .alt-conf {
+  color: var(--text-secondary);
+}
+
+.autocomplete-wrapper {
+  position: relative;
+  flex: 1;
+  min-width: 0;
+}
+
+.autocomplete-wrapper input {
+  width: 100%;
+}
+
+.autocomplete-dropdown {
+  position: fixed;
+  background: var(--bg-elevated);
+  border: 1px solid var(--border-medium);
+  border-radius: var(--radius-md);
+  box-shadow: var(--shadow-lg);
+  overflow-y: auto;
+}
+
+.autocomplete-item {
+  padding: var(--space-sm) var(--space-md);
+  cursor: pointer;
+  font-size: var(--font-sm);
+  color: var(--text-primary);
+  border-left: 3px solid transparent;
+}
+
+.autocomplete-item:hover {
+  background: var(--bg-hover);
+}
+
+.autocomplete-item.selected {
+  background: var(--color-info-bg);
+  border-left-color: var(--color-info);
+  color: var(--color-info);
+  font-weight: 500;
+}
+
+.confirm-overlay {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: rgba(0, 0, 0, 0.6);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: var(--z-modal);
+}
+
+.confirm-dialog {
+  background: var(--bg-elevated);
+  border-radius: var(--radius-lg);
+  box-shadow: var(--shadow-lg);
+  max-width: 400px;
+  width: 90%;
+  padding: var(--space-xl);
+}
+
+.confirm-dialog h3 {
+  margin: 0 0 var(--space-md) 0;
+  font-size: var(--font-lg);
+  color: var(--color-warning);
+}
+
+.confirm-dialog p {
+  margin: 0 0 var(--space-lg) 0;
+  color: var(--text-primary);
+  line-height: 1.5;
+}
+
+.confirm-dialog .match-info {
+  background: var(--bg-hover);
+  padding: var(--space-sm) var(--space-md);
+  border-radius: var(--radius-md);
+  margin-bottom: var(--space-lg);
+  font-size: var(--font-sm);
+}
+
+.confirm-dialog .match-info strong {
+  color: var(--accent-primary);
+}
+
+.confirm-buttons {
+  display: flex;
+  gap: var(--space-md);
+  justify-content: flex-end;
+}
+
+.confirm-buttons button {
+  padding: var(--space-sm) var(--space-lg);
+  border-radius: var(--radius-md);
+  font-size: var(--font-base);
+  cursor: pointer;
+  border: 1px solid var(--border-medium);
+}
+
+.confirm-buttons .btn-cancel {
+  background: var(--bg-secondary);
+  color: var(--text-primary);
+}
+
+.confirm-buttons .btn-cancel:hover {
+  background: var(--bg-hover);
+}
+
+.confirm-buttons .btn-confirm {
+  background: var(--color-warning);
+  color: var(--text-on-accent);
+  border-color: var(--color-warning);
+}
+
+.confirm-buttons .btn-confirm:hover {
+  opacity: 0.9;
+}
+
+.confirm-hint {
+  margin-top: var(--space-md);
+  font-size: var(--font-xs);
+  color: var(--text-tertiary);
+  text-align: center;
+}
