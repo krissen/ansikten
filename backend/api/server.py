@@ -52,34 +52,11 @@ async def lifespan(app: FastAPI):
             startup_state.set_state("database", LoadingState.ERROR, 
                                     "Failed to load database", error=str(e))
     
-    async def warmup_ml_models():
-        """
-        Warm up ML models in main thread.
-        
-        MUST run in main thread because onnxruntime sets up signal handlers
-        during initialization, which only works in the main interpreter thread.
-        This blocks the event loop during init (~30-60s) but that's acceptable
-        during startup while splash screen shows progress.
-        """
-        t0 = time.perf_counter()
-        logger.info("[Startup Profile] ML warmup starting (main thread)...")
-        startup_state.set_state("mlModels", LoadingState.LOADING, "Loading ML models...")
-        try:
-            from .services.detection_service import detection_service
-            _ = detection_service.backend
-            backend_name = detection_service.backend.backend_name
-            elapsed = time.perf_counter() - t0
-            startup_state.set_state("mlModels", LoadingState.READY, 
-                                    f"Loaded {backend_name}")
-            logger.info(f"[Startup Profile] ML models loaded in {elapsed:.2f}s")
-            logger.info(f"[Startup Profile] Total startup time: {time.perf_counter() - startup_start:.2f}s")
-        except Exception as e:
-            logger.error(f"Failed to warm up ML models: {e}", exc_info=True)
-            startup_state.set_state("mlModels", LoadingState.ERROR,
-                                    "Failed to load ML models", error=str(e))
-    
     asyncio.create_task(preload_database())
-    await warmup_ml_models()
+    
+    # ML warmup: Skip eager loading due to onnxruntime signal handler issues.
+    # ML models will lazy-load on first detection request (works fine).
+    startup_state.set_state("mlModels", LoadingState.READY, "Ready (loads on first use)")
     
     # Setup WS broadcast for startup status changes
     from .websocket.progress import setup_startup_listener
