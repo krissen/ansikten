@@ -2083,7 +2083,6 @@ Notera:
 
 """
     )
-signal.signal(signal.SIGINT, signal_handler)
 
 
 def add_to_processed_files(path, processed_files):
@@ -2611,4 +2610,5 @@ def main():
 
 
 if __name__ == "__main__":
+    signal.signal(signal.SIGINT, signal_handler)
     main()
