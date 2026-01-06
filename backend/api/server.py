@@ -45,22 +45,22 @@ async def lifespan(app: FastAPI):
             people_count = await asyncio.to_thread(_load_database_sync)
             elapsed = time.perf_counter() - t0
             startup_state.set_state("database", LoadingState.READY, 
-                                    f"{people_count} personer")
+                                    f"{people_count} persons")
             logger.info(f"[Startup Profile] Database loaded in {elapsed:.2f}s")
         except Exception as e:
             logger.error(f"Failed to pre-load database: {e}", exc_info=True)
             startup_state.set_state("database", LoadingState.ERROR, 
-                                    "Kunde inte läsa in", error=str(e))
+                                    "Failed to load", error=str(e))
     
     asyncio.create_task(preload_database())
     
-    startup_state.set_state("mlModels", LoadingState.PENDING, "Väntar...")
+    startup_state.set_state("mlModels", LoadingState.PENDING, "Waiting...")
     
     ML_LOAD_TIMEOUT = 120.0
     
     async def eager_load_ml():
         await asyncio.sleep(0.1)
-        startup_state.set_state("mlModels", LoadingState.LOADING, "Laddar InsightFace...")
+        startup_state.set_state("mlModels", LoadingState.LOADING, "Loading...")
         await asyncio.sleep(0.05)
         t0 = time.perf_counter()
         
@@ -90,7 +90,7 @@ async def lifespan(app: FastAPI):
                 raise load_error
                 
             startup_state.set_state("mlModels", LoadingState.READY, 
-                                   f"Redo ({elapsed:.1f}s)")
+                                   f"Ready ({elapsed:.1f}s)")
             logger.info(f"[Startup Profile] ML models loaded in {elapsed:.2f}s")
         except asyncio.TimeoutError:
             logger.error(f"ML model loading timed out after {ML_LOAD_TIMEOUT}s")
@@ -100,7 +100,7 @@ async def lifespan(app: FastAPI):
         except Exception as e:
             logger.error(f"Failed to eager-load ML models: {e}", exc_info=True)
             startup_state.set_state("mlModels", LoadingState.ERROR, 
-                                   "Kunde inte ladda", error=str(e))
+                                   "Failed to load", error=str(e))
     
     asyncio.create_task(eager_load_ml())
     

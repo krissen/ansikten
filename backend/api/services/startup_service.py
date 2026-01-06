@@ -47,9 +47,9 @@ class StartupState:
         
         # Components shown in startup toast (order matters for display)
         self.components: Dict[str, ComponentStatus] = {
-            "backend": ComponentStatus(state=LoadingState.READY, message="Ansluten"),
-            "database": ComponentStatus(message="Väntar..."),
-            "mlModels": ComponentStatus(message="Väntar..."),
+            "backend": ComponentStatus(state=LoadingState.READY, message="Connected"),
+            "database": ComponentStatus(message="Waiting..."),
+            "mlModels": ComponentStatus(message="Waiting..."),
         }
         self._listeners: List[Callable] = []
         logger.info("[StartupState] Initialized")

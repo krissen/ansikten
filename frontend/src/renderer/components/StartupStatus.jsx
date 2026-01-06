@@ -13,8 +13,8 @@ const STATUS_ICONS = {
 
 const COMPONENT_LABELS = {
   backend: 'Backend',
-  database: 'Databas',
-  mlModels: 'ML-modeller'
+  database: 'Database',
+  mlModels: 'ML Models'
 };
 
 export function StartupStatus() {
@@ -72,15 +72,15 @@ export function StartupStatus() {
   );
   const startupDone = allReady || (!anyLoading && hasError);
   
-  let headerText = 'Startar...';
-  if (allReady) headerText = 'Redo';
-  else if (startupDone && hasError) headerText = 'Startfel';
+  let headerText = 'Starting...';
+  if (allReady) headerText = 'Ready';
+  else if (startupDone && hasError) headerText = 'Startup Error';
 
   return (
     <div 
       className={`startup-status ${fadeOut ? 'fade-out' : ''} ${allReady ? 'all-ready' : ''} ${startupDone && hasError ? 'has-error' : ''}`}
       onClick={handleDismiss}
-      title="Klicka för att stänga"
+      title="Click to dismiss"
     >
       <div className="startup-status-header">
         {headerText}
