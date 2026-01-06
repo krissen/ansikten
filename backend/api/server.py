@@ -22,9 +22,24 @@ logger = logging.getLogger(__name__)
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     import os
+    import asyncio
+    
     port = int(os.getenv('BILDVISARE_PORT', '5001'))
     logger.info("Bildvisare Backend API starting up...")
     logger.info(f"Server ready on http://127.0.0.1:{port}")
+    
+    async def preload_database():
+        """Pre-load face database (lightweight, no ML) for fast stats access"""
+        await asyncio.sleep(0.2)
+        try:
+            from .services.management_service import get_management_service
+            svc = get_management_service()
+            logger.info(f"Database pre-loaded: {len(svc.known_faces)} people")
+        except Exception as e:
+            logger.error(f"Failed to pre-load database: {e}")
+    
+    asyncio.create_task(preload_database())
+    
     yield
     logger.info("Bildvisare Backend API shutting down...")
 
