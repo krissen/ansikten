@@ -930,7 +930,7 @@ export function FileQueueModule() {
     // If fix-mode OFF and file already processed, show info toast
     if (!fixMode && item.isAlreadyProcessed) {
       debug('FileQueue', 'File already processed (fix-mode OFF), showing info:', item.fileName);
-      showToast(`ℹ️ ${item.fileName} redan behandlad. Aktivera fix-mode för att bearbeta igen.`, 'info', 4000);
+      showToast(`ℹ️ ${item.fileName} redan behandlad. Använd 🔄-knappen eller aktivera fix-mode.`, 'info', 4000);
     }
 
     // If fix mode and file is already processed, undo it first
@@ -963,6 +963,50 @@ export function FileQueueModule() {
     emit('load-image', { imagePath: item.filePath });
     emitQueueStatus(index);
   }, [fixMode, api, loadProcessedFiles, emit, showToast, emitQueueStatus]);
+
+  // Force reprocess a file (when fix-mode is OFF but user wants to reprocess)
+  const forceReprocess = useCallback(async (index) => {
+    const currentQueue = queueRef.current;
+    if (index < 0 || index >= currentQueue.length) return;
+
+    const item = currentQueue[index];
+    if (!item.isAlreadyProcessed) return;
+
+    debug('FileQueue', 'Force reprocess requested for:', item.fileName);
+
+    try {
+      // 1. Undo the file in backend (remove from processed_files.jsonl)
+      await api.post('/api/management/undo-file', {
+        filename_pattern: item.fileName
+      });
+
+      // 2. Clear from preprocessing completed cache
+      if (preprocessingManager.current) {
+        preprocessingManager.current.removeFile(item.filePath);
+      }
+
+      // 3. Refresh processed files list
+      await loadProcessedFiles();
+
+      // 4. Update queue item to not be marked as already processed
+      setQueue(prev => prev.map((q, i) => 
+        i === index ? { ...q, isAlreadyProcessed: false } : q
+      ));
+
+      // 5. Add to preprocessing queue with priority
+      if (preprocessingManager.current) {
+        preprocessingManager.current.addToQueue(item.filePath, { priority: true });
+      }
+
+      showToast(`🔄 Reprocessing ${item.fileName}`, 'info', 2500);
+
+      // 6. Load the file
+      loadFile(index);
+    } catch (err) {
+      debugError('FileQueue', 'Failed to force reprocess:', err);
+      showToast(`Failed to reprocess ${item.fileName}`, 'error', 3000);
+    }
+  }, [api, loadProcessedFiles, loadFile, showToast]);
 
   // Handle file item click with modifier key support
   // Single click = select, Double click = load
@@ -1596,6 +1640,7 @@ export function FileQueueModule() {
               onDoubleClick={() => handleItemDoubleClick(originalIndex)}
               onToggleSelect={() => toggleFileSelection(item.id)}
               onRemove={() => removeFile(item.id)}
+              onForceReprocess={() => forceReprocess(originalIndex)}
               fixMode={fixMode}
               preprocessingStatus={preprocessingStatus[item.filePath]}
               showPreview={showPreviewNames}
@@ -1683,7 +1728,7 @@ export function FileQueueModule() {
 /**
  * FileQueueItem Component
  */
-function FileQueueItem({ item, index, isActive, isSelected, onClick, onDoubleClick, onToggleSelect, onRemove, fixMode, preprocessingStatus, showPreview, previewInfo }) {
+function FileQueueItem({ item, index, isActive, isSelected, onClick, onDoubleClick, onToggleSelect, onRemove, onForceReprocess, fixMode, preprocessingStatus, showPreview, previewInfo }) {
   const [showTooltip, setShowTooltip] = useState(false);
   const [tooltipPos, setTooltipPos] = useState({ x: 0, y: 0 });
   const itemRef = useRef(null);
@@ -1852,6 +1897,18 @@ function FileQueueItem({ item, index, isActive, isSelected, onClick, onDoubleCli
         <Icon name="user" size={12} />{hasDetectedFaces ? detectedFaceCount : '–'}
       </span>
       <span className="file-status">{getStatusText()}</span>
+      {!fixMode && item.isAlreadyProcessed && (
+        <button
+          className="reprocess-btn"
+          onClick={(e) => {
+            e.stopPropagation();
+            onForceReprocess();
+          }}
+          title="Reprocess this file"
+        >
+          <Icon name="refresh" size={12} />
+        </button>
+      )}
       <button
         className="remove-btn"
         onClick={(e) => {
