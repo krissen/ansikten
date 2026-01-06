@@ -45,6 +45,10 @@ async def lifespan(app: FastAPI):
     
     asyncio.create_task(preload_database())
     
+    # Setup WS broadcast for startup status changes
+    from .websocket.progress import setup_startup_listener
+    setup_startup_listener()
+    
     yield
     logger.info("Bildvisare Backend API shutting down...")
 

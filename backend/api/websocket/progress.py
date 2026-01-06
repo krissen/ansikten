@@ -25,22 +25,28 @@ async def websocket_progress(websocket: WebSocket):
     - detection-progress: Face detection progress percentage
     - face-detected: New face detected event
     - face-confirmed: Face identity confirmed event
+    - startup-status: Startup state changes (KASAM UX)
     """
     await websocket.accept()
     active_connections.add(websocket)
     logger.info(f"[WebSocket] Client connected (total: {len(active_connections)})")
 
     try:
-        # Send welcome message
         await websocket.send_text(json.dumps({
             "event": "connected",
             "data": {"message": "WebSocket connection established"}
         }))
 
-        # Keep connection alive and listen for messages
+        # Send current startup status immediately
+        from ..services.startup_service import get_startup_state
+        startup_status = get_startup_state().get_status()
+        await websocket.send_text(json.dumps({
+            "event": "startup-status",
+            "data": startup_status
+        }))
+
         while True:
             data = await websocket.receive_text()
-            # Echo back for now (can handle commands later)
             logger.debug(f"[WebSocket] Received: {data}")
 
     except WebSocketDisconnect:
@@ -76,15 +82,21 @@ async def broadcast_event(event_name: str, data: dict):
         active_connections.remove(connection)
 
 async def send_log_entry(level: str, message: str):
-    """
-    Send log entry to all connected clients
-
-    Args:
-        level: Log level (info, warn, error)
-        message: Log message
-    """
+    """Send log entry to all connected clients"""
     await broadcast_event("log-entry", {
         "level": level,
         "message": message,
-        "timestamp": None  # TODO: Add timestamp
+        "timestamp": None
     })
+
+
+async def broadcast_startup_status(status: dict):
+    """Broadcast startup status change to all connected clients (KASAM UX)"""
+    await broadcast_event("startup-status", status)
+
+
+def setup_startup_listener():
+    """Hook up StartupState listener to broadcast WS events"""
+    from ..services.startup_service import get_startup_state
+    startup_state = get_startup_state()
+    startup_state.add_listener(broadcast_startup_status)
