@@ -75,10 +75,13 @@ function parseCommandLineArgs(argv) {
     /^npx/i,
     /\.js$/i,
     /^\.\.?$/,
+    /^bildvisare$/i,  // Our app name
   ];
 
   const shouldSkipArg = (arg) => {
     if (!arg) return true;
+    // Skip macOS app bundle executables
+    if (arg.includes('.app/Contents/MacOS/')) return true;
     const basename = arg.split(/[/\\]/).pop();
     return skipPatterns.some(pattern => pattern.test(basename));
   };
