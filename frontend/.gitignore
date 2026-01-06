@@ -5,6 +5,7 @@ scripts/__pycache__/
 
 # Build output
 src/renderer/workspace/dist/
+src/version.json
 dist/
 
 # Backend executable (built by PyInstaller)

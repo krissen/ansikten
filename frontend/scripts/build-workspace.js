@@ -7,9 +7,30 @@
 const esbuild = require('esbuild');
 const path = require('path');
 const fs = require('fs');
+const { execSync } = require('child_process');
 
 const isWatch = process.argv.includes('--watch');
 const isDev = process.argv.includes('--dev') || isWatch;
+
+function getVersionInfo() {
+  try {
+    const gitTag = execSync('git describe --tags --exact-match 2>/dev/null', { encoding: 'utf8' }).trim();
+    return { version: gitTag, isTag: true };
+  } catch {
+    try {
+      const commitHash = execSync('git rev-parse --short HEAD', { encoding: 'utf8' }).trim();
+      return { version: commitHash, isTag: false };
+    } catch {
+      return { version: 'unknown', isTag: false };
+    }
+  }
+}
+
+const versionInfo = getVersionInfo();
+console.log(`Version: ${versionInfo.isTag ? versionInfo.version : 'commit ' + versionInfo.version}`);
+
+const versionFile = path.join(__dirname, '..', 'src', 'version.json');
+fs.writeFileSync(versionFile, JSON.stringify(versionInfo, null, 2));
 
 // Ensure output directory exists
 const outdir = path.join(__dirname, '..', 'src', 'renderer', 'workspace', 'dist');
