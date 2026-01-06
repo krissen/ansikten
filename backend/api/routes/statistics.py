@@ -86,7 +86,7 @@ async def get_statistics_summary():
     Results are cached for 2 seconds for performance.
     """
     try:
-        logger.info("[Statistics] Getting complete summary")
+        logger.debug("[Statistics] Getting complete summary")
         summary = await statistics_service.get_summary()
         return StatisticsSummary(**summary)
 
