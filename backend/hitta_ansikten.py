@@ -36,23 +36,39 @@ from faceid_db import (ARCHIVE_DIR, ATTEMPT_SETTINGS_SIG, BASE_DIR,
 from face_backends import create_backend, FaceBackend
 
 
-def init_logging(level=logging.DEBUG, logfile=LOGGING_PATH):
+def init_logging(level=logging.DEBUG, logfile=LOGGING_PATH, replace_handlers=False):
+    """
+    Initialize logging for hitta_ansikten.
+    
+    Args:
+        level: Logging level
+        logfile: Path to log file
+        replace_handlers: If True, clear existing handlers (CLI mode). 
+                         If False, add file handler without clearing (API mode).
+    """
     logger = logging.getLogger()
     try:
         logging.getLogger("matplotlib.font_manager").setLevel(logging.WARNING)
     except Exception:
         pass
     logger.setLevel(level)
-    # Ta bort eventuella gamla handlers (viktigt vid utveckling/omstart)
-    logger.handlers.clear()
-    handler = logging.FileHandler(logfile, mode="a", encoding="utf-8")
-    formatter = logging.Formatter(
-        "%(asctime)s %(levelname)s %(message)s", datefmt="%Y-%m-%d %H:%M:%S"
+    
+    if replace_handlers:
+        logger.handlers.clear()
+    
+    file_handler_exists = any(
+        isinstance(h, logging.FileHandler) and h.baseFilename == str(logfile)
+        for h in logger.handlers
     )
-    handler.setFormatter(formatter)
-    logger.addHandler(handler)
+    if not file_handler_exists:
+        handler = logging.FileHandler(logfile, mode="a", encoding="utf-8")
+        formatter = logging.Formatter(
+            "%(asctime)s %(levelname)s %(message)s", datefmt="%Y-%m-%d %H:%M:%S"
+        )
+        handler.setFormatter(formatter)
+        logger.addHandler(handler)
 
-init_logging()
+init_logging(replace_handlers=False)
  
 # === CONSTANTS === #
 # Use /private/tmp for macOS compatibility with Bildvisare security restrictions
@@ -2235,6 +2251,8 @@ def preprocess_worker(
 
 # === Entry point ===
 def main():
+    init_logging(replace_handlers=True)
+    
     if any(arg in ("-h", "--help") for arg in sys.argv[1:]):
         print_help()
         sys.exit(0)

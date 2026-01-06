@@ -1,11 +1,11 @@
 .startup-status {
   position: fixed;
-  bottom: var(--spacing-lg);
-  right: var(--spacing-lg);
+  bottom: var(--space-xl);
+  right: var(--space-xl);
   background: var(--bg-secondary);
-  border: 1px solid var(--border-primary);
+  border: 1px solid var(--border-medium);
   border-radius: var(--radius-lg);
-  padding: var(--spacing-md);
+  padding: var(--space-md);
   min-width: 200px;
   box-shadow: var(--shadow-lg);
   z-index: 10000;
@@ -29,7 +29,7 @@
 .startup-status-header {
   font-weight: var(--font-semibold);
   font-size: var(--font-md);
-  margin-bottom: var(--spacing-sm);
+  margin-bottom: var(--space-sm);
   color: var(--text-primary);
 }
 
@@ -44,13 +44,13 @@
 .startup-status-items {
   display: flex;
   flex-direction: column;
-  gap: var(--spacing-xs);
+  gap: var(--space-xs);
 }
 
 .startup-item {
   display: flex;
   align-items: center;
-  gap: var(--spacing-sm);
+  gap: var(--space-sm);
   font-size: var(--font-sm);
   color: var(--text-secondary);
 }
