@@ -1,0 +1,208 @@
+/**
+ * ThemeEditor Styles
+ *
+ * Module-specific styles only.
+ * Layout and common elements use centralized classes from theme.css
+ */
+
+/* Wider sidebar for ThemeEditor */
+.theme-editor .module-sidebar {
+  width: 220px;
+  min-width: 220px;
+}
+
+/* Custom preset delete button */
+.preset-list .custom-preset {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.preset-list .custom-preset span {
+  flex: 1;
+}
+
+.preset-list .custom-preset button {
+  background: none;
+  border: none;
+  color: var(--text-tertiary);
+  cursor: pointer;
+  padding: 2px 6px;
+  font-size: var(--font-sm);
+}
+
+.preset-list .custom-preset button:hover {
+  color: var(--color-error);
+}
+
+/* Save preset row */
+.save-preset {
+  display: flex;
+  gap: var(--space-xs);
+}
+
+.save-preset .form-input {
+  flex: 1;
+  max-width: none;
+}
+
+/* Preset buttons row */
+.preset-buttons {
+  display: flex;
+  gap: var(--space-xs);
+}
+
+.preset-buttons .btn-secondary {
+  flex: 1;
+}
+
+/* Theme mode section layout */
+.theme-mode-section {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-xl);
+  max-width: 400px;
+}
+
+/* Preset bindings - additional styling */
+.preset-bindings .hint-text {
+  margin-bottom: var(--space-md);
+}
+
+.binding-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-md);
+  padding: var(--space-sm) 0;
+}
+
+.binding-row:not(:last-child) {
+  border-bottom: 1px solid var(--border-subtle);
+}
+
+.binding-row .form-label {
+  margin-bottom: 0;
+}
+
+.binding-row .form-select {
+  min-width: 140px;
+}
+
+/* Variable grid */
+.variable-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+  gap: var(--space-lg);
+}
+
+.variable-item {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-xs);
+}
+
+.variable-item label {
+  font-weight: 500;
+  font-size: var(--font-sm);
+}
+
+.variable-name {
+  font-family: var(--font-mono);
+  font-size: 11px;
+  color: var(--text-tertiary);
+}
+
+/* Color inputs */
+.color-input-wrapper {
+  display: flex;
+  gap: var(--space-xs);
+  align-items: center;
+}
+
+.color-input-wrapper input[type="color"] {
+  width: 48px;
+  height: 32px;
+  padding: 0;
+  border: 1px solid var(--border-medium);
+  border-radius: var(--radius-sm);
+  cursor: pointer;
+  background: none;
+}
+
+.color-input-wrapper input[type="color"]::-webkit-color-swatch-wrapper {
+  padding: 2px;
+}
+
+.color-input-wrapper input[type="color"]::-webkit-color-swatch {
+  border: none;
+  border-radius: 2px;
+}
+
+.color-text-input {
+  flex: 1;
+  padding: var(--space-xs) var(--space-sm);
+  background: var(--bg-elevated);
+  border: 1px solid var(--border-medium);
+  border-radius: var(--radius-sm);
+  color: var(--text-primary);
+  font-family: var(--font-mono);
+  font-size: var(--font-sm);
+}
+
+.color-text-input:focus {
+  outline: none;
+  border-color: var(--accent-primary);
+}
+
+/* Number inputs */
+.number-input-wrapper {
+  display: flex;
+  gap: var(--space-xs);
+  align-items: center;
+}
+
+.number-input-wrapper input[type="range"] {
+  flex: 1;
+  height: 6px;
+  -webkit-appearance: none;
+  background: var(--bg-tertiary);
+  border-radius: 3px;
+  cursor: pointer;
+}
+
+.number-input-wrapper input[type="range"]::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  width: 16px;
+  height: 16px;
+  background: var(--accent-primary);
+  border-radius: 50%;
+  cursor: pointer;
+}
+
+.number-input-wrapper input[type="range"]::-webkit-slider-thumb:hover {
+  background: var(--accent-primary-hover);
+}
+
+.number-text-input {
+  width: 60px;
+  padding: var(--space-xs) var(--space-sm);
+  background: var(--bg-elevated);
+  border: 1px solid var(--border-medium);
+  border-radius: var(--radius-sm);
+  color: var(--text-primary);
+  font-family: var(--font-mono);
+  font-size: var(--font-sm);
+  text-align: right;
+}
+
+.number-text-input:focus {
+  outline: none;
+  border-color: var(--accent-primary);
+}
+
+.number-input-wrapper .unit {
+  font-size: var(--font-sm);
+  color: var(--text-tertiary);
+  min-width: 20px;
+}

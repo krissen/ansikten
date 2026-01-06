@@ -1,0 +1,581 @@
+/**
+ * FileQueueModule Styles
+ *
+ * Module-specific styles only.
+ * Layout and common elements use centralized classes from theme.css
+ */
+
+/* FileQueueModule-specific overrides */
+.file-queue-module {
+  font-size: var(--font-base);
+  outline: none;
+}
+
+.file-queue-actions {
+  display: flex;
+  gap: var(--space-xs);
+}
+
+/* Icon button styles now in theme.css (.btn-icon) */
+
+/* Toolbar */
+.file-queue-toolbar {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: var(--space-xs) var(--space-md);
+  background: var(--bg-secondary);
+  border-bottom: 1px solid var(--border-subtle);
+}
+
+.fix-mode-toggle,
+.preview-toggle {
+  display: flex;
+  align-items: center;
+  gap: var(--space-xs);
+  font-size: var(--font-sm);
+  color: var(--text-secondary);
+  cursor: pointer;
+}
+
+.fix-mode-toggle input,
+.preview-toggle input {
+  margin: 0;
+}
+
+
+/* Current file status bar */
+.current-file-bar {
+  display: flex;
+  align-items: center;
+  gap: var(--space-sm);
+  padding: var(--space-xs) var(--space-md);
+  background: var(--color-info-bg);
+  border-bottom: 1px solid var(--color-info);
+  cursor: pointer;
+  font-size: var(--font-sm);
+}
+
+.current-file-bar:hover {
+  background: var(--bg-hover);
+}
+
+.current-file-bar .current-file-name {
+  flex: 1;
+  font-weight: 500;
+  color: var(--text-primary);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.current-file-bar .current-file-hint {
+  font-size: var(--font-xs);
+  color: var(--text-tertiary);
+}
+
+/* File list - override module-body padding */
+.file-queue-module .file-queue-list {
+  padding: var(--space-xs);
+}
+
+/* File item */
+.file-item {
+  display: flex;
+  align-items: center;
+  gap: var(--space-xs);
+  padding: var(--space-xs) var(--space-sm);
+  margin-bottom: 2px;
+  background: var(--bg-elevated);
+  border-radius: var(--radius-md);
+  cursor: pointer;
+  border: 1px solid transparent;
+  transition: background var(--transition-base), border-color var(--transition-base);
+  min-height: 28px; /* Consistent row height */
+  user-select: none; /* Prevent text selection during shift-click */
+  -webkit-user-select: none;
+}
+
+.file-item:hover {
+  background: var(--bg-hover);
+  border-color: var(--border-subtle);
+}
+
+.file-item.active {
+  background: var(--color-info-bg);
+  border-color: var(--color-info);
+}
+
+.file-item.completed {
+  background: var(--color-success-bg);
+}
+
+.file-item.error {
+  background: var(--color-error-bg);
+}
+
+.file-item.missing {
+  background: var(--color-warning-bg);
+  opacity: 0.7;
+}
+
+.file-item.missing .file-name {
+  text-decoration: line-through;
+  color: var(--text-tertiary);
+}
+
+.file-item.selected {
+  background: var(--accent-primary-alpha-20);
+  border-color: var(--accent-primary);
+}
+
+.file-item.selected.active {
+  background: var(--accent-primary-alpha-20);
+  border-color: var(--accent-primary-hover);
+}
+
+/* Already processed file - slightly muted when not in fix-mode */
+.file-item.already-processed:not(.completed) {
+  background: var(--color-success-bg);
+}
+
+/* Selection checkbox - hidden by default, shown on hover or when selected */
+.file-select-checkbox {
+  flex-shrink: 0;
+  width: 14px;
+  height: 14px;
+  margin: 0;
+  cursor: pointer;
+  accent-color: var(--accent-primary);
+  opacity: 0;
+  transition: opacity var(--transition-base);
+}
+
+.file-item:hover .file-select-checkbox,
+.file-item.selected .file-select-checkbox,
+.file-queue-module.has-selection .file-select-checkbox {
+  opacity: 1;
+}
+
+/* Status icons */
+.status-icon {
+  flex-shrink: 0;
+  width: 16px;
+  height: 16px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: var(--font-sm);
+  line-height: 1;
+}
+
+.status-icon.completed {
+  color: var(--color-success);
+}
+
+.status-icon.active {
+  color: var(--color-info);
+  /* ► glyph sits slightly high, adjust down */
+  transform: translateY(1px);
+}
+
+.status-icon.pending {
+  color: var(--text-tertiary);
+}
+
+/* Already processed, fix-mode OFF: muted green checkmark */
+.status-icon.already-done {
+  color: var(--color-success);
+  opacity: 0.7;
+}
+
+/* Already processed, fix-mode ON: muted (ready to reprocess) */
+.status-icon.pending-reprocess {
+  color: var(--text-secondary);
+  opacity: 0.7;
+}
+
+.status-icon.error {
+  color: var(--color-error);
+}
+
+.status-icon.missing {
+  color: var(--color-warning);
+}
+
+/* File status text - fixed width for alignment */
+.file-status {
+  flex-shrink: 0;
+  font-size: var(--font-sm);
+  color: var(--text-secondary);
+  width: 65px;
+  text-align: right;
+}
+
+/* Remove button */
+.remove-btn {
+  flex-shrink: 0;
+  width: 18px;
+  height: 18px;
+  border: none;
+  background: transparent;
+  color: var(--text-tertiary);
+  cursor: pointer;
+  font-size: var(--font-md);
+  line-height: 1;
+  border-radius: var(--radius-sm);
+  opacity: 0;
+  transition: opacity var(--transition-base), background var(--transition-base), transform var(--transition-fast);
+}
+
+.file-item:hover .remove-btn {
+  opacity: 1;
+}
+
+.remove-btn:active {
+  transform: scale(0.9);
+}
+
+.remove-btn:hover {
+  background: var(--color-error-bg);
+  color: var(--color-error);
+}
+
+/* Footer - inherits from .module-footer */
+
+/* Progress */
+.file-queue-progress {
+  display: flex;
+  align-items: center;
+  gap: var(--space-sm);
+  margin-bottom: var(--space-xs);
+}
+
+.progress-text {
+  font-size: var(--font-sm);
+  color: var(--text-secondary);
+  min-width: 35px;
+}
+
+.progress-bar {
+  flex: 1;
+  height: 6px;
+  background: var(--bg-elevated);
+  border-radius: var(--radius-sm);
+  overflow: hidden;
+}
+
+.progress-fill {
+  height: 100%;
+  background: var(--accent-primary);
+  transition: width var(--transition-slow);
+}
+
+/* Controls */
+.file-queue-controls {
+  display: flex;
+  justify-content: flex-end;
+  gap: var(--space-xs);
+}
+
+/* Preprocessing status indicator in footer */
+.preprocessing-status {
+  font-size: var(--font-sm);
+  margin-bottom: var(--space-xs);
+}
+
+.preprocessing-status .status-paused,
+.preprocessing-status .status-active,
+.preprocessing-status .status-ready {
+  display: flex;
+  align-items: center;
+  gap: var(--space-xs);
+}
+
+.preprocessing-status .status-paused {
+  color: var(--text-warning);
+}
+
+.preprocessing-status .status-active {
+  color: var(--text-secondary);
+}
+
+.preprocessing-status .status-ready {
+  color: var(--text-success);
+}
+
+.preprocessing-status .spinning {
+  animation: spin 1s linear infinite;
+}
+
+@keyframes spin {
+  from { transform: rotate(0deg); }
+  to { transform: rotate(360deg); }
+}
+
+/* Control button styles now in theme.css (.btn-secondary) */
+
+/* Preprocessing column - fixed width for alignment */
+.preprocess-col {
+  flex-shrink: 0;
+  width: 16px;
+  height: 16px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+/* Preprocessing indicator */
+.preprocess-indicator {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.preprocess-indicator.loading {
+  color: var(--text-on-accent);
+  animation: spin 1s linear infinite;
+  font-size: var(--font-sm);
+  line-height: 1;
+}
+
+.preprocess-indicator.completed,
+.preprocess-indicator.loading {
+  color: var(--color-success);
+}
+
+.preprocess-indicator.error {
+  color: var(--color-error);
+  font-weight: bold;
+  font-size: var(--font-sm);
+  line-height: 1;
+}
+
+@keyframes spin {
+  from { transform: rotate(0deg); }
+  to { transform: rotate(360deg); }
+}
+
+/* File name - grows to fill space, pushing right elements to the right */
+.file-name {
+  flex: 1;
+  min-width: 60px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  color: var(--text-primary);
+  font-family: var(--font-mono);
+}
+
+/* Inline preview of new name */
+.inline-preview {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  gap: var(--space-xs);
+  min-width: 0;
+  overflow: hidden;
+}
+
+.inline-preview .arrow {
+  flex-shrink: 0;
+  color: var(--text-tertiary);
+  font-size: var(--font-sm);
+}
+
+.inline-preview .new-name {
+  flex: 1;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  color: var(--accent-secondary);
+  font-size: var(--font-sm);
+  font-family: var(--font-mono);
+}
+
+.inline-preview.error .preview-error {
+  color: var(--color-error);
+  font-size: var(--font-sm);
+  font-style: italic;
+}
+
+/* Muted preview status (no persons, already renamed) - softer styling */
+.inline-preview.muted .preview-muted {
+  color: var(--accent-secondary);
+  opacity: 0.7;
+  font-size: var(--font-sm);
+  font-style: normal;
+}
+
+/* Face count badge - fixed width for alignment (fits emoji + 2-digit number) */
+.face-count {
+  flex-shrink: 0;
+  width: 38px;
+  font-size: var(--font-sm);
+  color: var(--text-tertiary);
+  background: var(--bg-secondary);
+  padding: 2px 0;
+  border-radius: var(--radius-full);
+  text-align: center;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+/* Face count when info is loaded */
+.file-item.completed .face-count,
+.file-item.already-processed .face-count {
+  background: var(--bg-tertiary);
+  color: var(--text-secondary);
+}
+
+.file-item.completed .face-count {
+  background: var(--color-success-bg);
+  color: var(--color-success);
+}
+
+.file-item.already-processed:not(.completed) .face-count {
+  background: var(--color-success-bg);
+  color: var(--color-success);
+  opacity: 0.8;
+}
+
+/* Unified tooltip */
+.file-tooltip {
+  position: fixed;
+  z-index: var(--z-tooltip);
+  background: var(--bg-tertiary);
+  color: var(--text-primary);
+  padding: var(--space-md);
+  border-radius: var(--radius-lg);
+  font-size: var(--font-sm);
+  max-width: 400px;
+  box-shadow: var(--shadow-lg);
+  pointer-events: none;
+  border: 1px solid var(--border-medium);
+}
+
+.file-tooltip::before {
+  content: '';
+  position: absolute;
+  top: -6px;
+  left: 20px;
+  border-left: 6px solid transparent;
+  border-right: 6px solid transparent;
+  border-bottom: 6px solid var(--bg-tertiary);
+}
+
+.tooltip-row {
+  display: flex;
+  gap: var(--space-sm);
+  margin-bottom: var(--space-xs);
+}
+
+.tooltip-row:last-child {
+  margin-bottom: 0;
+}
+
+.tooltip-label {
+  color: var(--text-secondary);
+  flex-shrink: 0;
+  min-width: 60px;
+}
+
+.tooltip-value {
+  color: var(--text-primary);
+  word-break: break-all;
+  font-family: var(--font-mono);
+}
+
+.tooltip-path {
+  font-size: var(--font-sm);
+  color: var(--text-secondary);
+  font-family: var(--font-mono);
+}
+
+.tooltip-row.tooltip-newname {
+  margin-top: var(--space-xs);
+  padding-top: var(--space-xs);
+  border-top: 1px solid var(--border-medium);
+}
+
+.tooltip-row.tooltip-newname .tooltip-value {
+  color: var(--accent-secondary);
+  font-weight: 500;
+}
+
+.tooltip-row.tooltip-error .tooltip-value {
+  color: var(--color-error);
+}
+
+/* Toast notifications container */
+.file-queue-toasts {
+  position: absolute;
+  bottom: 60px;
+  right: var(--space-md);
+  display: flex;
+  flex-direction: column-reverse;
+  gap: var(--space-sm);
+  z-index: var(--z-dropdown);
+  pointer-events: none;
+}
+
+/* Individual toast */
+.file-queue-toast {
+  padding: var(--space-md) var(--space-lg);
+  border-radius: var(--radius-lg);
+  font-size: var(--font-base);
+  font-weight: 500;
+  box-shadow: var(--shadow-lg);
+  max-width: 280px;
+  pointer-events: auto;
+  opacity: 0.92;
+  animation: toast-slide-in 0.3s ease-out forwards;
+  transition: transform var(--transition-slow), opacity var(--transition-slow);
+}
+
+.file-queue-toast.exiting {
+  animation: toast-slide-out 0.3s ease-in forwards;
+}
+
+.file-queue-toast.success {
+  background: var(--color-success);
+  color: var(--text-inverse);
+}
+
+.file-queue-toast.info {
+  background: var(--color-info);
+  color: var(--text-inverse);
+}
+
+.file-queue-toast.warning {
+  background: var(--color-warning);
+  color: var(--text-inverse);
+}
+
+.file-queue-toast.error {
+  background: var(--color-error);
+  color: var(--text-inverse);
+}
+
+@keyframes toast-slide-in {
+  from {
+    opacity: 0;
+    transform: translateX(20px);
+  }
+  to {
+    opacity: 0.92;
+    transform: translateX(0);
+  }
+}
+
+@keyframes toast-slide-out {
+  from {
+    opacity: 0.92;
+    transform: translateX(0);
+  }
+  to {
+    opacity: 0;
+    transform: translateX(20px);
+  }
+}

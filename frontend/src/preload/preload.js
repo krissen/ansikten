@@ -1,0 +1,77 @@
+// preload.js
+// Secure bridge between main and renderer processes
+
+const { contextBridge, ipcRenderer } = require("electron");
+
+// Expose safe, limited APIs to renderer
+contextBridge.exposeInMainWorld("bildvisareAPI", {
+  // IPC communication - only specific channels allowed
+  send: (channel, data) => {
+    const allowedChannels = ["bild-visad", "sync-view", "renderer-log", "update-menu-state"];
+    if (allowedChannels.includes(channel)) {
+      ipcRenderer.send(channel, data);
+    }
+  },
+
+  on: (channel, callback) => {
+    const allowedChannels = ["show-wait-overlay", "hide-wait-overlay", "apply-view", "load-initial-file", "menu-command", "devtools-state-changed", "queue-files"];
+    if (allowedChannels.includes(channel)) {
+      // Strip event object for security
+      ipcRenderer.on(channel, (event, ...args) => callback(...args));
+    }
+  },
+
+  // Invoke IPC handlers (request-response pattern)
+  invoke: (channel, ...args) => {
+    const allowedChannels = [
+      "open-file-dialog",
+      "open-multi-file-dialog",
+      "open-folder-dialog",
+      "expand-glob",
+      "check-file-changed",
+      "get-initial-file"
+    ];
+    if (allowedChannels.includes(channel)) {
+      return ipcRenderer.invoke(channel, ...args);
+    }
+    throw new Error(`IPC channel '${channel}' not allowed`);
+  },
+
+  // Safe file stat checking via IPC (no direct fs access)
+  checkFileChanged: (filePath) => {
+    return ipcRenderer.invoke("check-file-changed", filePath);
+  },
+
+  // PERFORMANCE: File watching via IPC instead of polling
+  watchFile: (filePath) => {
+    ipcRenderer.send("watch-file", filePath);
+  },
+
+  unwatchFile: (filePath) => {
+    ipcRenderer.send("unwatch-file", filePath);
+  },
+
+  onFileChanged: (callback) => {
+    ipcRenderer.on("file-changed", (event, filePath) => callback(filePath));
+  },
+
+  onFileDeleted: (callback) => {
+    const handler = (event, filePath) => callback(filePath);
+    ipcRenderer.on("file-deleted", handler);
+    return () => {
+      ipcRenderer.removeListener("file-deleted", handler);
+    };
+  },
+
+  onWatcherError: (callback) => {
+    const handler = (event, { dir, files }) => callback(dir, files);
+    ipcRenderer.on("watcher-error", handler);
+    return () => {
+      ipcRenderer.removeListener("watcher-error", handler);
+    };
+  },
+
+  unwatchAllFiles: () => {
+    ipcRenderer.send("unwatch-all-files");
+  },
+});

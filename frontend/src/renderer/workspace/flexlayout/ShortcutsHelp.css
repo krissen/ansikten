@@ -1,0 +1,152 @@
+/**
+ * Shortcuts Help Overlay Styles
+ *
+ * Uses CSS variables from theme.css for theming support
+ */
+
+.shortcuts-overlay {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: rgba(0, 0, 0, 0.6);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 10000;
+  animation: overlay-fade-in 0.15s ease-out;
+}
+
+@keyframes overlay-fade-in {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
+.shortcuts-dialog {
+  background: var(--bg-elevated);
+  border-radius: var(--radius-lg);
+  box-shadow: var(--shadow-lg);
+  max-width: 700px;
+  max-height: 80vh;
+  width: 90%;
+  display: flex;
+  flex-direction: column;
+  animation: dialog-slide-in 0.2s ease-out;
+}
+
+@keyframes dialog-slide-in {
+  from {
+    opacity: 0;
+    transform: translateY(-20px) scale(0.95);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+}
+
+.shortcuts-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: var(--space-lg) var(--space-xl);
+  border-bottom: 1px solid var(--border-medium);
+}
+
+.shortcuts-header h2 {
+  margin: 0;
+  font-size: var(--font-xl);
+  font-weight: 600;
+  color: var(--text-primary);
+}
+
+.shortcuts-close {
+  background: none;
+  border: none;
+  font-size: var(--font-2xl);
+  color: var(--text-secondary);
+  cursor: pointer;
+  padding: 0;
+  width: var(--space-2xl);
+  height: var(--space-2xl);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: var(--radius-lg);
+  transition: background var(--transition-base), color var(--transition-base);
+}
+
+.shortcuts-close:hover {
+  background: var(--bg-hover);
+  color: var(--text-primary);
+}
+
+.shortcuts-content {
+  flex: 1;
+  overflow-y: auto;
+  padding: var(--space-lg) var(--space-xl);
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+  gap: var(--space-xl);
+}
+
+.shortcuts-section {
+  background: var(--bg-hover);
+  border-radius: var(--radius-lg);
+  padding: var(--space-md) var(--space-md);
+}
+
+.shortcuts-section h3 {
+  margin: 0 0 var(--space-md) 0;
+  font-size: var(--font-base);
+  font-weight: 600;
+  color: var(--accent-primary);
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+.shortcut-row {
+  display: flex;
+  align-items: center;
+  gap: var(--space-sm);
+  padding: var(--space-sm) 0;
+  font-size: var(--font-base);
+  color: var(--text-primary);
+}
+
+.shortcut-row kbd {
+  background: var(--bg-active);
+  border: 1px solid var(--border-strong);
+  border-radius: var(--radius-md);
+  padding: 2px var(--space-sm);
+  font-family: inherit;
+  font-size: var(--font-sm);
+  color: var(--text-primary);
+  min-width: 20px;
+  text-align: center;
+  box-shadow: var(--shadow-sm);
+}
+
+.shortcut-row span {
+  flex: 1;
+  color: var(--text-secondary);
+}
+
+.shortcuts-footer {
+  padding: var(--space-md) var(--space-xl);
+  border-top: 1px solid var(--border-medium);
+  text-align: center;
+  font-size: var(--font-md);
+  color: var(--text-secondary);
+}
+
+.shortcuts-footer kbd {
+  background: var(--bg-active);
+  border: 1px solid var(--border-strong);
+  border-radius: var(--radius-md);
+  padding: 2px var(--space-sm);
+  font-family: inherit;
+  font-size: var(--font-sm);
+  color: var(--text-primary);
+}

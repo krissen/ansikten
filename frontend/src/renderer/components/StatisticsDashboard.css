@@ -1,0 +1,152 @@
+/**
+ * StatisticsDashboard Styles
+ *
+ * Module-specific styles only.
+ * Layout and common elements use centralized classes from theme.css
+ */
+
+/* Stats body - override module-body to add gap between sections */
+.stats-dashboard .stats-body {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-lg);
+}
+
+/* Attempt Stats Table */
+.attempt-stats-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: var(--font-sm);
+}
+
+.attempt-stats-table th {
+  background: var(--accent-primary);
+  color: var(--text-on-accent);
+  padding: 6px var(--space-sm);
+  text-align: left;
+  font-weight: 600;
+  font-size: var(--font-sm);
+}
+
+.attempt-stats-table th.num {
+  text-align: right;
+}
+
+.attempt-stats-table td {
+  padding: var(--space-xs) var(--space-sm);
+  border-bottom: 1px solid var(--border-medium);
+}
+
+.attempt-stats-table td.num {
+  text-align: right;
+  font-family: var(--font-mono);
+}
+
+.attempt-stats-table tr:hover {
+  background: var(--bg-hover);
+}
+
+/* Top Faces Grid */
+.top-faces-grid {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 6px;
+  font-size: var(--font-sm);
+}
+
+.face-cell {
+  padding: var(--space-xs) var(--space-sm);
+  background: var(--bg-elevated);
+  border: 1px solid var(--border-medium);
+  border-radius: var(--radius-sm);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  color: var(--text-primary);
+}
+
+.face-cell.ignored {
+  background: var(--color-warning-bg);
+  border-color: var(--color-warning);
+  color: var(--color-warning);
+}
+
+/* Recent Images List */
+.recent-images-list {
+  font-size: var(--font-sm);
+}
+
+.image-entry {
+  padding: 6px 0;
+  border-bottom: 1px solid var(--border-medium);
+  display: flex;
+  justify-content: space-between;
+  gap: var(--space-md);
+}
+
+.image-entry:last-child {
+  border-bottom: none;
+}
+
+.image-filename {
+  font-weight: 500;
+  color: var(--text-primary);
+  flex-shrink: 0;
+}
+
+.image-names {
+  color: var(--text-secondary);
+  font-style: italic;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* Recent Logs */
+.recent-logs-list {
+  font-size: var(--font-sm);
+  font-family: var(--font-mono);
+}
+
+.stats-log-entry {
+  padding: var(--space-xs) 0;
+  border-bottom: 1px solid var(--border-medium);
+  white-space: pre-wrap;
+  word-break: break-all;
+}
+
+.stats-log-entry:last-child {
+  border-bottom: none;
+}
+
+.stats-log-entry.info {
+  color: var(--accent-primary);
+}
+
+.stats-log-entry.warning {
+  color: var(--color-warning);
+}
+
+.stats-log-entry.error {
+  color: var(--color-error);
+}
+
+/* Source badges for recent images */
+.source-badge {
+  font-size: var(--font-xs);
+  padding: 1px var(--space-xs);
+  border-radius: 2px;
+  margin-left: 6px;
+  vertical-align: middle;
+  font-weight: 600;
+  text-transform: uppercase;
+}
+
+.source-badge.cli {
+  background: var(--bg-tertiary);
+  color: var(--text-secondary);
+}
+
+.image-entry.source-cli {
+  opacity: 0.7;
+}
