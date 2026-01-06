@@ -241,6 +241,36 @@
   color: var(--color-error);
 }
 
+/* Reprocess button */
+.reprocess-btn {
+  flex-shrink: 0;
+  width: 18px;
+  height: 18px;
+  border: none;
+  background: transparent;
+  color: var(--text-tertiary);
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: var(--radius-sm);
+  opacity: 0;
+  transition: opacity var(--transition-base), background var(--transition-base), transform var(--transition-fast);
+}
+
+.file-item:hover .reprocess-btn {
+  opacity: 1;
+}
+
+.reprocess-btn:active {
+  transform: scale(0.9);
+}
+
+.reprocess-btn:hover {
+  background: var(--color-info-bg);
+  color: var(--color-info);
+}
+
 /* Footer - inherits from .module-footer */
 
 /* Progress */
