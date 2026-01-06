@@ -32,6 +32,17 @@ console.log(`Version: ${versionInfo.isTag ? versionInfo.version : 'commit ' + ve
 const versionFile = path.join(__dirname, '..', 'src', 'version.json');
 fs.writeFileSync(versionFile, JSON.stringify(versionInfo, null, 2));
 
+const packageJsonPath = path.join(__dirname, '..', 'package.json');
+const packageJson = JSON.parse(fs.readFileSync(packageJsonPath, 'utf8'));
+const buildVersion = versionInfo.isTag 
+  ? versionInfo.version.replace(/^v/, '')
+  : versionInfo.version;
+if (packageJson.version !== buildVersion) {
+  packageJson.version = buildVersion;
+  fs.writeFileSync(packageJsonPath, JSON.stringify(packageJson, null, 2) + '\n');
+  console.log(`Updated package.json version to: ${buildVersion}`);
+}
+
 // Ensure output directory exists
 const outdir = path.join(__dirname, '..', 'src', 'renderer', 'workspace', 'dist');
 if (!fs.existsSync(outdir)) {
