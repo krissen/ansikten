@@ -9,6 +9,7 @@ import fnmatch
 import hashlib
 import logging
 import sys
+import threading
 from pathlib import Path
 from typing import Any, Dict, List, Optional
 
@@ -30,6 +31,7 @@ class ManagementService:
         self.processed_files = []
         self._last_reload = 0
         self._cache_ttl = 2.0
+        self._reload_lock = threading.Lock()
         self._reload_from_disk()
 
     def _reload_from_disk(self):
@@ -41,7 +43,9 @@ class ManagementService:
     def reload_database(self):
         import time
         if time.time() - self._last_reload > self._cache_ttl:
-            self._reload_from_disk()
+            with self._reload_lock:
+                if time.time() - self._last_reload > self._cache_ttl:
+                    self._reload_from_disk()
 
     def save(self):
         """Save database to disk (atomic write with file locking)"""

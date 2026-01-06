@@ -56,18 +56,46 @@ async def lifespan(app: FastAPI):
     
     startup_state.set_state("mlModels", LoadingState.PENDING, "Väntar...")
     
+    ML_LOAD_TIMEOUT = 120.0
+    
     async def eager_load_ml():
         await asyncio.sleep(0.1)
         startup_state.set_state("mlModels", LoadingState.LOADING, "Laddar InsightFace...")
         await asyncio.sleep(0.05)
         t0 = time.perf_counter()
+        
+        load_complete = asyncio.Event()
+        load_error = None
+        
+        def do_load():
+            nonlocal load_error
+            try:
+                from .services.detection_service import detection_service
+                _ = detection_service.backend.backend_name
+            except Exception as e:
+                load_error = e
+            finally:
+                asyncio.get_event_loop().call_soon_threadsafe(load_complete.set)
+        
+        import threading
+        thread = threading.Thread(target=do_load, daemon=True)
+        thread.start()
+        
         try:
-            from .services.detection_service import detection_service
-            _ = detection_service.backend.backend_name
+            await asyncio.wait_for(load_complete.wait(), timeout=ML_LOAD_TIMEOUT)
             elapsed = time.perf_counter() - t0
+            
+            if load_error:
+                raise load_error
+                
             startup_state.set_state("mlModels", LoadingState.READY, 
                                    f"Redo ({elapsed:.1f}s)")
             logger.info(f"[Startup Profile] ML models loaded in {elapsed:.2f}s")
+        except asyncio.TimeoutError:
+            logger.error(f"ML model loading timed out after {ML_LOAD_TIMEOUT}s")
+            startup_state.set_state("mlModels", LoadingState.ERROR, 
+                                   f"Timeout ({ML_LOAD_TIMEOUT:.0f}s)", 
+                                   error="Laddning tog för lång tid")
         except Exception as e:
             logger.error(f"Failed to eager-load ML models: {e}", exc_info=True)
             startup_state.set_state("mlModels", LoadingState.ERROR, 
