@@ -4,8 +4,9 @@
  * Returns which capabilities are ready and helper functions for gating actions.
  */
 
-import { useState, useEffect, useRef, useCallback } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { useBackend } from '../context/BackendContext.jsx';
+import { apiClient } from '../shared/api-client.js';
 
 export function useCapabilities() {
   const { isConnected } = useBackend();
@@ -15,39 +16,28 @@ export function useCapabilities() {
     mlReady: false,
     allReady: false,
   });
-  const wsRef = useRef(null);
 
   useEffect(() => {
     setCapabilities(prev => ({ ...prev, backendConnected: isConnected }));
-    
-    if (!isConnected) return;
+  }, [isConnected]);
 
-    const ws = new WebSocket(`ws://127.0.0.1:${window.backendPort || 5001}/ws/progress`);
-    wsRef.current = ws;
-
-    ws.onmessage = (event) => {
-      try {
-        const msg = JSON.parse(event.data);
-        if (msg.event === 'startup-status') {
-          const { items, allReady } = msg.data;
-          setCapabilities({
-            backendConnected: isConnected,
-            dbReady: items.database?.state === 'ready',
-            mlReady: items.mlModels?.state === 'ready',
-            allReady,
-          });
-        }
-      } catch (e) {
-        console.error('useCapabilities: Failed to parse message', e);
-      }
+  useEffect(() => {
+    const handleStatusUpdate = (data) => {
+      const { items, allReady } = data;
+      setCapabilities(prev => ({
+        ...prev,
+        dbReady: items.database?.state === 'ready',
+        mlReady: items.mlModels?.state === 'ready',
+        allReady,
+      }));
     };
+
+    apiClient.onWSEvent('startup-status', handleStatusUpdate);
 
     return () => {
-      if (ws.readyState === WebSocket.OPEN) {
-        ws.close();
-      }
+      apiClient.offWSEvent('startup-status', handleStatusUpdate);
     };
-  }, [isConnected]);
+  }, []);
 
   const requireCapability = useCallback((capability) => {
     const ready = capabilities[capability];
