@@ -64,6 +64,7 @@ async def lifespan(app: FastAPI):
         await asyncio.sleep(0.05)
         t0 = time.perf_counter()
         
+        loop = asyncio.get_running_loop()
         load_complete = asyncio.Event()
         load_error = None
         
@@ -75,7 +76,7 @@ async def lifespan(app: FastAPI):
             except Exception as e:
                 load_error = e
             finally:
-                asyncio.get_event_loop().call_soon_threadsafe(load_complete.set)
+                loop.call_soon_threadsafe(load_complete.set)
         
         import threading
         thread = threading.Thread(target=do_load, daemon=True)
