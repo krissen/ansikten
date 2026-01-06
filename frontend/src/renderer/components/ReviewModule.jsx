@@ -687,10 +687,14 @@ export function ReviewModule() {
     return () => document.removeEventListener('keydown', handleKeyboard);
   }, [currentFaceIndex, detectedFaces, navigateToFace, confirmFace, ignoreFace, discardChanges, skipImage, addManualFace]);
 
-  /**
-   * Listen for image-loaded events
-   */
-  useModuleEvent('image-loaded', useCallback(({ imagePath }) => {
+  useModuleEvent('image-loaded', useCallback(({ imagePath, skipAutoDetect }) => {
+    if (skipAutoDetect) {
+      debug('ReviewModule', 'Skipping auto-detect for already-processed file:', imagePath);
+      setCurrentImagePath(imagePath);
+      setDetectedFaces([]);
+      setStatus('Redan behandlad - använd 🔄 för att köra igen');
+      return;
+    }
     detectFaces(imagePath);
   }, [detectFaces]));
 

@@ -57,11 +57,10 @@ function createApplicationMenu(mainWindow) {
     mainWindow.webContents.send('menu-command', command);
   };
 
-  const template = [
-    const versionInfo = getVersionInfo();
-    const versionString = versionInfo.isTag ? versionInfo.version : `commit ${versionInfo.version}`;
+  const versionInfo = getVersionInfo();
+  const versionString = versionInfo.isTag ? versionInfo.version : `commit ${versionInfo.version}`;
 
-    // App menu (macOS only)
+  const template = [
     ...(isMac ? [{
       label: 'Bildvisare',
       submenu: [
