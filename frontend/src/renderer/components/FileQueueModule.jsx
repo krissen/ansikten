@@ -927,30 +927,27 @@ export function FileQueueModule() {
 
     const item = currentQueue[index];
 
-    // If fix-mode OFF and file already processed, show info toast
-    if (!fixMode && item.isAlreadyProcessed) {
-      debug('FileQueue', 'File already processed (fix-mode OFF), showing info:', item.fileName);
-      showToast(`ℹ️ ${item.fileName} redan behandlad. Använd 🔄-knappen eller aktivera fix-mode.`, 'info', 4000);
+    const skipAutoDetect = !fixMode && item.isAlreadyProcessed;
+    
+    if (skipAutoDetect) {
+      debug('FileQueue', 'File already processed (fix-mode OFF), skipping auto-detect:', item.fileName);
+      showToast(`ℹ️ ${item.fileName} redan behandlad. Använd 🔄 eller aktivera fix-mode.`, 'info', 4000);
     }
 
-    // If fix mode and file is already processed, undo it first
     if (fixMode && item.isAlreadyProcessed) {
       try {
         debug('FileQueue', 'Undoing file for fix mode:', item.fileName);
         await api.post('/api/management/undo-file', {
           filename_pattern: item.fileName
         });
-        // Refresh processed files list
         await loadProcessedFiles();
-        showToast(`🔄 Undid processing for ${item.fileName}`, 'info', 2500);
+        showToast(`🔄 Ångrade ${item.fileName}`, 'info', 2500);
       } catch (err) {
         debugError('FileQueue', 'Failed to undo file:', err);
-        showToast(`Failed to undo ${item.fileName}`, 'error', 3000);
-        // Continue anyway
+        showToast(`Kunde inte ångra ${item.fileName}`, 'error', 3000);
       }
     }
 
-    // Update status
     setQueue(prev => prev.map((q, i) => ({
       ...q,
       status: i === index ? 'active' : (q.status === 'active' ? 'pending' : q.status)
@@ -959,8 +956,8 @@ export function FileQueueModule() {
     setCurrentIndex(index);
     currentFileRef.current = item.filePath;
 
-    debug('FileQueue', 'Emitting load-image for:', item.filePath);
-    emit('load-image', { imagePath: item.filePath });
+    debug('FileQueue', 'Emitting load-image for:', item.filePath, { skipAutoDetect });
+    emit('load-image', { imagePath: item.filePath, skipAutoDetect });
     emitQueueStatus(index);
   }, [fixMode, api, loadProcessedFiles, emit, showToast, emitQueueStatus]);
 

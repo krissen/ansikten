@@ -1,10 +1,3 @@
-/**
- * StartupStatus - Shows backend initialization progress (KASAM UX)
- * 
- * Displays a checklist of loading components with status icons.
- * Auto-dismisses when all components are ready.
- */
-
 import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { useBackend } from '../context/BackendContext.jsx';
 import { apiClient } from '../shared/api-client.js';
@@ -18,9 +11,10 @@ const STATUS_ICONS = {
   error: 'warning'
 };
 
-const STATUS_LABELS = {
-  database: 'Database',
-  mlModels: 'ML Models'
+const COMPONENT_LABELS = {
+  backend: 'Backend',
+  database: 'Databas',
+  mlModels: 'ML-modeller'
 };
 
 export function StartupStatus() {
@@ -73,18 +67,20 @@ export function StartupStatus() {
   if (dismissed || !status) return null;
 
   const { items, allReady, hasError } = status;
-  const anyLoading = Object.values(items).some(item => item.state === 'loading');
+  const anyLoading = Object.values(items).some(item => 
+    item.state === 'loading' || item.state === 'pending'
+  );
   const startupDone = allReady || (!anyLoading && hasError);
   
-  let headerText = 'Starting...';
-  if (allReady) headerText = 'Ready';
-  else if (startupDone && hasError) headerText = 'Startup Error';
+  let headerText = 'Startar...';
+  if (allReady) headerText = 'Redo';
+  else if (startupDone && hasError) headerText = 'Startfel';
 
   return (
     <div 
       className={`startup-status ${fadeOut ? 'fade-out' : ''} ${allReady ? 'all-ready' : ''} ${startupDone && hasError ? 'has-error' : ''}`}
       onClick={handleDismiss}
-      title="Click to dismiss"
+      title="Klicka för att stänga"
     >
       <div className="startup-status-header">
         {headerText}
@@ -95,12 +91,16 @@ export function StartupStatus() {
             <span className={`startup-icon ${item.state}`}>
               <Icon name={STATUS_ICONS[item.state]} size={14} />
             </span>
-            <span className="startup-label">{STATUS_LABELS[key] || key}</span>
-            {item.state === 'loading' && (
-              <span className="startup-progress">...</span>
-            )}
-            {item.state === 'error' && (
-              <span className="startup-error" title={item.error}>!</span>
+            <span className="startup-label">
+              {COMPONENT_LABELS[key] || key}
+            </span>
+            <span className={`startup-message ${item.state}`}>
+              {item.message}
+            </span>
+            {item.state === 'error' && item.error && (
+              <span className="startup-error-detail" title={item.error}>
+                <Icon name="info" size={12} />
+              </span>
             )}
           </div>
         ))}

@@ -678,14 +678,14 @@ export function ImageViewer() {
   // Module Events
   // ============================================
 
-  // Listen for load-image events
-  useModuleEvent('load-image', async ({ imagePath: path }) => {
+  useModuleEvent('load-image', async ({ imagePath: path, skipAutoDetect }) => {
     try {
       const { img, originalPath } = await loadImage(path);
-      debug('ImageViewer', 'Loaded image:', path);
+      debug('ImageViewer', 'Loaded image:', path, { skipAutoDetect });
       emit('image-loaded', {
         imagePath: originalPath,
-        dimensions: { width: img.width, height: img.height }
+        dimensions: { width: img.width, height: img.height },
+        skipAutoDetect
       });
     } catch (err) {
       debugError('ImageViewer', 'Failed to load image:', err);
