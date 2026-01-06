@@ -18,16 +18,14 @@ logging.basicConfig(
 )
 logger = logging.getLogger(__name__)
 
-# Lifespan event handler (replaces deprecated on_event)
+# Lifespan event handler
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    # Startup
     import os
     port = int(os.getenv('BILDVISARE_PORT', '5001'))
     logger.info("Bildvisare Backend API starting up...")
     logger.info(f"Server ready on http://127.0.0.1:{port}")
     yield
-    # Shutdown
     logger.info("Bildvisare Backend API shutting down...")
 
 # Create FastAPI app
@@ -52,6 +50,8 @@ app.add_middleware(
 async def health_check():
     """Health check endpoint for backend readiness"""
     return {"status": "ok", "service": "bildvisare-backend"}
+
+
 
 # Import routes
 from .routes import detection, status, database, statistics, management, preprocessing, files
