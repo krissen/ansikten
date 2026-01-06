@@ -22,35 +22,44 @@ logger = logging.getLogger(__name__)
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     import os
+    import time
     import asyncio
     from .services.startup_service import get_startup_state, LoadingState
     
+    startup_start = time.perf_counter()
     startup_state = get_startup_state()
     port = int(os.getenv('BILDVISARE_PORT', '5001'))
     logger.info("Bildvisare Backend API starting up...")
     logger.info(f"Server ready on http://127.0.0.1:{port}")
     
     async def preload_database():
+        t0 = time.perf_counter()
         startup_state.set_state("database", LoadingState.LOADING, "Loading face database...")
         await asyncio.sleep(0.1)
         try:
             from .services.management_service import get_management_service
             svc = get_management_service()
+            elapsed = time.perf_counter() - t0
             startup_state.set_state("database", LoadingState.READY, 
                                     f"Loaded {len(svc.known_faces)} people")
+            logger.info(f"[Startup Profile] Database loaded in {elapsed:.2f}s")
         except Exception as e:
             logger.error(f"Failed to pre-load database: {e}")
             startup_state.set_state("database", LoadingState.ERROR, 
                                     "Failed to load database", error=str(e))
     
     async def warmup_ml_models():
+        t0 = time.perf_counter()
         startup_state.set_state("mlModels", LoadingState.LOADING, "Loading ML models...")
         await asyncio.sleep(0.5)
         try:
             from .services.detection_service import detection_service
             _ = detection_service.backend
+            elapsed = time.perf_counter() - t0
             startup_state.set_state("mlModels", LoadingState.READY, 
                                     f"Loaded {detection_service.backend.backend_name}")
+            logger.info(f"[Startup Profile] ML models loaded in {elapsed:.2f}s")
+            logger.info(f"[Startup Profile] Total startup time: {time.perf_counter() - startup_start:.2f}s")
         except Exception as e:
             logger.error(f"Failed to warm up ML models: {e}")
             startup_state.set_state("mlModels", LoadingState.ERROR,
