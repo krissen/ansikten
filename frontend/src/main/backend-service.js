@@ -26,6 +26,22 @@ class BackendService {
     this.maxRetries = 30;
     this.retryDelay = 1000;
     this.onStatusUpdate = null;
+    this.startupLogs = [];
+    this.maxLogLines = 80;
+    this.startTime = null;
+    this.childExited = false;
+  }
+
+  _timestamp() {
+    if (!this.startTime) return '0.000s';
+    return `${((Date.now() - this.startTime) / 1000).toFixed(3)}s`;
+  }
+
+  _addLog(line) {
+    this.startupLogs.push(`[${this._timestamp()}] ${line}`);
+    if (this.startupLogs.length > this.maxLogLines) {
+      this.startupLogs.shift();
+    }
   }
 
   _updateStatus(message, progress = null) {
@@ -122,27 +138,31 @@ class BackendService {
       return;
     }
 
-    console.log('[BackendService] Starting FastAPI backend...');
+    this.startTime = Date.now();
+    this.childExited = false;
+    this.startupLogs = [];
+    
+    console.log(`[BackendService] [${this._timestamp()}] Starting FastAPI backend...`);
 
     const config = this.getBackendConfig();
+    this._addLog(`Spawning: ${config.executable} ${config.args.join(' ')}`);
 
-    // Spawn backend process
     this.process = spawn(
       config.executable,
       config.args,
       {
         cwd: config.cwd,
-        env: config.env,
+        env: { ...config.env, PYTHONUNBUFFERED: '1' },
         stdio: 'pipe'
       }
     );
 
-    // Forward stdout/stderr to console (with filtering)
+    this._addLog(`Process spawned with PID ${this.process.pid}`);
+
     this.process.stdout.on('data', (data) => {
+      const output = data.toString().trim();
+      this._addLog(`stdout: ${output}`);
       if (DEBUG) {
-        const output = data.toString().trim();
-        // Skip noisy polling endpoints (only successful GET requests)
-        // Format: INFO: 127.0.0.1:PORT - "GET /api/statistics/summary HTTP/1.1" 200 OK
         if (output.includes('GET /api/statistics/summary') && output.includes('200')) {
           return;
         }
@@ -151,21 +171,25 @@ class BackendService {
     });
 
     this.process.stderr.on('data', (data) => {
-      console.error(`[Backend] ${data.toString().trim()}`);
+      const output = data.toString().trim();
+      this._addLog(`stderr: ${output}`);
+      console.error(`[Backend] ${output}`);
     });
 
     this.process.on('error', (err) => {
+      this._addLog(`Process error: ${err.message}`);
       console.error('[BackendService] Failed to start server:', err);
     });
 
     this.process.on('exit', (code, signal) => {
-      console.log(`[BackendService] Server exited (code: ${code}, signal: ${signal})`);
+      this._addLog(`Process exited: code=${code}, signal=${signal}`);
+      console.log(`[BackendService] [${this._timestamp()}] Server exited (code: ${code}, signal: ${signal})`);
+      this.childExited = true;
       this.process = null;
     });
 
-    // Wait for server to be ready
     await this.waitForReady();
-    console.log('[BackendService] Backend server ready');
+    console.log(`[BackendService] [${this._timestamp()}] Backend server ready`);
   }
 
   /**
@@ -173,15 +197,20 @@ class BackendService {
    * @returns {Promise<void>}
    */
   async waitForReady() {
-    console.log('[BackendService] Starting backend server, please wait...');
+    console.log(`[BackendService] [${this._timestamp()}] Starting health check polling...`);
     this._updateStatus('Initierar Python...', 10);
 
     await new Promise(resolve => setTimeout(resolve, 2000));
 
     for (let i = 0; i < this.maxRetries; i++) {
+      if (this.childExited) {
+        const logs = this.startupLogs.slice(-20).join('\n');
+        throw new Error(`Backend process exited during startup.\n\nLast logs:\n${logs}`);
+      }
+
       const isHealthy = await this.checkHealth();
       if (isHealthy) {
-        console.log(`[BackendService] Backend server ready! (took ${(i + 1) * this.retryDelay / 1000}s)`);
+        console.log(`[BackendService] [${this._timestamp()}] Backend ready after ${i + 1} attempts`);
         this._updateStatus('Backend redo!', 80);
         return;
       }
@@ -194,13 +223,18 @@ class BackendService {
       } else if (i === 6) {
         this._updateStatus('Startar webbserver...', progress);
       } else if (i > 10) {
-        this._updateStatus('Väntar på backend...', progress);
+        this._updateStatus(`Väntar på backend... (${i}/${this.maxRetries})`, progress);
+      }
+
+      if (DEBUG && i > 0 && i % 5 === 0) {
+        console.log(`[BackendService] [${this._timestamp()}] Health check attempt ${i}/${this.maxRetries}`);
       }
 
       await new Promise(resolve => setTimeout(resolve, this.retryDelay));
     }
 
-    throw new Error('Backend server failed to start within timeout');
+    const logs = this.startupLogs.slice(-20).join('\n');
+    throw new Error(`Backend server failed to start within ${this.maxRetries}s timeout.\n\nLast logs:\n${logs}`);
   }
 
   /**
@@ -215,9 +249,9 @@ class BackendService {
           port: this.port,
           path: '/health',
           method: 'GET',
-          timeout: 2000, // Increased timeout
+          timeout: 2000,
           headers: {
-            'Connection': 'close' // Ensure connection closes
+            'Connection': 'close'
           }
         },
         (res) => {
@@ -229,10 +263,8 @@ class BackendService {
             try {
               const json = JSON.parse(data);
               const isHealthy = json.status === 'ok';
-              // Don't log every successful health check during startup
               resolve(isHealthy);
             } catch (err) {
-              // Invalid JSON during startup is expected (server not ready yet)
               resolve(false);
             }
           });
@@ -240,16 +272,14 @@ class BackendService {
       );
 
       req.on('error', (err) => {
-        // Don't log connection refused errors during startup (expected)
-        // Only log other errors or if server takes too long
         if (DEBUG && err.code !== 'ECONNREFUSED') {
-          console.log('[BackendService] Health check error:', err.message);
+          console.log(`[BackendService] [${this._timestamp()}] Health check error: ${err.message}`);
         }
         resolve(false);
       });
 
       req.on('timeout', () => {
-        // Timeouts during startup are expected, don't log
+        req.destroy();
         resolve(false);
       });
 
