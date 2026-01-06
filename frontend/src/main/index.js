@@ -13,6 +13,20 @@ const os = require("os");
 const { BackendService } = require("./backend-service");
 const { createApplicationMenu } = require("./menu");
 
+function getVersionInfo() {
+  try {
+    const versionPath = path.join(__dirname, '..', 'version.json');
+    if (fs.existsSync(versionPath)) {
+      return JSON.parse(fs.readFileSync(versionPath, 'utf8'));
+    }
+  } catch (e) {
+    console.error('[Main] Failed to read version.json:', e.message);
+  }
+  return { version: 'dev', isTag: false };
+}
+
+const versionInfo = getVersionInfo();
+
 let mainWindow = null;
 let splashWindow = null;
 let backendService = null;
@@ -40,6 +54,10 @@ function createSplashWindow() {
 
   const splashPath = path.join(__dirname, "../renderer/splash.html");
   splashWindow.loadFile(splashPath);
+
+  splashWindow.webContents.on('did-finish-load', () => {
+    splashWindow.webContents.send('version-info', versionInfo);
+  });
 
   splashWindow.on("closed", () => {
     splashWindow = null;
@@ -415,6 +433,10 @@ app.on("will-quit", () => {
 });
 
 // IPC Handlers
+
+ipcMain.handle("get-version-info", () => {
+  return versionInfo;
+});
 
 // Get initial file path (if app was launched with a file argument)
 ipcMain.handle("get-initial-file", () => {

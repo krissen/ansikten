@@ -98,13 +98,14 @@
   <div class="progress-container">
     <div class="progress-bar" id="progress"></div>
   </div>
-  <span class="version">v1.0.0</span>
+  <span class="version" id="version">...</span>
   
   <script>
     const { ipcRenderer } = require('electron');
     
     const statusEl = document.getElementById('status');
     const progressEl = document.getElementById('progress');
+    const versionEl = document.getElementById('version');
     
     ipcRenderer.on('splash-status', (event, { message, progress }) => {
       if (message) {
@@ -114,6 +115,10 @@
         progressEl.classList.add('determinate');
         progressEl.style.width = `${progress}%`;
       }
+    });
+    
+    ipcRenderer.on('version-info', (event, { version, isTag }) => {
+      versionEl.textContent = isTag ? version : `#${version}`;
     });
   </script>
 </body>
