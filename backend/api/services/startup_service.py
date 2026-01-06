@@ -104,14 +104,17 @@ class StartupState:
 
     def _notify_listeners(self):
         status = self.get_status()
+        logger.debug(f"[StartupState] Notifying {len(self._listeners)} listeners")
         for listener in self._listeners:
             try:
                 if asyncio.iscoroutinefunction(listener):
                     asyncio.create_task(listener(status))
+                    logger.debug(f"[StartupState] Created task for async listener")
                 else:
                     listener(status)
+                    logger.debug(f"[StartupState] Called sync listener")
             except Exception as e:
-                logger.error(f"[StartupState] Listener error: {e}")
+                logger.error(f"[StartupState] Listener error: {e}", exc_info=True)
 
 
 def get_startup_state() -> StartupState:

@@ -38,12 +38,6 @@ async def lifespan(app: FastAPI):
         svc = get_management_service()
         return len(svc.known_faces)
     
-    def _warmup_ml_sync():
-        """Sync function for thread pool - initializes ML backend"""
-        from .services.detection_service import detection_service
-        _ = detection_service.backend
-        return detection_service.backend.backend_name
-    
     async def preload_database():
         t0 = time.perf_counter()
         startup_state.set_state("database", LoadingState.LOADING, "Loading face database...")
@@ -59,10 +53,21 @@ async def lifespan(app: FastAPI):
                                     "Failed to load database", error=str(e))
     
     async def warmup_ml_models():
+        """
+        Warm up ML models in main thread.
+        
+        MUST run in main thread because onnxruntime sets up signal handlers
+        during initialization, which only works in the main interpreter thread.
+        This blocks the event loop during init (~30-60s) but that's acceptable
+        during startup while splash screen shows progress.
+        """
         t0 = time.perf_counter()
+        logger.info("[Startup Profile] ML warmup starting (main thread)...")
         startup_state.set_state("mlModels", LoadingState.LOADING, "Loading ML models...")
         try:
-            backend_name = await asyncio.to_thread(_warmup_ml_sync)
+            from .services.detection_service import detection_service
+            _ = detection_service.backend
+            backend_name = detection_service.backend.backend_name
             elapsed = time.perf_counter() - t0
             startup_state.set_state("mlModels", LoadingState.READY, 
                                     f"Loaded {backend_name}")
@@ -74,7 +79,7 @@ async def lifespan(app: FastAPI):
                                     "Failed to load ML models", error=str(e))
     
     asyncio.create_task(preload_database())
-    asyncio.create_task(warmup_ml_models())
+    await warmup_ml_models()
     
     # Setup WS broadcast for startup status changes
     from .websocket.progress import setup_startup_listener
