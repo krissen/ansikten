@@ -111,8 +111,15 @@ exe = EXE(
     debug=False,
     bootloader_ignore_signals=False,
     strip=False,
-    upx=True,  # Compress executable
-    upx_exclude=[],
+    upx=True,
+    upx_exclude=[
+        'libonnxruntime*',
+        'onnxruntime*',
+        'libopencv*',
+        'opencv*',
+        'libmkl*',
+        'mkl*',
+    ],
     runtime_tmpdir=None,
     console=True,  # Keep console for logging
     disable_windowed_traceback=False,

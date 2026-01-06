@@ -293,8 +293,26 @@ app.whenReady().then(async () => {
     updateSplashStatus("Laddar gränssnitt...", 90);
   } catch (err) {
     console.error("[Main] Failed to start backend:", err);
-    updateSplashStatus("Backend-fel: " + err.message);
-    await new Promise(resolve => setTimeout(resolve, 2000));
+    
+    if (splashWindow && !splashWindow.isDestroyed()) {
+      splashWindow.close();
+    }
+    
+    const isPackaged = app.isPackaged;
+    const suggestion = isPackaged
+      ? "Försök installera om appen. Om problemet kvarstår, kontakta support."
+      : "Kontrollera att Python är installerat och att BILDVISARE_PYTHON pekar på rätt tolk.";
+    
+    await dialog.showMessageBox({
+      type: "error",
+      title: "Kunde inte starta backend",
+      message: "Backend-servern kunde inte startas",
+      detail: `${err.message}\n\n${suggestion}`,
+      buttons: ["Avsluta"],
+    });
+    
+    app.quit();
+    return;
   }
 
   // Create workspace window

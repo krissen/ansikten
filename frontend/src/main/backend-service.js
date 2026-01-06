@@ -94,16 +94,28 @@ class BackendService {
         'python',   // Fallback
       ].filter(Boolean);
 
-      let pythonPath = pythonPaths[0];
+      const { execSync } = require('child_process');
+      let pythonPath = null;
+      
       for (const p of pythonPaths) {
         try {
-          if (p.includes('/') && fs.existsSync(p)) {
+          if (p.includes('/')) {
+            if (fs.existsSync(p)) {
+              pythonPath = p;
+              break;
+            }
+          } else {
+            execSync(`which ${p}`, { stdio: 'ignore' });
             pythonPath = p;
             break;
           }
-        } catch (e) {
-          // Continue to next
+        } catch {
+          continue;
         }
+      }
+
+      if (!pythonPath) {
+        throw new Error('No Python interpreter found. Set BILDVISARE_PYTHON env var or install python3.');
       }
 
       console.log('[BackendService] Running in development mode');

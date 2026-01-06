@@ -33,7 +33,6 @@ class ComponentStatus:
 
 class StartupState:
     _instance: Optional['StartupState'] = None
-    _listeners: List[Callable] = []
 
     def __new__(cls):
         if cls._instance is None:
