@@ -1,6 +1,6 @@
 .startup-status {
   position: fixed;
-  bottom: var(--space-xl);
+  bottom: calc(var(--space-xl) + 80px);
   right: var(--space-xl);
   background: var(--bg-secondary);
   border: 1px solid var(--border-medium);
@@ -8,9 +8,10 @@
   padding: var(--space-md);
   min-width: 200px;
   box-shadow: var(--shadow-lg);
-  z-index: 10000;
+  z-index: 9999;
   opacity: 1;
   transition: opacity 0.5s ease-out, transform 0.5s ease-out;
+  cursor: pointer;
 }
 
 .startup-status.fade-out {

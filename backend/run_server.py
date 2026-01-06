@@ -21,6 +21,11 @@ def main():
     if base_path not in sys.path:
         sys.path.insert(0, base_path)
     
+    # Set matplotlib config dir to persistent location (avoids font cache rebuild)
+    mpl_config = os.path.join(os.path.expanduser('~'), '.local', 'share', 'faceid', 'matplotlib')
+    os.makedirs(mpl_config, exist_ok=True)
+    os.environ.setdefault('MPLCONFIGDIR', mpl_config)
+    
     # Parse command line arguments
     import argparse
     parser = argparse.ArgumentParser(description='Bildvisare Backend Server')

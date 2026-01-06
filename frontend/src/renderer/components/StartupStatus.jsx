@@ -41,6 +41,11 @@ export function StartupStatus() {
       }, 2000);
     }
   }, []);
+  
+  const handleDismiss = useCallback(() => {
+    setFadeOut(true);
+    setTimeout(() => setDismissed(true), 500);
+  }, []);
 
   useEffect(() => {
     if (dismissed) return;
@@ -68,11 +73,21 @@ export function StartupStatus() {
   if (dismissed || !status) return null;
 
   const { items, allReady, hasError } = status;
+  const anyLoading = Object.values(items).some(item => item.state === 'loading');
+  const startupDone = allReady || (!anyLoading && hasError);
+  
+  let headerText = 'Starting...';
+  if (allReady) headerText = 'Ready';
+  else if (startupDone && hasError) headerText = 'Startup Error';
 
   return (
-    <div className={`startup-status ${fadeOut ? 'fade-out' : ''} ${allReady ? 'all-ready' : ''} ${hasError ? 'has-error' : ''}`}>
+    <div 
+      className={`startup-status ${fadeOut ? 'fade-out' : ''} ${allReady ? 'all-ready' : ''} ${startupDone && hasError ? 'has-error' : ''}`}
+      onClick={handleDismiss}
+      title="Click to dismiss"
+    >
       <div className="startup-status-header">
-        {allReady ? 'Ready' : hasError ? 'Startup Error' : 'Starting...'}
+        {headerText}
       </div>
       <div className="startup-status-items">
         {Object.entries(items).map(([key, item]) => (
