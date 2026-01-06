@@ -23,7 +23,7 @@ import { DatabaseManagement } from '../../components/DatabaseManagement.jsx';
 import { FileQueueModule } from '../../components/FileQueueModule.jsx';
 import { ThemeEditor } from '../../components/ThemeEditor.jsx';
 import { PreferencesModule } from '../../components/PreferencesModule.jsx';
-import { StartupStatus } from '../../components/StartupStatus.jsx';
+
 
 // Storage key for layout persistence
 const STORAGE_KEY = 'bildvisare-flexlayout';
@@ -1154,7 +1154,6 @@ export function FlexLayoutWorkspace() {
       {showShortcutsHelp && (
         <ShortcutsHelpOverlay onClose={() => setShowShortcutsHelp(false)} />
       )}
-      <StartupStatus />
     </>
   );
 }
