@@ -36,7 +36,7 @@ from faceid_db import (ARCHIVE_DIR, ATTEMPT_SETTINGS_SIG, BASE_DIR,
 from face_backends import create_backend, FaceBackend
 
 
-def init_logging(level=logging.DEBUG, logfile=LOGGING_PATH, replace_handlers=False):
+def init_logging(level=logging.INFO, logfile=LOGGING_PATH, replace_handlers=False):
     """
     Initialize logging for hitta_ansikten.
     
@@ -62,6 +62,7 @@ def init_logging(level=logging.DEBUG, logfile=LOGGING_PATH, replace_handlers=Fal
     )
     if not file_handler_exists:
         handler = logging.FileHandler(logfile, mode="a", encoding="utf-8")
+        handler.setLevel(logging.INFO)
         formatter = logging.Formatter(
             "%(asctime)s %(levelname)s %(message)s", datefmt="%Y-%m-%d %H:%M:%S"
         )

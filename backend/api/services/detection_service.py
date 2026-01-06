@@ -33,11 +33,9 @@ class DetectionService:
     def __init__(self):
         logger.info("[DetectionService] Initializing...")
 
-        # Load configuration and database
         self.config = load_config()
         logger.info(f"[DetectionService] Loaded config: backend={self.config.get('backend', {}).get('type', 'dlib')}")
 
-        # Initialize backend
         self.backend = create_backend(self.config)
         logger.info(f"[DetectionService] Initialized backend: {self.backend.backend_name}")
 

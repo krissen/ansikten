@@ -40,23 +40,40 @@ async def lifespan(app: FastAPI):
     
     async def preload_database():
         t0 = time.perf_counter()
-        startup_state.set_state("database", LoadingState.LOADING, "Loading face database...")
+        startup_state.set_state("database", LoadingState.LOADING, "Läser in...")
         try:
             people_count = await asyncio.to_thread(_load_database_sync)
             elapsed = time.perf_counter() - t0
             startup_state.set_state("database", LoadingState.READY, 
-                                    f"Loaded {people_count} people")
+                                    f"{people_count} personer")
             logger.info(f"[Startup Profile] Database loaded in {elapsed:.2f}s")
         except Exception as e:
             logger.error(f"Failed to pre-load database: {e}", exc_info=True)
             startup_state.set_state("database", LoadingState.ERROR, 
-                                    "Failed to load database", error=str(e))
+                                    "Kunde inte läsa in", error=str(e))
     
     asyncio.create_task(preload_database())
     
-    # ML warmup: Skip eager loading due to onnxruntime signal handler issues.
-    # ML models will lazy-load on first detection request (works fine).
-    startup_state.set_state("mlModels", LoadingState.READY, "Ready (loads on first use)")
+    startup_state.set_state("mlModels", LoadingState.PENDING, "Väntar...")
+    
+    async def eager_load_ml():
+        await asyncio.sleep(0.1)
+        startup_state.set_state("mlModels", LoadingState.LOADING, "Laddar InsightFace...")
+        await asyncio.sleep(0.05)
+        t0 = time.perf_counter()
+        try:
+            from .services.detection_service import detection_service
+            _ = detection_service.backend.backend_name
+            elapsed = time.perf_counter() - t0
+            startup_state.set_state("mlModels", LoadingState.READY, 
+                                   f"Redo ({elapsed:.1f}s)")
+            logger.info(f"[Startup Profile] ML models loaded in {elapsed:.2f}s")
+        except Exception as e:
+            logger.error(f"Failed to eager-load ML models: {e}", exc_info=True)
+            startup_state.set_state("mlModels", LoadingState.ERROR, 
+                                   "Kunde inte ladda", error=str(e))
+    
+    asyncio.create_task(eager_load_ml())
     
     # Setup WS broadcast for startup status changes
     from .websocket.progress import setup_startup_listener
