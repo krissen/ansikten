@@ -53,13 +53,20 @@ export function BackendProvider({ children }) {
     debug('Backend', 'Disconnected from backend');
   }, []);
 
-  // Auto-connect on mount
+  // Subscribe to connection state changes
   useEffect(() => {
+    const handleConnectionChange = (connected) => {
+      debug('Backend', `Connection state changed: ${connected}`);
+      setIsConnected(connected);
+    };
+
+    apiClient.addConnectionListener(handleConnectionChange);
     connect();
 
-    // Cleanup on unmount (optional, depends on use case)
-    // return () => disconnect();
-  }, []);
+    return () => {
+      apiClient.removeConnectionListener(handleConnectionChange);
+    };
+  }, [connect]);
 
   /**
    * HTTP API methods
