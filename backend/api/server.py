@@ -23,20 +23,25 @@ logger = logging.getLogger(__name__)
 async def lifespan(app: FastAPI):
     import os
     import asyncio
+    from .services.startup_service import get_startup_state, LoadingState
     
+    startup_state = get_startup_state()
     port = int(os.getenv('BILDVISARE_PORT', '5001'))
     logger.info("Bildvisare Backend API starting up...")
     logger.info(f"Server ready on http://127.0.0.1:{port}")
     
     async def preload_database():
-        """Pre-load face database (lightweight, no ML) for fast stats access"""
-        await asyncio.sleep(0.2)
+        startup_state.set_state("database", LoadingState.LOADING, "Loading face database...")
+        await asyncio.sleep(0.1)
         try:
             from .services.management_service import get_management_service
             svc = get_management_service()
-            logger.info(f"Database pre-loaded: {len(svc.known_faces)} people")
+            startup_state.set_state("database", LoadingState.READY, 
+                                    f"Loaded {len(svc.known_faces)} people")
         except Exception as e:
             logger.error(f"Failed to pre-load database: {e}")
+            startup_state.set_state("database", LoadingState.ERROR, 
+                                    "Failed to load database", error=str(e))
     
     asyncio.create_task(preload_database())
     
@@ -69,7 +74,7 @@ async def health_check():
 
 
 # Import routes
-from .routes import detection, status, database, statistics, management, preprocessing, files
+from .routes import detection, status, database, statistics, management, preprocessing, files, startup
 app.include_router(detection.router, prefix="/api", tags=["detection"])
 app.include_router(status.router, prefix="/api", tags=["status"])
 app.include_router(database.router, prefix="/api", tags=["database"])
@@ -77,6 +82,7 @@ app.include_router(statistics.router, prefix="/api", tags=["statistics"])
 app.include_router(management.router, prefix="/api", tags=["management"])
 app.include_router(preprocessing.router, prefix="/api/preprocessing", tags=["preprocessing"])
 app.include_router(files.router, prefix="/api", tags=["files"])
+app.include_router(startup.router, prefix="/api", tags=["startup"])
 
 # WebSocket endpoint
 from .websocket import progress
