@@ -44,6 +44,11 @@ hiddenimports = [
     'rawpy',
     'numpy',
     
+    # Required by insightface (vis.py imports at package load)
+    'matplotlib',
+    'matplotlib.pyplot',
+    'matplotlib.font_manager',
+    
     # Optional: InsightFace (may not be installed)
     # 'insightface',
     # 'onnxruntime',
@@ -93,7 +98,7 @@ a = Analysis(
     excludes=[
         # Exclude unnecessary modules to reduce size
         'tkinter',
-        'matplotlib',  # Only needed for CLI visualization
+        # Note: matplotlib is required by insightface (vis.py imports it at package load)
         'IPython',
         'jupyter',
         'notebook',
