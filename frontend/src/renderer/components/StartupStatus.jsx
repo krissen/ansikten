@@ -5,8 +5,9 @@
  * Auto-dismisses when all components are ready.
  */
 
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { useBackend } from '../context/BackendContext.jsx';
+import { apiClient } from '../shared/api-client.js';
 import { Icon } from './Icon.jsx';
 import './StartupStatus.css';
 
@@ -23,50 +24,46 @@ const STATUS_LABELS = {
 };
 
 export function StartupStatus() {
-  const { isConnected } = useBackend();
+  const { isConnected, api } = useBackend();
   const [status, setStatus] = useState(null);
   const [dismissed, setDismissed] = useState(false);
   const [fadeOut, setFadeOut] = useState(false);
-  const wsRef = useRef(null);
   const readyTimerRef = useRef(null);
+  const fetchedRef = useRef(false);
+
+  const handleStatusUpdate = useCallback((data) => {
+    setStatus(data);
+    
+    if (data.allReady && !readyTimerRef.current) {
+      readyTimerRef.current = setTimeout(() => {
+        setFadeOut(true);
+        setTimeout(() => setDismissed(true), 500);
+      }, 2000);
+    }
+  }, []);
 
   useEffect(() => {
-    if (!isConnected || dismissed) return;
+    if (dismissed) return;
 
-    const ws = new WebSocket(`ws://127.0.0.1:${window.backendPort || 5001}/ws/progress`);
-    wsRef.current = ws;
-
-    ws.onmessage = (event) => {
-      try {
-        const msg = JSON.parse(event.data);
-        if (msg.event === 'startup-status') {
-          setStatus(msg.data);
-          
-          if (msg.data.allReady && !readyTimerRef.current) {
-            readyTimerRef.current = setTimeout(() => {
-              setFadeOut(true);
-              setTimeout(() => setDismissed(true), 500);
-            }, 2000);
-          }
-        }
-      } catch (e) {
-        console.error('StartupStatus: Failed to parse message', e);
-      }
-    };
-
-    ws.onerror = (err) => {
-      console.error('StartupStatus: WebSocket error', err);
-    };
+    apiClient.onWSEvent('startup-status', handleStatusUpdate);
 
     return () => {
-      if (ws.readyState === WebSocket.OPEN) {
-        ws.close();
-      }
+      apiClient.offWSEvent('startup-status', handleStatusUpdate);
       if (readyTimerRef.current) {
         clearTimeout(readyTimerRef.current);
       }
     };
-  }, [isConnected, dismissed]);
+  }, [dismissed, handleStatusUpdate]);
+
+  useEffect(() => {
+    if (dismissed || fetchedRef.current || status) return;
+    if (!isConnected) return;
+
+    fetchedRef.current = true;
+    api.get('/api/startup/status')
+      .then(handleStatusUpdate)
+      .catch(err => console.error('StartupStatus: Failed to fetch status', err));
+  }, [isConnected, dismissed, status, api, handleStatusUpdate]);
 
   if (dismissed || !status) return null;
 
