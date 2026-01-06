@@ -2,6 +2,7 @@
 Detection Routes
 
 Endpoints for face detection operations.
+ML libraries loaded lazily on first detection request.
 """
 
 from fastapi import APIRouter, HTTPException
@@ -10,10 +11,13 @@ from pydantic import BaseModel
 from typing import List, Optional
 import logging
 
-from ..services.detection_service import detection_service
-
 logger = logging.getLogger(__name__)
 router = APIRouter()
+
+def get_detection_service():
+    """Lazy import to avoid loading ML libs at startup"""
+    from ..services.detection_service import detection_service
+    return detection_service
 
 # Request/Response models
 class DetectionRequest(BaseModel):
@@ -106,7 +110,7 @@ async def reload_database():
     logger.info("[Detection] Reloading database...")
 
     try:
-        result = detection_service.reload_database()
+        result = get_detection_service().reload_database()
         return ReloadDatabaseResponse(**result)
     except Exception as e:
         logger.error(f"[Detection] Error reloading database: {e}", exc_info=True)
@@ -124,7 +128,7 @@ async def detect_faces(request: DetectionRequest):
 
     try:
         # Use real detection service
-        result = await detection_service.detect_faces(
+        result = await get_detection_service().detect_faces(
             request.image_path,
             force_reprocess=request.force_reprocess
         )
@@ -178,7 +182,7 @@ async def get_face_thumbnail(image_path: str, x: int, y: int, width: int, height
 
     try:
         bounding_box = {"x": x, "y": y, "width": width, "height": height}
-        thumbnail_bytes = await detection_service.get_face_thumbnail(
+        thumbnail_bytes = await get_detection_service().get_face_thumbnail(
             image_path,
             bounding_box,
             size=size
@@ -207,7 +211,7 @@ async def confirm_identity(request: ConfirmIdentityRequest):
     logger.info(f"[Detection] Confirming identity: {request.face_id} -> {request.person_name}")
 
     try:
-        result = await detection_service.confirm_identity(
+        result = await get_detection_service().confirm_identity(
             request.face_id,
             request.person_name,
             request.image_path
@@ -232,7 +236,7 @@ async def ignore_face(request: IgnoreFaceRequest):
     logger.info(f"[Detection] Ignoring face: {request.face_id}")
 
     try:
-        result = await detection_service.ignore_face(
+        result = await get_detection_service().ignore_face(
             request.face_id,
             request.image_path
         )
@@ -257,7 +261,7 @@ async def mark_review_complete(request: MarkReviewCompleteRequest):
     logger.info(f"[Detection] Marking review complete for: {request.image_path}")
 
     try:
-        result = await detection_service.mark_review_complete(
+        result = await get_detection_service().mark_review_complete(
             request.image_path,
             [face.model_dump() for face in request.reviewed_faces],
             file_hash=request.file_hash

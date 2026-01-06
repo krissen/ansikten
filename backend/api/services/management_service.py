@@ -409,5 +409,17 @@ class ManagementService:
         return result
 
 
-# Singleton instance
-management_service = ManagementService()
+# Lazy singleton
+_management_service = None
+
+def get_management_service():
+    global _management_service
+    if _management_service is None:
+        _management_service = ManagementService()
+    return _management_service
+
+class _ManagementServiceProxy:
+    def __getattr__(self, name):
+        return getattr(get_management_service(), name)
+
+management_service = _ManagementServiceProxy()

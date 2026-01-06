@@ -31,10 +31,13 @@ def main():
     # Set port in environment for the app
     os.environ['BILDVISARE_PORT'] = str(args.port)
     
-    # Import and run uvicorn
+    # Import the app object directly (string imports don't work in PyInstaller)
+    from api.server import app
+    
+    # Run uvicorn with app object
     import uvicorn
     uvicorn.run(
-        'api.server:app',
+        app,
         host=args.host,
         port=args.port,
         log_level='info'
