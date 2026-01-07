@@ -60,6 +60,7 @@ class ConfirmIdentityRequest(BaseModel):
     face_id: str
     person_name: str
     image_path: str
+    suggested_name: Optional[str] = None
 
 class IgnoreFaceRequest(BaseModel):
     face_id: str
@@ -214,7 +215,8 @@ async def confirm_identity(request: ConfirmIdentityRequest):
         result = await get_detection_service().confirm_identity(
             request.face_id,
             request.person_name,
-            request.image_path
+            request.image_path,
+            suggested_name=request.suggested_name
         )
 
         return ConfirmIdentityResponse(**result)
