@@ -543,7 +543,9 @@ def handle_manual_add(known_faces, image_path, file_hash, input_name_func, backe
 
     if namn and namn not in known_faces:
         known_faces[namn] = []
-    # Spara dummy-encoding med backend metadata
+    # NOTE: CLI uses basename (image_path.name), GUI uses full path.
+    # Full path is preferred - preserves directory context for rename operations.
+    # See detection_service.py for GUI implementation.
     known_faces[namn].append({
         "encoding": None,
         "file": str(image_path.name) if image_path is not None and hasattr(image_path, "name") else str(image_path),
