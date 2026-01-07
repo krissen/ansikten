@@ -58,13 +58,15 @@ class BackendService {
     const isPackaged = app.isPackaged;
 
     if (isPackaged) {
-      // Production: Use bundled PyInstaller executable
+      // Production: Use bundled PyInstaller directory (--onedir mode for fast startup)
       const resourcesPath = process.resourcesPath;
       const execName = process.platform === 'win32' ? 'bildvisare-backend.exe' : 'bildvisare-backend';
-      const backendPath = path.join(resourcesPath, 'backend', execName);
+      const backendDir = path.join(resourcesPath, 'backend');
+      const backendPath = path.join(backendDir, execName);
 
-      console.log('[BackendService] Running in packaged mode');
-      console.log('[BackendService] Backend path:', backendPath);
+      console.log('[BackendService] Running in packaged mode (onedir)');
+      console.log('[BackendService] Backend dir:', backendDir);
+      console.log('[BackendService] Backend executable:', backendPath);
 
       if (!fs.existsSync(backendPath)) {
         throw new Error(`Bundled backend not found at: ${backendPath}`);
@@ -76,7 +78,7 @@ class BackendService {
           '--host', this.host,
           '--port', this.port.toString()
         ],
-        cwd: path.dirname(backendPath),
+        cwd: backendDir,
         env: {
           ...process.env,
           BILDVISARE_PORT: this.port.toString()
