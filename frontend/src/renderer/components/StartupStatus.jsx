@@ -11,6 +11,13 @@ const STATUS_ICONS = {
   error: 'warning'
 };
 
+const STATE_CLASS = {
+  pending: 'is-pending',
+  loading: 'is-loading',
+  ready: 'is-ready',
+  error: 'is-error'
+};
+
 const COMPONENT_LABELS = {
   backend: 'Backend',
   database: 'Database',
@@ -105,14 +112,14 @@ export function StartupStatus() {
       </div>
       <div className="startup-status-items">
         {Object.entries(items).map(([key, item]) => (
-          <div key={key} className={`startup-item ${item.state}`}>
-            <span className={`startup-icon ${item.state}`}>
+          <div key={key} className={`startup-item ${STATE_CLASS[item.state] || ''}`}>
+            <span className={`startup-icon ${STATE_CLASS[item.state] || ''}`}>
               <Icon name={STATUS_ICONS[item.state]} size={14} />
             </span>
             <span className="startup-label">
               {COMPONENT_LABELS[key] || key}
             </span>
-            <span className={`startup-message ${item.state}`}>
+            <span className={`startup-message ${STATE_CLASS[item.state] || ''}`}>
               {item.message}
             </span>
             {item.state === 'error' && item.error && (

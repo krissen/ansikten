@@ -49,10 +49,12 @@
 .startup-item {
   display: flex;
   align-items: center;
+  justify-content: flex-start;
   gap: var(--space-sm);
   font-size: var(--font-sm);
   color: var(--text-secondary);
   min-height: 24px;
+  width: 100%;
 }
 
 .startup-icon {
@@ -64,20 +66,20 @@
   flex-shrink: 0;
 }
 
-.startup-icon.pending {
+.startup-icon.is-pending {
   color: var(--text-tertiary);
 }
 
-.startup-icon.loading {
+.startup-icon.is-loading {
   color: var(--color-info);
   animation: spin 1s linear infinite;
 }
 
-.startup-icon.ready {
+.startup-icon.is-ready {
   color: var(--color-success);
 }
 
-.startup-icon.error {
+.startup-icon.is-error {
   color: var(--color-error);
 }
 
@@ -102,15 +104,15 @@
   text-overflow: ellipsis;
 }
 
-.startup-message.ready {
+.startup-message.is-ready {
   color: var(--color-success);
 }
 
-.startup-message.error {
+.startup-message.is-error {
   color: var(--color-error);
 }
 
-.startup-message.loading {
+.startup-message.is-loading {
   color: var(--color-info);
   animation: pulse-loading 1.5s ease-in-out infinite;
 }
