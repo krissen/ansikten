@@ -179,10 +179,8 @@ class DetectionService:
             # Get match alternatives (top-N)
             match_alternatives = self._match_encoding_alternatives(encoding, top_n=9)
 
-            # Generate stable face ID using SHA1 (deterministic across runs)
-            # Use 16 hex chars for lower collision probability
-            encoding_hash = hashlib.sha1(encoding.tobytes()).hexdigest()[:16]
-            face_id = f"face_{i}_{encoding_hash}"
+            full_encoding_hash = hashlib.sha1(encoding.tobytes()).hexdigest()
+            face_id = f"face_{i}_{full_encoding_hash[:16]}"
 
             # Cache encoding for later confirm/ignore operations
             self.encoding_cache[face_id] = (encoding, bbox)
@@ -206,12 +204,12 @@ class DetectionService:
                 "confidence": float(1.0 - best_distance) if best_distance is not None else 0.0,
                 "person_name": suggested_name,
                 "match_distance": float(best_distance) if best_distance is not None else None,
-                "is_confirmed": False,  # Always False for new detections
-                # New fields for ignore-awareness and alternatives
+                "is_confirmed": False,
                 "match_case": match_case,
                 "ignore_distance": float(ignore_distance) if ignore_distance is not None else None,
                 "ignore_confidence": ignore_confidence,
-                "match_alternatives": match_alternatives
+                "match_alternatives": match_alternatives,
+                "encoding_hash": full_encoding_hash
             })
 
         return results
@@ -695,7 +693,7 @@ class DetectionService:
                 continue
             labels.append({
                 "label": label,
-                "face_id": face.get('face_id', '')
+                "hash": face.get('encoding_hash', '')
             })
 
         # Build attempt info (simplified for API usage)

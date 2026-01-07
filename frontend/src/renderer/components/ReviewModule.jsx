@@ -348,6 +348,7 @@ export function ReviewModule() {
     return detectedFaces.map((face, index) => ({
       faceIndex: index,
       faceId: face.face_id,
+      encodingHash: face.encoding_hash,  // Permanent identifier for undo/rename operations
       personName: face.is_confirmed && !face.is_rejected ? face.person_name : null,
       isIgnored: face.is_rejected || false
     }));
@@ -363,6 +364,7 @@ export function ReviewModule() {
         reviewed_faces: reviewedFaces.map(f => ({
           face_index: f.faceIndex,
           face_id: f.faceId,
+          encoding_hash: f.encodingHash,  // Permanent identifier (face_id is ephemeral)
           person_name: f.personName,
           is_ignored: f.isIgnored
         })),
