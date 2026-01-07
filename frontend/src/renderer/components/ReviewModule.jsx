@@ -143,16 +143,30 @@ export function ReviewModule() {
       setCurrentFileHash(result.file_hash || null);  // Store hash for mark-review-complete
       setStatus(`Found ${faces.length} faces (${result.processing_time_ms?.toFixed(0) || 0}ms)`);
 
-      // Emit faces to Image Viewer for bounding box overlay
-      // Include imagePath so listeners know which file these faces belong to
       emit('faces-detected', { faces, imagePath });
 
-      // Focus the module container (not input) so keyboard shortcuts work
-      // User must press 'r' to enter input mode
       if (faces.length > 0) {
         setTimeout(() => {
           moduleRef.current?.focus();
         }, 100);
+      } else {
+        try {
+          await api.post('/api/mark-review-complete', {
+            image_path: imagePath,
+            reviewed_faces: [],
+            file_hash: result.file_hash || null
+          });
+          debug('ReviewModule', 'No faces - marked as processed');
+        } catch (markErr) {
+          debugError('ReviewModule', 'Failed to mark no-faces file as processed:', markErr);
+        }
+        emit('review-complete', {
+          imagePath,
+          facesReviewed: 0,
+          skipped: false,
+          success: true,
+          reviewedFaces: []
+        });
       }
     } catch (err) {
       debugError('ReviewModule', 'Face detection failed:', err);
