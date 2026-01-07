@@ -26,12 +26,9 @@ import unicodedata
 from datetime import datetime
 from pathlib import Path
 
-import matplotlib.font_manager as fm
 import numpy as np
 import rawpy
 from PIL import Image, ImageDraw, ImageFont
-from prompt_toolkit import prompt
-from prompt_toolkit.completion import WordCompleter
 
 from faceid_db import (ARCHIVE_DIR, ATTEMPT_SETTINGS_SIG, BASE_DIR,
                        CONFIG_PATH, LOGGING_PATH, SUPPORTED_EXT, get_file_hash,
@@ -39,20 +36,40 @@ from faceid_db import (ARCHIVE_DIR, ATTEMPT_SETTINGS_SIG, BASE_DIR,
 from face_backends import create_backend, FaceBackend
 
 
-def init_logging(level=logging.DEBUG, logfile=LOGGING_PATH):
+def init_logging(level=logging.INFO, logfile=LOGGING_PATH, replace_handlers=False):
+    """
+    Initialize logging for hitta_ansikten.
+    
+    Args:
+        level: Logging level
+        logfile: Path to log file
+        replace_handlers: If True, clear existing handlers (CLI mode). 
+                         If False, add file handler without clearing (API mode).
+    """
     logger = logging.getLogger()
-    logging.getLogger("matplotlib.font_manager").setLevel(logging.WARNING)
+    try:
+        logging.getLogger("matplotlib.font_manager").setLevel(logging.WARNING)
+    except Exception:
+        pass
     logger.setLevel(level)
-    # Ta bort eventuella gamla handlers (viktigt vid utveckling/omstart)
-    logger.handlers.clear()
-    handler = logging.FileHandler(logfile, mode="a", encoding="utf-8")
-    formatter = logging.Formatter(
-        "%(asctime)s %(levelname)s %(message)s", datefmt="%Y-%m-%d %H:%M:%S"
+    
+    if replace_handlers:
+        logger.handlers.clear()
+    
+    file_handler_exists = any(
+        isinstance(h, logging.FileHandler) and h.baseFilename == str(logfile)
+        for h in logger.handlers
     )
-    handler.setFormatter(formatter)
-    logger.addHandler(handler)
+    if not file_handler_exists:
+        handler = logging.FileHandler(logfile, mode="a", encoding="utf-8")
+        handler.setLevel(logging.INFO)
+        formatter = logging.Formatter(
+            "%(asctime)s %(levelname)s %(message)s", datefmt="%Y-%m-%d %H:%M:%S"
+        )
+        handler.setFormatter(formatter)
+        logger.addHandler(handler)
 
-init_logging()
+init_logging(replace_handlers=False)
  
 # === CONSTANTS === #
 # Use /private/tmp for macOS compatibility with Bildvisare security restrictions
@@ -526,7 +543,9 @@ def handle_manual_add(known_faces, image_path, file_hash, input_name_func, backe
 
     if namn and namn not in known_faces:
         known_faces[namn] = []
-    # Spara dummy-encoding med backend metadata
+    # NOTE: CLI uses basename (image_path.name), GUI uses full path.
+    # Full path is preferred - preserves directory context for rename operations.
+    # See detection_service.py for GUI implementation.
     known_faces[namn].append({
         "encoding": None,
         "file": str(image_path.name) if image_path is not None and hasattr(image_path, "name") else str(image_path),
@@ -953,6 +972,7 @@ def robust_word_wrap(label_text, max_label_width, draw, font):
 def create_labeled_image(rgb_image, face_locations, labels, config, suffix=""):
 
     from PIL import Image
+    import matplotlib.font_manager as fm
 
     font_size = max(10, rgb_image.shape[1] // config.get("font_size_factor"))
     font_path = fm.findfont(fm.FontProperties(family="DejaVu Sans"))
@@ -1477,6 +1497,8 @@ def input_name(known_names, prompt_txt="Ange namn (eller 'i' för ignorera, n = 
     Ber användaren om ett namn med autocomplete.
     Reserverade kommandon (i, a, r, n, o, m, x) returneras som är för vidare hantering.
     """
+    from prompt_toolkit import prompt
+    from prompt_toolkit.completion import WordCompleter
     completer = WordCompleter(sorted(known_names), ignore_case=True, sentence=True)
     try:
         name = prompt(prompt_txt, completer=completer)
@@ -2063,7 +2085,6 @@ Notera:
 
 """
     )
-signal.signal(signal.SIGINT, signal_handler)
 
 
 def add_to_processed_files(path, processed_files):
@@ -2232,6 +2253,8 @@ def preprocess_worker(
 
 # === Entry point ===
 def main():
+    init_logging(replace_handlers=True)
+    
     if any(arg in ("-h", "--help") for arg in sys.argv[1:]):
         print_help()
         sys.exit(0)
@@ -2589,4 +2612,5 @@ def main():
 
 
 if __name__ == "__main__":
+    signal.signal(signal.SIGINT, signal_handler)
     main()

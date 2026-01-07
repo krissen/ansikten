@@ -145,6 +145,8 @@ export function PreferencesModule({ api }) {
   const [prefs, setPrefs] = useState(() => preferences.getAll());
   const [hasChanges, setHasChanges] = useState(false);
   const [cacheStatus, setCacheStatus] = useState(null);
+  // Debug categories need React state to trigger re-render on change
+  const [debugCategories, setDebugCategories] = useState(() => getCategories());
 
   // Helper function to apply toast opacity CSS variable
   // Used for immediate live preview when user adjusts slider
@@ -731,8 +733,6 @@ export function PreferencesModule({ api }) {
   );
 
   const renderAdvancedSection = () => {
-    const categories = getCategories();
-
     return (
       <>
         <SectionHeader title="Logging" />
@@ -754,13 +754,15 @@ export function PreferencesModule({ api }) {
           Enable/disable debug output per category. Warnings and errors always show.
         </p>
         <div className="debug-grid">
-          {Object.entries(categories).map(([name, enabled]) => (
+          {Object.entries(debugCategories).map(([name, enabled]) => (
             <label key={name} className={`debug-item ${enabled ? 'enabled' : ''}`}>
               <input
                 type="checkbox"
                 checked={enabled}
                 onChange={(e) => {
-                  setCategories({ [name]: e.target.checked });
+                  const newValue = e.target.checked;
+                  setCategories({ [name]: newValue });
+                  setDebugCategories(prev => ({ ...prev, [name]: newValue }));
                 }}
               />
               {name}
@@ -771,8 +773,7 @@ export function PreferencesModule({ api }) {
           className="btn-secondary"
           onClick={() => {
             resetCategories();
-            // Force re-render
-            setPrefs({ ...prefs });
+            setDebugCategories(getCategories());
           }}
         >
           Reset Debug Categories to Defaults

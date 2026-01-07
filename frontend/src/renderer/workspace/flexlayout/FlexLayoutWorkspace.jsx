@@ -24,6 +24,7 @@ import { FileQueueModule } from '../../components/FileQueueModule.jsx';
 import { ThemeEditor } from '../../components/ThemeEditor.jsx';
 import { PreferencesModule } from '../../components/PreferencesModule.jsx';
 
+
 // Storage key for layout persistence
 const STORAGE_KEY = 'bildvisare-flexlayout';
 

@@ -5,7 +5,19 @@
  * Toggle menu items use checkboxes to show current state.
  */
 
-const { Menu, shell, ipcMain } = require('electron');
+const { Menu, shell, ipcMain, app, dialog } = require('electron');
+const path = require('path');
+const fs = require('fs');
+
+function getVersionInfo() {
+  try {
+    const versionPath = path.join(__dirname, '..', 'version.json');
+    if (fs.existsSync(versionPath)) {
+      return JSON.parse(fs.readFileSync(versionPath, 'utf8'));
+    }
+  } catch (e) {}
+  return { version: 'dev', isTag: false };
+}
 
 // Store references to toggle menu items for state updates
 const menuItemRefs = {};
@@ -45,14 +57,24 @@ function createApplicationMenu(mainWindow) {
     mainWindow.webContents.send('menu-command', command);
   };
 
+  const versionInfo = getVersionInfo();
+  const versionString = versionInfo.isTag ? versionInfo.version : `commit ${versionInfo.version}`;
+
   const template = [
-    // App menu (macOS only)
     ...(isMac ? [{
       label: 'Bildvisare',
       submenu: [
         {
           label: 'About Bildvisare',
-          role: 'about'
+          click: () => {
+            dialog.showMessageBox(mainWindow, {
+              type: 'info',
+              title: 'About Bildvisare',
+              message: 'Bildvisare',
+              detail: `Version: ${versionString}\n\nFace detection and annotation tool for event photography.\n\nhttps://github.com/krissen/hitta_ansikten`,
+              buttons: ['OK']
+            });
+          }
         },
         { type: 'separator' },
         {
@@ -507,25 +529,53 @@ function createApplicationMenu(mainWindow) {
       label: 'Help',
       submenu: [
         {
+          label: 'Keyboard Shortcuts',
+          accelerator: 'CmdOrCtrl+/',
+          click: () => {
+            sendMenuCommand('show-keyboard-shortcuts');
+          }
+        },
+        { type: 'separator' },
+        {
           label: 'Documentation',
           click: async () => {
-            await shell.openExternal('https://github.com/krissen/hitta_ansikten');
+            await shell.openExternal('https://github.com/krissen/hitta_ansikten#readme');
+          }
+        },
+        {
+          label: 'User Guide',
+          click: async () => {
+            await shell.openExternal('https://github.com/krissen/hitta_ansikten/blob/main/docs/user/getting-started.md');
           }
         },
         {
           label: 'Report Issue',
           click: async () => {
-            await shell.openExternal('https://github.com/krissen/hitta_ansikten/issues');
+            await shell.openExternal('https://github.com/krissen/hitta_ansikten/issues/new');
           }
         },
         { type: 'separator' },
         {
-          label: 'Keyboard Shortcuts',
-          accelerator: 'CmdOrCtrl+/',
-          click: () => {
-            sendMenuCommand( 'show-keyboard-shortcuts');
+          label: 'GitHub Repository',
+          click: async () => {
+            await shell.openExternal('https://github.com/krissen/hitta_ansikten');
           }
-        }
+        },
+        ...(!isMac ? [
+          { type: 'separator' },
+          {
+            label: 'About Bildvisare',
+            click: () => {
+              dialog.showMessageBox(mainWindow, {
+                type: 'info',
+                title: 'About Bildvisare',
+                message: 'Bildvisare',
+                detail: `Version: ${versionString}\n\nFace detection and annotation tool for event photography.\n\nhttps://github.com/krissen/hitta_ansikten`,
+                buttons: ['OK']
+              });
+            }
+          }
+        ] : [])
       ]
     }
   ];

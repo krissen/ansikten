@@ -928,5 +928,16 @@ class RenameService:
         return updated_count
 
 
-# Singleton instance
-rename_service = RenameService()
+_rename_service = None
+
+def get_rename_service():
+    global _rename_service
+    if _rename_service is None:
+        _rename_service = RenameService()
+    return _rename_service
+
+class _RenameServiceProxy:
+    def __getattr__(self, name):
+        return getattr(get_rename_service(), name)
+
+rename_service = _RenameServiceProxy()

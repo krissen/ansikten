@@ -45,6 +45,8 @@ export class PreprocessingManager {
       resumeThreshold: options.rollingWindow?.resumeThreshold ?? 5
     };
 
+    this.isHashAlreadyProcessed = options.isHashAlreadyProcessed || (() => false);
+
     // State
     this.queue = [];           // Files waiting to be processed
     this.processing = new Map(); // file_path -> { status, progress, hash }
@@ -74,18 +76,16 @@ export class PreprocessingManager {
     this.handlers.get(event).add(callback);
   }
 
-  /**
-   * Unsubscribe from preprocessing events
-   */
   off(event, callback) {
     if (this.handlers.has(event)) {
       this.handlers.get(event).delete(callback);
     }
   }
 
-  /**
-   * Emit event to all subscribers
-   */
+  setHashChecker(callback) {
+    this.isHashAlreadyProcessed = callback || (() => false);
+  }
+
   emit(event, data) {
     if (this.handlers.has(event)) {
       this.handlers.get(event).forEach(callback => {
@@ -442,8 +442,15 @@ export class PreprocessingManager {
       });
       fileHash = hashResult.file_hash;
       debug('Preprocessing', `Hash computed: ${filePath} -> ${fileHash.substring(0, 8)}...`);
+      this.emit('hash-computed', { filePath, hash: fileHash });
+      
+      if (this.isHashAlreadyProcessed(fileHash)) {
+        debug('Preprocessing', `Hash already processed, skipping: ${filePath}`);
+        this.emit('already-processed', { filePath, hash: fileHash });
+        this._completeFile(filePath, fileHash, { skipped: true, face_count: 0 });
+        return;
+      }
     } catch (err) {
-      // Check if file doesn't exist (404 error)
       if (err.message && err.message.includes('404')) {
         debugWarn('Preprocessing', `File not found: ${filePath}`);
         this.processing.set(filePath, {
@@ -451,7 +458,7 @@ export class PreprocessingManager {
           error: 'File not found'
         });
         this.emit('file-not-found', { filePath });
-        return; // Don't throw - handled gracefully
+        return;
       }
       throw new Error(`Hash computation failed: ${err.message}`);
     }

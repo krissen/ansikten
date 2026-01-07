@@ -11,11 +11,33 @@ export class APIClient {
   constructor(baseUrl = 'http://127.0.0.1:5001') {
     this.baseUrl = baseUrl;
     this.ws = null;
-    this.wsHandlers = new Map(); // event name -> Set of callbacks
+    this.wsHandlers = new Map();
+    this.connectionListeners = new Set();
     this.reconnectAttempts = 0;
     this.maxReconnectAttempts = 10;
-    this.reconnectDelay = 1000; // Start with 1 second
+    this.reconnectDelay = 1000;
     this.isConnecting = false;
+    this._connected = false;
+  }
+
+  addConnectionListener(callback) {
+    this.connectionListeners.add(callback);
+    callback(this._connected);
+  }
+
+  removeConnectionListener(callback) {
+    this.connectionListeners.delete(callback);
+  }
+
+  _notifyConnectionListeners(connected) {
+    this._connected = connected;
+    this.connectionListeners.forEach(cb => {
+      try {
+        cb(connected);
+      } catch (e) {
+        debugError('APIClient', 'Connection listener error:', e);
+      }
+    });
   }
 
   /**
@@ -123,6 +145,7 @@ export class APIClient {
         this.reconnectAttempts = 0;
         this.reconnectDelay = 1000;
         this.isConnecting = false;
+        this._notifyConnectionListeners(true);
         resolve();
       };
 
@@ -155,8 +178,8 @@ export class APIClient {
       this.ws.onclose = () => {
         debug('WebSocket', 'WebSocket disconnected');
         this.isConnecting = false;
+        this._notifyConnectionListeners(false);
 
-        // Attempt reconnection with exponential backoff
         if (this.reconnectAttempts < this.maxReconnectAttempts) {
           this.reconnectAttempts++;
           const delay = this.reconnectDelay * Math.pow(2, this.reconnectAttempts - 1);

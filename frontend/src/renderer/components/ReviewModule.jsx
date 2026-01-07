@@ -143,16 +143,30 @@ export function ReviewModule() {
       setCurrentFileHash(result.file_hash || null);  // Store hash for mark-review-complete
       setStatus(`Found ${faces.length} faces (${result.processing_time_ms?.toFixed(0) || 0}ms)`);
 
-      // Emit faces to Image Viewer for bounding box overlay
-      // Include imagePath so listeners know which file these faces belong to
       emit('faces-detected', { faces, imagePath });
 
-      // Focus the module container (not input) so keyboard shortcuts work
-      // User must press 'r' to enter input mode
       if (faces.length > 0) {
         setTimeout(() => {
           moduleRef.current?.focus();
         }, 100);
+      } else {
+        try {
+          await api.post('/api/mark-review-complete', {
+            image_path: imagePath,
+            reviewed_faces: [],
+            file_hash: result.file_hash || null
+          });
+          debug('ReviewModule', 'No faces - marked as processed');
+        } catch (markErr) {
+          debugError('ReviewModule', 'Failed to mark no-faces file as processed:', markErr);
+        }
+        emit('review-complete', {
+          imagePath,
+          facesReviewed: 0,
+          skipped: false,
+          success: true,
+          reviewedFaces: []
+        });
       }
     } catch (err) {
       debugError('ReviewModule', 'Face detection failed:', err);
@@ -215,12 +229,18 @@ export function ReviewModule() {
 
     setPendingConfirmations(prev => {
       const existing = prev.findIndex(p => p.face_id === face.face_id);
+      const suggestedName = face.person_name || null;
       if (existing >= 0) {
         const updated = [...prev];
         updated[existing] = { ...updated[existing], person_name: personName.trim() };
         return updated;
       }
-      return [...prev, { face_id: face.face_id, person_name: personName.trim(), image_path: currentImagePath }];
+      return [...prev, { 
+        face_id: face.face_id, 
+        person_name: personName.trim(), 
+        image_path: currentImagePath,
+        suggested_name: suggestedName !== personName.trim() ? suggestedName : null
+      }];
     });
 
     navigateToFace(1, index);
@@ -328,6 +348,7 @@ export function ReviewModule() {
     return detectedFaces.map((face, index) => ({
       faceIndex: index,
       faceId: face.face_id,
+      encodingHash: face.encoding_hash,  // Permanent identifier for undo/rename operations
       personName: face.is_confirmed && !face.is_rejected ? face.person_name : null,
       isIgnored: face.is_rejected || false
     }));
@@ -343,6 +364,7 @@ export function ReviewModule() {
         reviewed_faces: reviewedFaces.map(f => ({
           face_index: f.faceIndex,
           face_id: f.faceId,
+          encoding_hash: f.encodingHash,  // Permanent identifier (face_id is ephemeral)
           person_name: f.personName,
           is_ignored: f.isIgnored
         })),
@@ -687,12 +709,20 @@ export function ReviewModule() {
     return () => document.removeEventListener('keydown', handleKeyboard);
   }, [currentFaceIndex, detectedFaces, navigateToFace, confirmFace, ignoreFace, discardChanges, skipImage, addManualFace]);
 
-  /**
-   * Listen for image-loaded events
-   */
-  useModuleEvent('image-loaded', useCallback(({ imagePath }) => {
+  useModuleEvent('image-loaded', useCallback(({ imagePath, skipAutoDetect }) => {
+    if (skipAutoDetect) {
+      debug('ReviewModule', 'Skipping auto-detect for already-processed file:', imagePath);
+      setCurrentImagePath(imagePath);
+      setDetectedFaces([]);
+      setStatus('Already processed - click 🔄 to reprocess');
+      return;
+    }
+    if (imagePath === currentImagePath && detectedFaces.length > 0) {
+      debug('ReviewModule', 'Ignoring duplicate image-loaded for same file with faces');
+      return;
+    }
     detectFaces(imagePath);
-  }, [detectFaces]));
+  }, [detectFaces, currentImagePath, detectedFaces.length]));
 
   /**
    * Listen for clear-image events (when file is removed from queue)
