@@ -221,31 +221,39 @@ async def check_cache(request: CacheCheckRequest):
 # ============================================================================
 
 def _convert_nef_sync(file_path: str, file_hash: str, cache) -> dict:
-    """Synchronous NEF conversion - runs in thread pool."""
+    """Synchronous NEF conversion - runs in thread pool with deduplication."""
     from ..services.detection_service import convert_nef_to_jpg
 
-    jpg_path = None
-    try:
-        logger.info(f"[Preprocessing] Converting NEF: {file_path}")
-        jpg_path = convert_nef_to_jpg(file_path)
+    with cache.processing_slot(file_hash, "NEF conversion") as (should_process, attempt):
+        if not should_process:
+            cached_path = cache.get_nef_conversion(file_hash)
+            if cached_path:
+                logger.debug(f"[Preprocessing] NEF already converted by another thread: {file_hash[:8]}")
+                return {'status': 'completed', 'nef_jpg_path': cached_path}
+            return {'status': 'error', 'error': 'Conversion failed in another thread'}
 
-        if jpg_path and os.path.exists(jpg_path):
-            with open(jpg_path, 'rb') as f:
-                jpg_data = f.read()
+        jpg_path = None
+        try:
+            logger.info(f"[Preprocessing] Converting NEF: {file_path}")
+            jpg_path = convert_nef_to_jpg(file_path)
 
-            cached_path = cache.store_nef_conversion(file_hash, file_path, jpg_data)
-            return {'status': 'completed', 'nef_jpg_path': cached_path}
-        else:
-            return {'status': 'error', 'error': 'NEF conversion failed'}
-    except Exception as e:
-        logger.error(f"[Preprocessing] NEF conversion error: {e}")
-        return {'status': 'error', 'error': str(e)}
-    finally:
-        if jpg_path and os.path.exists(jpg_path):
-            try:
-                os.remove(jpg_path)
-            except OSError:
-                pass
+            if jpg_path and os.path.exists(jpg_path):
+                with open(jpg_path, 'rb') as f:
+                    jpg_data = f.read()
+
+                cached_path = cache.store_nef_conversion(file_hash, file_path, jpg_data)
+                return {'status': 'completed', 'nef_jpg_path': cached_path}
+            else:
+                return {'status': 'error', 'error': 'NEF conversion failed'}
+        except Exception as e:
+            logger.error(f"[Preprocessing] NEF conversion error: {e}")
+            return {'status': 'error', 'error': str(e)}
+        finally:
+            if jpg_path and os.path.exists(jpg_path):
+                try:
+                    os.remove(jpg_path)
+                except OSError:
+                    pass
 
 
 @router.post("/nef", response_model=PreprocessResponse)
@@ -301,39 +309,45 @@ async def preprocess_nef(request: PreprocessRequest):
 
 
 def _detect_faces_sync(file_path: str, file_hash: str, cache) -> dict:
-    """Synchronous face detection - runs in thread pool."""
+    """Synchronous face detection - runs in thread pool with deduplication."""
     from ..services.detection_service import detect_faces_in_image
 
-    try:
-        logger.info(f"[Preprocessing] Detecting faces: {file_path}")
+    with cache.processing_slot(file_hash, "face detection") as (should_process, attempt):
+        if not should_process:
+            faces_data = cache.get_face_detection(file_hash)
+            if faces_data:
+                logger.debug(f"[Preprocessing] Faces already detected by another thread: {file_hash[:8]}")
+                return {'status': 'completed', 'face_count': len(faces_data.get('faces', []))}
+            return {'status': 'error', 'error': 'Detection failed in another thread'}
 
-        # Use the JPG path if available (faster than NEF)
-        image_path = file_path
-        cached_jpg = cache.get_nef_conversion(file_hash)
-        if cached_jpg:
-            image_path = cached_jpg
+        try:
+            logger.info(f"[Preprocessing] Detecting faces: {file_path}")
 
-        faces_data = detect_faces_in_image(image_path, include_encodings=False)
+            image_path = file_path
+            cached_jpg = cache.get_nef_conversion(file_hash)
+            if cached_jpg:
+                image_path = cached_jpg
 
-        # Cache results (without encodings - just bounding boxes)
-        cacheable_data = {
-            'faces': [
-                {
-                    'face_id': f.get('face_id'),
-                    'bounding_box': f.get('bounding_box'),
-                    'confidence': f.get('confidence')
-                }
-                for f in faces_data.get('faces', [])
-            ],
-            'image_width': faces_data.get('image_width'),
-            'image_height': faces_data.get('image_height')
-        }
+            faces_data = detect_faces_in_image(image_path, include_encodings=False)
 
-        cache.store_face_detection(file_hash, file_path, cacheable_data)
-        return {'status': 'completed', 'face_count': len(cacheable_data['faces'])}
-    except Exception as e:
-        logger.error(f"[Preprocessing] Face detection error: {e}")
-        return {'status': 'error', 'error': str(e)}
+            cacheable_data = {
+                'faces': [
+                    {
+                        'face_id': f.get('face_id'),
+                        'bounding_box': f.get('bounding_box'),
+                        'confidence': f.get('confidence')
+                    }
+                    for f in faces_data.get('faces', [])
+                ],
+                'image_width': faces_data.get('image_width'),
+                'image_height': faces_data.get('image_height')
+            }
+
+            cache.store_face_detection(file_hash, file_path, cacheable_data)
+            return {'status': 'completed', 'face_count': len(cacheable_data['faces'])}
+        except Exception as e:
+            logger.error(f"[Preprocessing] Face detection error: {e}")
+            return {'status': 'error', 'error': str(e)}
 
 
 @router.post("/faces", response_model=PreprocessResponse)
@@ -396,30 +410,36 @@ async def preprocess_faces(request: PreprocessRequest):
 
 
 def _generate_thumbnails_sync(file_path: str, file_hash: str, faces_data: dict, cache) -> dict:
-    """Synchronous thumbnail generation - runs in thread pool."""
+    """Synchronous thumbnail generation - runs in thread pool with deduplication."""
     from ..services.detection_service import generate_face_thumbnails
 
-    try:
-        logger.info(f"[Preprocessing] Generating thumbnails: {file_path}")
+    with cache.processing_slot(file_hash, "thumbnail generation") as (should_process, attempt):
+        if not should_process:
+            if cache.has_thumbnails(file_hash):
+                logger.debug(f"[Preprocessing] Thumbnails already generated by another thread: {file_hash[:8]}")
+                return {'status': 'completed'}
+            return {'status': 'error', 'error': 'Thumbnail generation failed in another thread'}
 
-        # Use the JPG path if available
-        image_path = file_path
-        cached_jpg = cache.get_nef_conversion(file_hash)
-        if cached_jpg:
-            image_path = cached_jpg
+        try:
+            logger.info(f"[Preprocessing] Generating thumbnails: {file_path}")
 
-        thumbnails = generate_face_thumbnails(
-            image_path,
-            faces_data.get('faces', [])
-        )
+            image_path = file_path
+            cached_jpg = cache.get_nef_conversion(file_hash)
+            if cached_jpg:
+                image_path = cached_jpg
 
-        if thumbnails:
-            cache.store_thumbnails(file_hash, file_path, thumbnails)
+            thumbnails = generate_face_thumbnails(
+                image_path,
+                faces_data.get('faces', [])
+            )
 
-        return {'status': 'completed'}
-    except Exception as e:
-        logger.error(f"[Preprocessing] Thumbnail generation error: {e}")
-        return {'status': 'error', 'error': str(e)}
+            if thumbnails:
+                cache.store_thumbnails(file_hash, file_path, thumbnails)
+
+            return {'status': 'completed'}
+        except Exception as e:
+            logger.error(f"[Preprocessing] Thumbnail generation error: {e}")
+            return {'status': 'error', 'error': str(e)}
 
 
 @router.post("/thumbnails", response_model=PreprocessResponse)

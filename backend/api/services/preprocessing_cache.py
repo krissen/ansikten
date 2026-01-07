@@ -19,10 +19,12 @@ import hashlib
 import shutil
 import time
 import logging
+import threading
 from pathlib import Path
-from typing import Optional, Dict, Any, List
+from typing import Optional, Dict, Any, List, Tuple
 from dataclasses import dataclass, asdict
 from datetime import datetime
+from contextlib import contextmanager
 
 logger = logging.getLogger(__name__)
 
@@ -59,6 +61,8 @@ class PreprocessingCache:
     DEFAULT_CACHE_DIR = Path.home() / '.cache' / 'bildvisare'
     DEFAULT_MAX_SIZE_MB = 1024  # 1 GB
     INDEX_SAVE_INTERVAL = 5.0  # Seconds between index saves
+    PROCESSING_TIMEOUT = 20.0  # Seconds to wait for another thread
+    MAX_RETRIES = 3  # Max retry attempts if processing fails
 
     def __init__(self, cache_dir: Optional[Path] = None, max_size_mb: int = DEFAULT_MAX_SIZE_MB):
         self.cache_dir = Path(cache_dir) if cache_dir else self.DEFAULT_CACHE_DIR
@@ -76,6 +80,10 @@ class PreprocessingCache:
 
         # Priority hashes (files in queue that should be evicted last)
         self.priority_hashes: set = set()
+
+        # Thread-safe in-progress tracking to prevent duplicate processing
+        self._lock = threading.Lock()
+        self._in_progress: Dict[str, threading.Event] = {}
 
         # Ensure directories exist
         self._ensure_dirs()
@@ -147,6 +155,53 @@ class PreprocessingCache:
         """Force save the index if dirty."""
         if self._index_dirty:
             self._save_index(force=True)
+
+    @contextmanager
+    def processing_slot(self, file_hash: str, operation: str = "processing"):
+        """
+        Context manager for exclusive processing of a file hash.
+        
+        If another thread is already processing this hash, waits for it to complete
+        and then checks if the result is cached (avoiding duplicate work).
+        
+        Yields: (should_process, attempt) tuple
+          - should_process: True if this thread should do the work, False if cached
+          - attempt: Current attempt number (1-based, for retry logic)
+        """
+        attempt = 0
+        
+        while attempt < self.MAX_RETRIES:
+            attempt += 1
+            
+            with self._lock:
+                if file_hash in self._in_progress:
+                    event = self._in_progress[file_hash]
+                else:
+                    self._in_progress[file_hash] = threading.Event()
+                    event = None
+            
+            if event:
+                logger.debug(f"[PreprocessingCache] Waiting for {operation} on {file_hash[:8]}...")
+                completed = event.wait(timeout=self.PROCESSING_TIMEOUT)
+                
+                if not completed:
+                    logger.warning(f"[PreprocessingCache] Timeout waiting for {file_hash[:8]}, retrying (attempt {attempt})")
+                    continue
+                
+                yield (False, attempt)
+                return
+            
+            try:
+                yield (True, attempt)
+                return
+            finally:
+                with self._lock:
+                    if file_hash in self._in_progress:
+                        self._in_progress[file_hash].set()
+                        del self._in_progress[file_hash]
+        
+        logger.error(f"[PreprocessingCache] Max retries ({self.MAX_RETRIES}) exceeded for {file_hash[:8]}")
+        yield (False, attempt)
 
     @staticmethod
     def compute_file_hash(file_path: str) -> str:
