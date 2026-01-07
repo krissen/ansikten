@@ -17,9 +17,19 @@ const COMPONENT_LABELS = {
   mlModels: 'ML Models'
 };
 
+const INITIAL_STATUS = {
+  items: {
+    backend: { state: 'loading', message: 'Connecting...' },
+    database: { state: 'pending', message: 'Waiting...' },
+    mlModels: { state: 'pending', message: 'Waiting...' }
+  },
+  allReady: false,
+  hasError: false
+};
+
 export function StartupStatus() {
   const { isConnected, api } = useBackend();
-  const [status, setStatus] = useState(null);
+  const [status, setStatus] = useState(INITIAL_STATUS);
   const [dismissed, setDismissed] = useState(false);
   const [fadeOut, setFadeOut] = useState(false);
   const readyTimerRef = useRef(null);
@@ -55,16 +65,24 @@ export function StartupStatus() {
   }, [dismissed, handleStatusUpdate]);
 
   useEffect(() => {
-    if (dismissed || fetchedRef.current || status) return;
-    if (!isConnected) return;
+    if (dismissed || !isConnected) return;
+    
+    setStatus(prev => ({
+      ...prev,
+      items: {
+        ...prev.items,
+        backend: { state: 'ready', message: 'Connected' }
+      }
+    }));
 
+    if (fetchedRef.current) return;
     fetchedRef.current = true;
     api.get('/api/startup/status')
       .then(handleStatusUpdate)
       .catch(err => console.error('StartupStatus: Failed to fetch status', err));
-  }, [isConnected, dismissed, status, api, handleStatusUpdate]);
+  }, [isConnected, dismissed, api, handleStatusUpdate]);
 
-  if (dismissed || !status) return null;
+  if (dismissed) return null;
 
   const { items, allReady, hasError } = status;
   const anyLoading = Object.values(items).some(item => 
