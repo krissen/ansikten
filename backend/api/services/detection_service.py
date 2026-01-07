@@ -19,7 +19,6 @@ sys.path.insert(0, str(Path(__file__).parent.parent.parent))
 from face_backends import create_backend
 from faceid_db import load_database, save_database, get_file_hash, BASE_DIR
 from hitta_ansikten import load_config, log_attempt_stats
-import face_recognition
 import rawpy
 from PIL import Image
 import numpy as np
@@ -34,11 +33,9 @@ class DetectionService:
     def __init__(self):
         logger.info("[DetectionService] Initializing...")
 
-        # Load configuration and database
         self.config = load_config()
         logger.info(f"[DetectionService] Loaded config: backend={self.config.get('backend', {}).get('type', 'dlib')}")
 
-        # Initialize backend
         self.backend = create_backend(self.config)
         logger.info(f"[DetectionService] Initialized backend: {self.backend.backend_name}")
 
@@ -182,10 +179,8 @@ class DetectionService:
             # Get match alternatives (top-N)
             match_alternatives = self._match_encoding_alternatives(encoding, top_n=9)
 
-            # Generate stable face ID using SHA1 (deterministic across runs)
-            # Use 16 hex chars for lower collision probability
-            encoding_hash = hashlib.sha1(encoding.tobytes()).hexdigest()[:16]
-            face_id = f"face_{i}_{encoding_hash}"
+            full_encoding_hash = hashlib.sha1(encoding.tobytes()).hexdigest()
+            face_id = f"face_{i}_{full_encoding_hash[:16]}"
 
             # Cache encoding for later confirm/ignore operations
             self.encoding_cache[face_id] = (encoding, bbox)
@@ -209,12 +204,12 @@ class DetectionService:
                 "confidence": float(1.0 - best_distance) if best_distance is not None else 0.0,
                 "person_name": suggested_name,
                 "match_distance": float(best_distance) if best_distance is not None else None,
-                "is_confirmed": False,  # Always False for new detections
-                # New fields for ignore-awareness and alternatives
+                "is_confirmed": False,
                 "match_case": match_case,
                 "ignore_distance": float(ignore_distance) if ignore_distance is not None else None,
                 "ignore_confidence": ignore_confidence,
-                "match_alternatives": match_alternatives
+                "match_alternatives": match_alternatives,
+                "encoding_hash": full_encoding_hash
             })
 
         return results
@@ -502,7 +497,13 @@ class DetectionService:
 
         return buffer.read()
 
-    async def confirm_identity(self, face_id: str, person_name: str, image_path: str) -> Dict[str, Any]:
+    async def confirm_identity(
+        self, 
+        face_id: str, 
+        person_name: str, 
+        image_path: str,
+        suggested_name: Optional[str] = None
+    ) -> Dict[str, Any]:
         """
         Confirm face identity and save to database
 
@@ -510,6 +511,7 @@ class DetectionService:
             face_id: Face identifier from detection
             person_name: Person name to associate with this face
             image_path: Source image path
+            suggested_name: Original suggestion (if user corrected, adds hard negative)
 
         Returns:
             Success status
@@ -560,7 +562,21 @@ class DetectionService:
 
         self.known_faces[person_name].append(entry)
 
-        # Save database
+        if suggested_name and suggested_name != person_name:
+            if suggested_name not in self.hard_negatives:
+                self.hard_negatives[suggested_name] = []
+            hard_neg_entry = {
+                "encoding": encoding,
+                "file": str(image_path),
+                "hash": file_hash,
+                "backend": self.backend.backend_name,
+                "backend_version": backend_info.get("version", "unknown"),
+                "created_at": datetime.now().isoformat(),
+                "encoding_hash": encoding_hash
+            }
+            self.hard_negatives[suggested_name].append(hard_neg_entry)
+            logger.info(f"[DetectionService] Added hard negative for {suggested_name} (corrected to {person_name})")
+
         save_database(self.known_faces, self.ignored_faces, self.hard_negatives, self.processed_files)
 
         logger.info(f"[DetectionService] Saved encoding for {person_name} (total: {len(self.known_faces[person_name])})")
@@ -677,7 +693,7 @@ class DetectionService:
                 continue
             labels.append({
                 "label": label,
-                "face_id": face.get('face_id', '')
+                "hash": face.get('encoding_hash', '')
             })
 
         # Build attempt info (simplified for API usage)
@@ -699,6 +715,14 @@ class DetectionService:
         )
 
         logger.info(f"[DetectionService] Logged {len(labels)} face labels to attempt_stats.jsonl")
+
+        # Add to processed_files so file won't be re-processed (even if renamed)
+        file_name = Path(image_path).name
+        entry = {"name": file_name, "hash": file_hash}
+        if entry not in self.processed_files:
+            self.processed_files.append(entry)
+            save_database(self.known_faces, self.ignored_faces, self.hard_negatives, self.processed_files)
+            logger.info(f"[DetectionService] Added {file_name} to processed_files")
 
         return {
             "status": "success",

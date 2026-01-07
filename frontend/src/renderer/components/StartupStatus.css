@@ -1,0 +1,129 @@
+.startup-status {
+  background: var(--bg-secondary);
+  border: 1px solid var(--border-medium);
+  border-radius: var(--radius-lg);
+  padding: var(--space-md);
+  min-width: 280px;
+  max-width: 400px;
+  box-shadow: var(--shadow-lg);
+  opacity: 1;
+  transition: opacity 0.5s ease-out, transform 0.5s ease-out;
+  cursor: pointer;
+  pointer-events: auto;
+}
+
+.startup-status.fade-out {
+  opacity: 0;
+  transform: translateY(10px);
+}
+
+.startup-status.all-ready {
+  border-color: var(--color-success);
+}
+
+.startup-status.has-error {
+  border-color: var(--color-error);
+}
+
+.startup-status-header {
+  font-weight: var(--font-semibold);
+  font-size: var(--font-md);
+  margin-bottom: var(--space-sm);
+  color: var(--text-primary);
+}
+
+.startup-status.all-ready .startup-status-header {
+  color: var(--color-success);
+}
+
+.startup-status.has-error .startup-status-header {
+  color: var(--color-error);
+}
+
+.startup-status-items {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-xs);
+}
+
+.startup-item {
+  display: flex;
+  align-items: center;
+  justify-content: flex-start;
+  gap: var(--space-sm);
+  font-size: var(--font-sm);
+  color: var(--text-secondary);
+  min-height: 24px;
+  width: 100%;
+}
+
+.startup-icon {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 18px;
+  height: 18px;
+  flex-shrink: 0;
+}
+
+.startup-icon.is-pending {
+  color: var(--text-tertiary);
+}
+
+.startup-icon.is-loading {
+  color: var(--color-info);
+  animation: spin 1s linear infinite;
+}
+
+.startup-icon.is-ready {
+  color: var(--color-success);
+}
+
+.startup-icon.is-error {
+  color: var(--color-error);
+}
+
+@keyframes spin {
+  from { transform: rotate(0deg); }
+  to { transform: rotate(360deg); }
+}
+
+.startup-label {
+  font-weight: var(--font-medium);
+  flex-shrink: 0;
+  min-width: 90px;
+}
+
+.startup-message {
+  color: var(--text-tertiary);
+  font-size: var(--font-xs);
+  flex: 1;
+  text-align: right;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.startup-message.is-ready {
+  color: var(--color-success);
+}
+
+.startup-message.is-error {
+  color: var(--color-error);
+}
+
+.startup-message.is-loading {
+  color: var(--color-info);
+  animation: pulse-loading 1.5s ease-in-out infinite;
+}
+
+@keyframes pulse-loading {
+  0%, 100% { opacity: 0.5; }
+  50% { opacity: 1; }
+}
+
+.startup-error-detail {
+  color: var(--color-error);
+  cursor: help;
+  flex-shrink: 0;
+}

@@ -2,14 +2,19 @@
 Database Routes
 
 Endpoints for accessing face database (people, statistics).
+Uses faceid_db directly to avoid loading heavy ML libraries on startup.
 """
 
 from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel
 from typing import List
 import logging
+import sys
+from pathlib import Path
 
-from ..services.detection_service import detection_service
+# Add backend to path for faceid_db import
+sys.path.insert(0, str(Path(__file__).parent.parent.parent))
+from faceid_db import load_database
 
 logger = logging.getLogger(__name__)
 router = APIRouter()
@@ -51,8 +56,8 @@ async def get_people_names():
     logger.info("[Database] Fetching people names for autocomplete")
 
     try:
-        # Get names from detection_service known_faces
-        names = sorted(detection_service.known_faces.keys())
+        known_faces, _, _, _ = load_database()
+        names = sorted(known_faces.keys())
         logger.info(f"[Database] Found {len(names)} people in database")
         return names
     except Exception as e:

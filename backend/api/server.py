@@ -18,16 +18,97 @@ logging.basicConfig(
 )
 logger = logging.getLogger(__name__)
 
-# Lifespan event handler (replaces deprecated on_event)
+# Lifespan event handler
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    # Startup
     import os
+    import time
+    import asyncio
+    from .services.startup_service import get_startup_state, LoadingState
+    
+    startup_start = time.perf_counter()
+    startup_state = get_startup_state()
     port = int(os.getenv('BILDVISARE_PORT', '5001'))
     logger.info("Bildvisare Backend API starting up...")
     logger.info(f"Server ready on http://127.0.0.1:{port}")
+    
+    def _load_database_sync():
+        """Sync function for thread pool - loads database"""
+        from .services.management_service import get_management_service
+        svc = get_management_service()
+        return len(svc.known_faces)
+    
+    async def preload_database():
+        t0 = time.perf_counter()
+        startup_state.set_state("database", LoadingState.LOADING, "Läser in...")
+        try:
+            people_count = await asyncio.to_thread(_load_database_sync)
+            elapsed = time.perf_counter() - t0
+            startup_state.set_state("database", LoadingState.READY, 
+                                    f"{people_count} persons")
+            logger.info(f"[Startup Profile] Database loaded in {elapsed:.2f}s")
+        except Exception as e:
+            logger.error(f"Failed to pre-load database: {e}", exc_info=True)
+            startup_state.set_state("database", LoadingState.ERROR, 
+                                    "Failed to load", error=str(e))
+    
+    asyncio.create_task(preload_database())
+    
+    startup_state.set_state("mlModels", LoadingState.PENDING, "Waiting...")
+    
+    ML_LOAD_TIMEOUT = 120.0
+    
+    async def eager_load_ml():
+        await asyncio.sleep(0.1)
+        startup_state.set_state("mlModels", LoadingState.LOADING, "Loading...")
+        await asyncio.sleep(0.05)
+        t0 = time.perf_counter()
+        
+        loop = asyncio.get_running_loop()
+        load_complete = asyncio.Event()
+        load_error = None
+        
+        def do_load():
+            nonlocal load_error
+            try:
+                from .services.detection_service import detection_service
+                _ = detection_service.backend.backend_name
+            except Exception as e:
+                load_error = e
+            finally:
+                loop.call_soon_threadsafe(load_complete.set)
+        
+        import threading
+        thread = threading.Thread(target=do_load, daemon=True)
+        thread.start()
+        
+        try:
+            await asyncio.wait_for(load_complete.wait(), timeout=ML_LOAD_TIMEOUT)
+            elapsed = time.perf_counter() - t0
+            
+            if load_error:
+                raise load_error
+                
+            startup_state.set_state("mlModels", LoadingState.READY, 
+                                   f"Ready ({elapsed:.1f}s)")
+            logger.info(f"[Startup Profile] ML models loaded in {elapsed:.2f}s")
+        except asyncio.TimeoutError:
+            logger.error(f"ML model loading timed out after {ML_LOAD_TIMEOUT}s")
+            startup_state.set_state("mlModels", LoadingState.ERROR, 
+                                   f"Timeout ({ML_LOAD_TIMEOUT:.0f}s)", 
+                                   error="Laddning tog för lång tid")
+        except Exception as e:
+            logger.error(f"Failed to eager-load ML models: {e}", exc_info=True)
+            startup_state.set_state("mlModels", LoadingState.ERROR, 
+                                   "Failed to load", error=str(e))
+    
+    asyncio.create_task(eager_load_ml())
+    
+    # Setup WS broadcast for startup status changes
+    from .websocket.progress import setup_startup_listener
+    setup_startup_listener()
+    
     yield
-    # Shutdown
     logger.info("Bildvisare Backend API shutting down...")
 
 # Create FastAPI app
@@ -53,16 +134,18 @@ async def health_check():
     """Health check endpoint for backend readiness"""
     return {"status": "ok", "service": "bildvisare-backend"}
 
+
+
 # Import routes
-from .routes import detection, annotation, status, database, statistics, management, preprocessing, files
+from .routes import detection, status, database, statistics, management, preprocessing, files, startup
 app.include_router(detection.router, prefix="/api", tags=["detection"])
-app.include_router(annotation.router, prefix="/api", tags=["annotation"])
 app.include_router(status.router, prefix="/api", tags=["status"])
 app.include_router(database.router, prefix="/api", tags=["database"])
 app.include_router(statistics.router, prefix="/api", tags=["statistics"])
 app.include_router(management.router, prefix="/api", tags=["management"])
 app.include_router(preprocessing.router, prefix="/api/preprocessing", tags=["preprocessing"])
 app.include_router(files.router, prefix="/api", tags=["files"])
+app.include_router(startup.router, prefix="/api", tags=["startup"])
 
 # WebSocket endpoint
 from .websocket import progress

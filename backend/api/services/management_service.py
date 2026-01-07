@@ -9,6 +9,7 @@ import fnmatch
 import hashlib
 import logging
 import sys
+import threading
 from pathlib import Path
 from typing import Any, Dict, List, Optional
 
@@ -24,17 +25,27 @@ class ManagementService:
     """Service for database management operations"""
 
     def __init__(self):
-        # Database state (loaded on demand)
         self.known_faces = {}
         self.ignored_faces = []
         self.hard_negatives = {}
         self.processed_files = []
-        self.reload_database()
+        self._last_reload = 0
+        self._cache_ttl = 2.0
+        self._reload_lock = threading.Lock()
+        self._reload_from_disk()
+
+    def _reload_from_disk(self):
+        import time
+        logger.debug("[ManagementService] Loading database from disk")
+        self.known_faces, self.ignored_faces, self.hard_negatives, self.processed_files = load_database()
+        self._last_reload = time.time()
 
     def reload_database(self):
-        """Reload database from disk"""
-        logger.info("[ManagementService] Reloading database from disk")
-        self.known_faces, self.ignored_faces, self.hard_negatives, self.processed_files = load_database()
+        import time
+        if time.time() - self._last_reload > self._cache_ttl:
+            with self._reload_lock:
+                if time.time() - self._last_reload > self._cache_ttl:
+                    self._reload_from_disk()
 
     def save(self):
         """Save database to disk (atomic write with file locking)"""
@@ -51,7 +62,7 @@ class ManagementService:
         - hard_negatives_count: Number of hard negative examples
         - processed_files_count: Number of processed files
         """
-        self.reload_database()  # Always reload for fresh data
+        self.reload_database()
 
         people = [
             {"name": name, "encoding_count": len(encodings)}
@@ -76,7 +87,7 @@ class ManagementService:
         Raises:
         - ValueError if old_name doesn't exist or new_name already exists
         """
-        self.reload_database()
+        self._reload_from_disk()
 
         if old_name not in self.known_faces:
             raise ValueError(f"Person '{old_name}' not found")
@@ -106,7 +117,7 @@ class ManagementService:
 
         Deduplicates encodings by encoding_hash to avoid duplicates.
         """
-        self.reload_database()
+        self._reload_from_disk()
 
         # Validate all source names exist
         for name in source_names:
@@ -176,7 +187,7 @@ class ManagementService:
         Raises:
         - ValueError if person doesn't exist
         """
-        self.reload_database()
+        self._reload_from_disk()
 
         if name not in self.known_faces:
             raise ValueError(f"Person '{name}' not found")
@@ -203,7 +214,7 @@ class ManagementService:
         Raises:
         - ValueError if person doesn't exist
         """
-        self.reload_database()
+        self._reload_from_disk()
 
         if name not in self.known_faces:
             raise ValueError(f"Person '{name}' not found")
@@ -232,7 +243,7 @@ class ManagementService:
         Raises:
         - ValueError if count is invalid
         """
-        self.reload_database()
+        self._reload_from_disk()
 
         if count == -1:
             count = len(self.ignored_faces)
@@ -272,7 +283,7 @@ class ManagementService:
         Returns information about how many encodings were removed.
         Supports glob patterns via fnmatch.
         """
-        self.reload_database()
+        self._reload_from_disk()
 
         # Find matching files
         matched_files = [
@@ -346,7 +357,7 @@ class ManagementService:
         Raises:
         - ValueError if name not found or count invalid
         """
-        self.reload_database()
+        self._reload_from_disk()
 
         if count < 1:
             raise ValueError("Count must be at least 1")
@@ -409,5 +420,17 @@ class ManagementService:
         return result
 
 
-# Singleton instance
-management_service = ManagementService()
+# Lazy singleton
+_management_service = None
+
+def get_management_service():
+    global _management_service
+    if _management_service is None:
+        _management_service = ManagementService()
+    return _management_service
+
+class _ManagementServiceProxy:
+    def __getattr__(self, name):
+        return getattr(get_management_service(), name)
+
+management_service = _ManagementServiceProxy()

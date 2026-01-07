@@ -13,11 +13,67 @@ const os = require("os");
 const { BackendService } = require("./backend-service");
 const { createApplicationMenu } = require("./menu");
 
+function getVersionInfo() {
+  try {
+    const versionPath = path.join(__dirname, '..', 'version.json');
+    if (fs.existsSync(versionPath)) {
+      return JSON.parse(fs.readFileSync(versionPath, 'utf8'));
+    }
+  } catch (e) {
+    console.error('[Main] Failed to read version.json:', e.message);
+  }
+  return { version: 'dev', isTag: false };
+}
+
+const versionInfo = getVersionInfo();
+
 let mainWindow = null;
+let splashWindow = null;
 let backendService = null;
 let initialFilePath = null;
 let initialQueueFiles = [];
 let isQuitting = false;
+
+/**
+ * Create splash window for startup
+ */
+function createSplashWindow() {
+  splashWindow = new BrowserWindow({
+    width: 300,
+    height: 350,
+    frame: false,
+    transparent: true,
+    resizable: false,
+    center: true,
+    alwaysOnTop: true,
+    webPreferences: {
+      nodeIntegration: true,
+      contextIsolation: false,
+    },
+  });
+
+  const splashPath = path.join(__dirname, "../renderer/splash.html");
+  splashWindow.loadFile(splashPath);
+
+  splashWindow.webContents.on('did-finish-load', () => {
+    splashWindow.webContents.send('version-info', versionInfo);
+  });
+
+  splashWindow.on("closed", () => {
+    splashWindow = null;
+  });
+
+  return splashWindow;
+}
+
+/**
+ * Send status update to splash window
+ */
+function updateSplashStatus(message, progress = null) {
+  if (splashWindow && !splashWindow.isDestroyed()) {
+    splashWindow.webContents.send("splash-status", { message, progress });
+  }
+}
 
 // Parse command line arguments
 // Position-agnostic parsing: scan for known flags anywhere in argv
@@ -37,10 +93,13 @@ function parseCommandLineArgs(argv) {
     /^npx/i,
     /\.js$/i,
     /^\.\.?$/,
+    /^bildvisare$/i,  // Our app name
   ];
 
   const shouldSkipArg = (arg) => {
     if (!arg) return true;
+    // Skip macOS app bundle executables
+    if (arg.includes('.app/Contents/MacOS/')) return true;
     const basename = arg.split(/[/\\]/).pop();
     return skipPatterns.some(pattern => pattern.test(basename));
   };
@@ -139,11 +198,12 @@ function createWorkspaceWindow() {
   mainWindow = new BrowserWindow({
     width: 1200,
     height: 800,
+    show: false,
     webPreferences: {
       nodeIntegration: false,
       contextIsolation: true,
       preload: path.join(__dirname, "../preload/preload.js"),
-      partition: "persist:bildvisare", // Persist localStorage between sessions
+      partition: "persist:bildvisare",
     },
     title: "Hitta ansikten",
   });
@@ -234,20 +294,56 @@ app.on("second-instance", async (event, argv, workingDirectory) => {
 
 // App lifecycle - only runs if we got the lock
 app.whenReady().then(async () => {
-  console.log("[Main] App ready, starting backend...");
+  console.log("[Main] App ready, showing splash...");
+
+  // Show splash immediately
+  createSplashWindow();
+  updateSplashStatus("Startar backend...");
 
   // Start backend service
   try {
     backendService = new BackendService();
+    backendService.onStatusUpdate = (message) => {
+      updateSplashStatus(message);
+    };
     await backendService.start();
     console.log(`[Main] Backend ready at ${backendService.getUrl()}`);
+    updateSplashStatus("Laddar gränssnitt...", 90);
   } catch (err) {
     console.error("[Main] Failed to start backend:", err);
-    // TODO: Show error dialog to user
+    
+    if (splashWindow && !splashWindow.isDestroyed()) {
+      splashWindow.close();
+    }
+    
+    const isPackaged = app.isPackaged;
+    const suggestion = isPackaged
+      ? "Försök installera om appen. Om problemet kvarstår, kontakta support."
+      : "Kontrollera att Python är installerat och att BILDVISARE_PYTHON pekar på rätt tolk.";
+    
+    await dialog.showMessageBox({
+      type: "error",
+      title: "Kunde inte starta backend",
+      message: "Backend-servern kunde inte startas",
+      detail: `${err.message}\n\n${suggestion}`,
+      buttons: ["Avsluta"],
+    });
+    
+    app.quit();
+    return;
   }
 
   // Create workspace window
+  updateSplashStatus("Redo!", 100);
   createWorkspaceWindow();
+
+  // Close splash when main window is ready
+  mainWindow.once("ready-to-show", () => {
+    if (splashWindow && !splashWindow.isDestroyed()) {
+      splashWindow.close();
+    }
+    mainWindow.show();
+  });
 
   // Handle initial files from command line
   if (initialArgs.files.length > 0) {
@@ -337,6 +433,10 @@ app.on("will-quit", () => {
 });
 
 // IPC Handlers
+
+ipcMain.handle("get-version-info", () => {
+  return versionInfo;
+});
 
 // Get initial file path (if app was launched with a file argument)
 ipcMain.handle("get-initial-file", () => {

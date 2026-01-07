@@ -179,13 +179,18 @@ class InsightFaceBackend(FaceBackend):
         if not all(isinstance(x, int) and x > 0 for x in det_size):
             raise ValueError(f"det_size dimensions must be positive integers (got {det_size})")
 
-        try:
-            import os
-            import sys
-            import warnings
-            from contextlib import redirect_stderr, redirect_stdout
-            from io import StringIO
+        # Import standard library modules and initialize buffers BEFORE try block
+        # so they're guaranteed available in exception handlers
+        import os
+        import sys
+        import warnings
+        from contextlib import redirect_stderr, redirect_stdout
+        from io import StringIO
 
+        stdout_buffer = StringIO()
+        stderr_buffer = StringIO()
+
+        try:
             # Suppress verbose ONNX runtime messages (must be set before importing)
             # Only set if not already configured by user
             os.environ.setdefault('ORT_LOGGING_LEVEL', '3')  # 3 = ERROR, 2 = WARNING, 1 = INFO, 0 = VERBOSE
@@ -215,9 +220,6 @@ class InsightFaceBackend(FaceBackend):
 
             # Suppress verbose output during InsightFace initialization
             # ONNX prints directly to stdout/stderr from C++ layer
-            stdout_buffer = StringIO()
-            stderr_buffer = StringIO()
-
             with redirect_stdout(stdout_buffer), redirect_stderr(stderr_buffer):
                 import insightface
                 from insightface.app import FaceAnalysis
@@ -236,11 +238,21 @@ class InsightFaceBackend(FaceBackend):
             logging.info(f"[InsightFaceBackend] Initialized successfully with providers: {providers}")
 
         except ImportError as e:
-            logging.error(f"[InsightFaceBackend] Failed to import insightface: {e}")
+            # Dump captured output to help diagnose import failures
+            if stderr_buffer.getvalue():
+                logging.error(f"[InsightFaceBackend] Captured stderr:\n{stderr_buffer.getvalue()}")
+            if stdout_buffer.getvalue():
+                logging.error(f"[InsightFaceBackend] Captured stdout:\n{stdout_buffer.getvalue()}")
+            logging.error(f"[InsightFaceBackend] Failed to import insightface: {e}", exc_info=True)
             logging.error("Install with: pip install insightface onnxruntime")
             raise
         except Exception as e:
-            logging.error(f"[InsightFaceBackend] Failed to initialize: {e}")
+            # Dump captured output to help diagnose initialization failures
+            if stderr_buffer.getvalue():
+                logging.error(f"[InsightFaceBackend] Captured stderr:\n{stderr_buffer.getvalue()}")
+            if stdout_buffer.getvalue():
+                logging.error(f"[InsightFaceBackend] Captured stdout:\n{stdout_buffer.getvalue()}")
+            logging.error(f"[InsightFaceBackend] Failed to initialize: {e}", exc_info=True)
             raise
 
     @property

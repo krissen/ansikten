@@ -1,28 +1,133 @@
 {
   "name": "bildvisare",
   "productName": "Bildvisare",
-  "version": "1.0.0",
-  "description": "",
+  "version": "0.0.0-dev.4b7269c",
+  "description": "Face detection and annotation tool for image review",
   "main": "main.js",
   "scripts": {
     "test": "echo \"Error: no test specified\" && exit 1",
+    "clean": "rm -rf dist resources/backend/bildvisare-backend resources/backend/bildvisare-backend.exe ../backend/dist ../backend/build",
     "build:workspace": "node scripts/build-workspace.js",
     "watch:workspace": "node scripts/build-workspace.js --watch --dev",
     "start": "npm run build:workspace && npx electron .",
-    "dev": "npm run build:workspace -- --dev && npx electron ."
+    "dev": "npm run build:workspace -- --dev && npx electron .",
+    "build:backend": "node scripts/build-backend.js",
+    "prebuild": "npm run build:workspace",
+    "build": "npm run build:backend && electron-builder",
+    "build:mac": "npm run build:backend && npm run build:workspace && electron-builder --mac",
+    "build:win": "npm run build:backend && npm run build:workspace && electron-builder --win",
+    "build:linux": "npm run build:backend && npm run build:workspace && electron-builder --linux",
+    "build:mac:skip-backend": "npm run build:workspace && electron-builder --mac",
+    "dist": "npm run build"
   },
   "keywords": [],
-  "author": "",
+  "author": "krissen",
   "license": "ISC",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/krissen/hitta_ansikten.git"
+  },
   "type": "commonjs",
   "dependencies": {
     "dockview": "^1.17.2",
-    "electron": "^36.3.2",
     "flexlayout-react": "^0.8.17",
     "react": "^19.2.3",
     "react-dom": "^19.2.3"
   },
   "devDependencies": {
+    "electron": "^36.3.2",
+    "electron-builder": "^26.0.0",
     "esbuild": "^0.27.2"
+  },
+  "build": {
+    "appId": "se.krissen.bildvisare",
+    "productName": "Bildvisare",
+    "directories": {
+      "output": "dist"
+    },
+    "files": [
+      "main.js",
+      "preload.js",
+      "index.html",
+      "styles.css",
+      "renderer.js",
+      "src/**/*",
+      "assets/**/*",
+      "node_modules/**/*",
+      "!node_modules/*/{CHANGELOG.md,README.md,README,readme.md,readme}",
+      "!node_modules/*/{test,__tests__,tests,powered-test,example,examples}",
+      "!node_modules/.cache/**/*"
+    ],
+    "extraResources": [
+      {
+        "from": "resources/backend",
+        "to": "backend",
+        "filter": [
+          "**/*"
+        ]
+      }
+    ],
+    "mac": {
+      "category": "public.app-category.photography",
+      "icon": "assets/rainbowwaves.icns",
+      "target": [
+        {
+          "target": "dmg",
+          "arch": [
+            "x64",
+            "arm64"
+          ]
+        },
+        {
+          "target": "zip",
+          "arch": [
+            "x64",
+            "arm64"
+          ]
+        }
+      ],
+      "hardenedRuntime": true,
+      "gatekeeperAssess": false
+    },
+    "win": {
+      "target": [
+        {
+          "target": "nsis",
+          "arch": [
+            "x64"
+          ]
+        },
+        {
+          "target": "portable",
+          "arch": [
+            "x64"
+          ]
+        }
+      ],
+      "icon": "assets/rainbowwaves.png"
+    },
+    "linux": {
+      "target": [
+        {
+          "target": "AppImage",
+          "arch": [
+            "x64"
+          ]
+        },
+        {
+          "target": "deb",
+          "arch": [
+            "x64"
+          ]
+        }
+      ],
+      "category": "Graphics",
+      "icon": "assets/rainbowwaves.iconset"
+    },
+    "nsis": {
+      "oneClick": false,
+      "allowToChangeInstallationDirectory": true
+    },
+    "publish": null
   }
 }

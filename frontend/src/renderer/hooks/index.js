@@ -14,3 +14,4 @@ export {
   useBackendHttp,
   useIPC
 } from './useModuleEvent.js';
+export { useCapabilities } from './useCapabilities.js';

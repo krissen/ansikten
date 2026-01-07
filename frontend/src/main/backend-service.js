@@ -5,22 +5,139 @@
  * - Auto-start on app launch
  * - Health check polling
  * - Graceful shutdown
+ *
+ * In development: Uses system Python with uvicorn
+ * In production (packaged): Uses bundled PyInstaller executable
  */
 
 const { spawn } = require('child_process');
+const { app } = require('electron');
 const http = require('http');
 const path = require('path');
+const fs = require('fs');
 
 const DEBUG = true;
 
 class BackendService {
   constructor() {
     this.process = null;
-    // Default to 5001 to avoid conflict with macOS Control Center on 5000
     this.port = parseInt(process.env.BILDVISARE_PORT || '5001');
     this.host = '127.0.0.1';
-    this.maxRetries = 30; // 30 seconds max wait
-    this.retryDelay = 1000; // 1 second between retries
+    this.maxRetries = 30;
+    this.retryDelay = 1000;
+    this.onStatusUpdate = null;
+    this.startupLogs = [];
+    this.maxLogLines = 80;
+    this.startTime = null;
+    this.childExited = false;
+  }
+
+  _timestamp() {
+    if (!this.startTime) return '0.000s';
+    return `${((Date.now() - this.startTime) / 1000).toFixed(3)}s`;
+  }
+
+  _addLog(line) {
+    this.startupLogs.push(`[${this._timestamp()}] ${line}`);
+    if (this.startupLogs.length > this.maxLogLines) {
+      this.startupLogs.shift();
+    }
+  }
+
+  _updateStatus(message, progress = null) {
+    if (typeof this.onStatusUpdate === 'function') {
+      this.onStatusUpdate(message, progress);
+    }
+  }
+
+  /**
+   * Get the path to the backend executable or Python
+   * @returns {{ executable: string, args: string[], cwd: string, env: object }}
+   */
+  getBackendConfig() {
+    const isPackaged = app.isPackaged;
+
+    if (isPackaged) {
+      // Production: Use bundled PyInstaller executable
+      const resourcesPath = process.resourcesPath;
+      const execName = process.platform === 'win32' ? 'bildvisare-backend.exe' : 'bildvisare-backend';
+      const backendPath = path.join(resourcesPath, 'backend', execName);
+
+      console.log('[BackendService] Running in packaged mode');
+      console.log('[BackendService] Backend path:', backendPath);
+
+      if (!fs.existsSync(backendPath)) {
+        throw new Error(`Bundled backend not found at: ${backendPath}`);
+      }
+
+      return {
+        executable: backendPath,
+        args: [
+          '--host', this.host,
+          '--port', this.port.toString()
+        ],
+        cwd: path.dirname(backendPath),
+        env: {
+          ...process.env,
+          BILDVISARE_PORT: this.port.toString()
+        }
+      };
+    } else {
+      // Development: Use system Python with uvicorn
+      const backendDir = path.join(__dirname, '../../../backend');
+
+      // Try to find Python in common locations
+      const pythonPaths = [
+        process.env.BILDVISARE_PYTHON,  // Custom path via env var
+        '/Users/krisniem/.local/share/miniforge3/envs/hitta_ansikten/bin/python3',  // Dev default
+        'python3',  // System Python
+        'python',   // Fallback
+      ].filter(Boolean);
+
+      const { execSync } = require('child_process');
+      let pythonPath = null;
+      
+      for (const p of pythonPaths) {
+        try {
+          if (p.includes('/')) {
+            if (fs.existsSync(p)) {
+              pythonPath = p;
+              break;
+            }
+          } else {
+            execSync(`which ${p}`, { stdio: 'ignore' });
+            pythonPath = p;
+            break;
+          }
+        } catch {
+          continue;
+        }
+      }
+
+      if (!pythonPath) {
+        throw new Error('No Python interpreter found. Set BILDVISARE_PYTHON env var or install python3.');
+      }
+
+      console.log('[BackendService] Running in development mode');
+      console.log('[BackendService] Python path:', pythonPath);
+
+      return {
+        executable: pythonPath,
+        args: [
+          '-m', 'uvicorn',
+          'api.server:app',
+          '--host', this.host,
+          '--port', this.port.toString(),
+          '--log-level', 'info'
+        ],
+        cwd: backendDir,
+        env: {
+          ...process.env,
+          PYTHONPATH: backendDir,
+          BILDVISARE_PORT: this.port.toString()
+        }
+      };
+    }
   }
 
   /**
@@ -33,39 +150,31 @@ class BackendService {
       return;
     }
 
-    console.log('[BackendService] Starting FastAPI backend...');
+    this.startTime = Date.now();
+    this.childExited = false;
+    this.startupLogs = [];
+    
+    console.log(`[BackendService] [${this._timestamp()}] Starting FastAPI backend...`);
 
-    // Get paths
-    const backendDir = path.join(__dirname, '../../../backend/api');
-    const pythonPath = '/Users/krisniem/.local/share/miniforge3/envs/hitta_ansikten/bin/python3';
+    const config = this.getBackendConfig();
+    this._addLog(`Spawning: ${config.executable} ${config.args.join(' ')}`);
 
-    // Spawn uvicorn server
     this.process = spawn(
-      pythonPath,
-      [
-        '-m', 'uvicorn',
-        'api.server:app',
-        '--host', this.host,
-        '--port', this.port.toString(),
-        '--log-level', 'info'
-      ],
+      config.executable,
+      config.args,
       {
-        cwd: path.join(__dirname, '../../../backend'),
-        env: {
-          ...process.env,
-          PYTHONPATH: path.join(__dirname, '../../../backend'),
-          BILDVISARE_PORT: this.port.toString()
-        },
+        cwd: config.cwd,
+        env: { ...config.env, PYTHONUNBUFFERED: '1' },
         stdio: 'pipe'
       }
     );
 
-    // Forward stdout/stderr to console (with filtering)
+    this._addLog(`Process spawned with PID ${this.process.pid}`);
+
     this.process.stdout.on('data', (data) => {
+      const output = data.toString().trim();
+      this._addLog(`stdout: ${output}`);
       if (DEBUG) {
-        const output = data.toString().trim();
-        // Skip noisy polling endpoints (only successful GET requests)
-        // Format: INFO: 127.0.0.1:PORT - "GET /api/statistics/summary HTTP/1.1" 200 OK
         if (output.includes('GET /api/statistics/summary') && output.includes('200')) {
           return;
         }
@@ -74,21 +183,25 @@ class BackendService {
     });
 
     this.process.stderr.on('data', (data) => {
-      console.error(`[Backend] ${data.toString().trim()}`);
+      const output = data.toString().trim();
+      this._addLog(`stderr: ${output}`);
+      console.error(`[Backend] ${output}`);
     });
 
     this.process.on('error', (err) => {
+      this._addLog(`Process error: ${err.message}`);
       console.error('[BackendService] Failed to start server:', err);
     });
 
     this.process.on('exit', (code, signal) => {
-      console.log(`[BackendService] Server exited (code: ${code}, signal: ${signal})`);
+      this._addLog(`Process exited: code=${code}, signal=${signal}`);
+      console.log(`[BackendService] [${this._timestamp()}] Server exited (code: ${code}, signal: ${signal})`);
+      this.childExited = true;
       this.process = null;
     });
 
-    // Wait for server to be ready
     await this.waitForReady();
-    console.log('[BackendService] Backend server ready');
+    console.log(`[BackendService] [${this._timestamp()}] Backend server ready`);
   }
 
   /**
@@ -96,35 +209,44 @@ class BackendService {
    * @returns {Promise<void>}
    */
   async waitForReady() {
-    console.log('[BackendService] ⏳ Starting backend server, please wait...');
-    console.log('[BackendService] This may take 5-10 seconds on first start');
+    console.log(`[BackendService] [${this._timestamp()}] Starting health check polling...`);
+    this._updateStatus('Initierar Python...', 10);
 
-    // Initial delay to let Python start (reduces noise from failed health checks)
     await new Promise(resolve => setTimeout(resolve, 2000));
 
     for (let i = 0; i < this.maxRetries; i++) {
+      if (this.childExited) {
+        const logs = this.startupLogs.slice(-20).join('\n');
+        throw new Error(`Backend process exited during startup.\n\nLast logs:\n${logs}`);
+      }
+
       const isHealthy = await this.checkHealth();
       if (isHealthy) {
-        console.log(`[BackendService] ✅ Backend server ready! (took ${(i + 1) * this.retryDelay / 1000}s)`);
+        console.log(`[BackendService] [${this._timestamp()}] Backend ready after ${i + 1} attempts`);
+        this._updateStatus('Backend redo!', 80);
         return;
       }
 
-      // More user-friendly progress messages
+      const progress = Math.min(10 + (i / this.maxRetries) * 60, 70);
       if (i === 0) {
-        console.log('[BackendService] ⏳ Initializing Python environment...');
+        this._updateStatus('Laddar Python-moduler...', progress);
       } else if (i === 3) {
-        console.log('[BackendService] ⏳ Loading FastAPI modules...');
+        this._updateStatus('Startar FastAPI...', progress);
       } else if (i === 6) {
-        console.log('[BackendService] ⏳ Starting web server...');
-      } else if (i > 15 && i % 5 === 0) {
-        console.log(`[BackendService] ⏳ Still waiting... (${i}/${this.maxRetries} attempts)`);
+        this._updateStatus('Startar webbserver...', progress);
+      } else if (i > 10) {
+        this._updateStatus(`Väntar på backend... (${i}/${this.maxRetries})`, progress);
       }
 
-      // Wait before next retry
+      if (DEBUG && i > 0 && i % 5 === 0) {
+        console.log(`[BackendService] [${this._timestamp()}] Health check attempt ${i}/${this.maxRetries}`);
+      }
+
       await new Promise(resolve => setTimeout(resolve, this.retryDelay));
     }
 
-    throw new Error('Backend server failed to start within timeout');
+    const logs = this.startupLogs.slice(-20).join('\n');
+    throw new Error(`Backend server failed to start within ${this.maxRetries}s timeout.\n\nLast logs:\n${logs}`);
   }
 
   /**
@@ -139,9 +261,9 @@ class BackendService {
           port: this.port,
           path: '/health',
           method: 'GET',
-          timeout: 2000, // Increased timeout
+          timeout: 2000,
           headers: {
-            'Connection': 'close' // Ensure connection closes
+            'Connection': 'close'
           }
         },
         (res) => {
@@ -153,10 +275,8 @@ class BackendService {
             try {
               const json = JSON.parse(data);
               const isHealthy = json.status === 'ok';
-              // Don't log every successful health check during startup
               resolve(isHealthy);
             } catch (err) {
-              // Invalid JSON during startup is expected (server not ready yet)
               resolve(false);
             }
           });
@@ -164,16 +284,14 @@ class BackendService {
       );
 
       req.on('error', (err) => {
-        // Don't log connection refused errors during startup (expected)
-        // Only log other errors or if server takes too long
         if (DEBUG && err.code !== 'ECONNREFUSED') {
-          console.log('[BackendService] Health check error:', err.message);
+          console.log(`[BackendService] [${this._timestamp()}] Health check error: ${err.message}`);
         }
         resolve(false);
       });
 
       req.on('timeout', () => {
-        // Timeouts during startup are expected, don't log
+        req.destroy();
         resolve(false);
       });
 
