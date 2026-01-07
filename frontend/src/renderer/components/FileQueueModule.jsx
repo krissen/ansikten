@@ -173,6 +173,8 @@ export function FileQueueModule() {
   const [fixMode, setFixMode] = useState(false);
   const [processedFiles, setProcessedFiles] = useState(new Set());
   const [processedHashes, setProcessedHashes] = useState(new Set());
+  const processedHashesRef = useRef(processedHashes);
+  processedHashesRef.current = processedHashes;
   const [processedFilesLoaded, setProcessedFilesLoaded] = useState(false);
   const [preprocessingStatus, setPreprocessingStatus] = useState({});
   const [preprocessingPaused, setPreprocessingPaused] = useState(false);
@@ -230,7 +232,7 @@ export function FileQueueModule() {
   const loadProcessedFiles = useCallback(async () => {
     debug('FileQueue', '>>> loadProcessedFiles starting...');
     try {
-      const response = await api.get('/api/management/recent-files?n=1000');
+      const response = await api.get('/api/management/recent-files?n=100000');
       if (response && Array.isArray(response)) {
         const fileNames = new Set(response.map(f => f.name));
         const fileHashes = new Set(response.map(f => f.hash).filter(Boolean));
@@ -265,7 +267,11 @@ export function FileQueueModule() {
     loadProcessedFiles();
   }, [loadProcessedFiles]);
 
-  // Sync isAlreadyProcessed flags when processedFiles loads (fixes stale localStorage data)
+  useEffect(() => {
+    if (preprocessingManager.current) {
+      preprocessingManager.current.setHashChecker((hash) => processedHashesRef.current.has(hash));
+    }
+  }, [processedFilesLoaded]);
   useEffect(() => {
     if (!processedFilesLoaded || processedFiles.size === 0) return;
     
@@ -389,7 +395,7 @@ export function FileQueueModule() {
     };
 
     const handleCacheCleared = async ({ count, hashes }) => {
-      debug('FileQueue', `Cleared ${count} items from preprocessing cache`);
+      debug('FileQueue', `Preprocessing cache cleared: ${count} items`);
       if (hashes && hashes.length > 0) {
         try {
           await apiClient.batchDeleteCache(hashes);
@@ -400,6 +406,19 @@ export function FileQueueModule() {
       }
     };
 
+    const handleAlreadyProcessed = ({ filePath, hash }) => {
+      debug('FileQueue', 'File skipped (hash already processed):', filePath);
+      setQueue(prev => prev.map(item =>
+        item.filePath === filePath
+          ? { ...item, isAlreadyProcessed: true }
+          : item
+      ));
+      setPreprocessingStatus(prev => ({
+        ...prev,
+        [filePath]: { status: PreprocessingStatus.COMPLETED, skipped: true }
+      }));
+    };
+
     manager.on('status-change', handleStatusChange);
     manager.on('completed', handleCompleted);
     manager.on('error', handleError);
@@ -407,6 +426,7 @@ export function FileQueueModule() {
     manager.on('paused', handlePaused);
     manager.on('resumed', handleResumed);
     manager.on('cache-cleared', handleCacheCleared);
+    manager.on('already-processed', handleAlreadyProcessed);
 
     return () => {
       manager.off('status-change', handleStatusChange);
@@ -416,6 +436,7 @@ export function FileQueueModule() {
       manager.off('paused', handlePaused);
       manager.off('resumed', handleResumed);
       manager.off('cache-cleared', handleCacheCleared);
+      manager.off('already-processed', handleAlreadyProcessed);
     };
   }, [showToast, processedHashes]);
 
