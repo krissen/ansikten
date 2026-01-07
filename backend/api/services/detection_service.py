@@ -697,6 +697,14 @@ class DetectionService:
 
         logger.info(f"[DetectionService] Logged {len(labels)} face labels to attempt_stats.jsonl")
 
+        # Add to processed_files so file won't be re-processed (even if renamed)
+        file_name = Path(image_path).name
+        entry = {"name": file_name, "hash": file_hash}
+        if entry not in self.processed_files:
+            self.processed_files.append(entry)
+            save_database(self.known_faces, self.ignored_faces, self.hard_negatives, self.processed_files)
+            logger.info(f"[DetectionService] Added {file_name} to processed_files")
+
         return {
             "status": "success",
             "message": f"Review logged for {len(labels)} faces",
