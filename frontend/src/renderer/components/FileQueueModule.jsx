@@ -17,6 +17,7 @@ import { debug, debugWarn, debugError } from '../shared/debug.js';
 import { apiClient } from '../shared/api-client.js';
 import { getPreprocessingManager, PreprocessingStatus } from '../services/preprocessing/index.js';
 import { Icon } from './Icon.jsx';
+import { isFileEligible as isFileEligiblePure, findNextEligibleIndex } from './fileQueueEligibility.js';
 import './FileQueueModule.css';
 
 // Read preference directly from localStorage to avoid circular dependency
@@ -216,10 +217,11 @@ export function FileQueueModule() {
   const currentFileRef = useRef(null);
   const queueRef = useRef(queue); // Keep current queue in ref for callbacks
   queueRef.current = queue; // Sync on every render (not just in useEffect)
-  const fixModeRef = useRef(fixMode); // Keep fixMode in ref for callbacks
-  fixModeRef.current = fixMode; // Sync on every render
+  const fixModeRef = useRef(fixMode);
+  fixModeRef.current = fixMode;
 
-  // Auto-load state for restoration
+  const loadFileRef = useRef(null);
+
   const [shouldAutoLoad, setShouldAutoLoad] = useState(false);
   const savedIndexRef = useRef(-1);
 
@@ -501,31 +503,7 @@ export function FileQueueModule() {
     }
   }, []);
 
-  // State to store pending auto-load index (triggers effect when set)
   const [pendingAutoLoad, setPendingAutoLoad] = useState(-1);
-
-  useEffect(() => {
-    if (!processedFilesLoaded) return;
-    if (!shouldAutoLoad || queue.length === 0) return;
-    setShouldAutoLoad(false);
-
-    // Start preprocessing for all eligible files
-    if (preprocessingManager.current) {
-      const eligibleItems = queue.filter(isFileEligible);
-      debug('FileQueue', 'Starting preprocessing for', eligibleItems.length, 'eligible items');
-      eligibleItems.forEach(item => preprocessingManager.current.addToQueue(item.filePath));
-    }
-
-    if (!getAutoLoadPreference()) {
-      debug('FileQueue', 'Auto-load disabled in preferences');
-      return;
-    }
-
-    // Use centralized startNextEligible with saved index as preference
-    const preferIndex = savedIndexRef.current;
-    debug('FileQueue', 'Auto-load: trying to start with preferIndex:', preferIndex);
-    startNextEligible({ preferIndex, showToastIfNone: true });
-  }, [shouldAutoLoad, queue, processedFilesLoaded, isFileEligible, startNextEligible]);
 
   // Save queue to localStorage on change
   useEffect(() => {
@@ -694,18 +672,15 @@ export function FileQueueModule() {
     return processedFiles.has(fileName);
   }, [processedFiles]);
 
-  // CENTRALIZED: Single source of truth for file eligibility
-  const isFileEligible = useCallback((item) => {
-    if (!item) return false;
-    if (item.status === 'completed') return false;
-    if (!fixModeRef.current) {
-      const isProcessed = item.isAlreadyProcessed || processedFilesRef.current.has(item.fileName);
-      if (isProcessed) return false;
-    }
-    return true;
-  }, []);
+  const getEligibilityContext = useCallback(() => ({
+    fixMode: fixModeRef.current,
+    processedFiles: processedFilesRef.current
+  }), []);
 
-  // CENTRALIZED: Find and load next eligible file
+  const isFileEligible = useCallback((item) => {
+    return isFileEligiblePure(item, getEligibilityContext());
+  }, [getEligibilityContext]);
+
   const startNextEligible = useCallback((options = {}) => {
     const { preferIndex = -1, showToastIfNone = true } = options;
 
@@ -715,19 +690,13 @@ export function FileQueueModule() {
     }
 
     const q = queueRef.current;
-    let indexToLoad = -1;
-
-    // Try preferred index first if eligible
-    if (preferIndex >= 0 && preferIndex < q.length && isFileEligible(q[preferIndex])) {
-      indexToLoad = preferIndex;
-    } else {
-      indexToLoad = q.findIndex(isFileEligible);
-    }
+    const context = getEligibilityContext();
+    const indexToLoad = findNextEligibleIndex(q, context, { preferIndex });
 
     debug('FileQueue', 'startNextEligible:', { preferIndex, indexToLoad, queueLength: q.length });
 
     if (indexToLoad >= 0) {
-      loadFile(indexToLoad);
+      loadFileRef.current?.(indexToLoad);
       return true;
     }
 
@@ -735,10 +704,30 @@ export function FileQueueModule() {
       showToast('All files already processed. Enable fix-mode to reprocess.', 'info', 5000);
     }
     return false;
-  }, [isFileEligible, showToast]);
+  }, [getEligibilityContext, showToast]);
 
-  // Add files to queue
-  // position: 'end' | 'start' | 'sorted' | 'default' (uses preference)
+  useEffect(() => {
+    if (!processedFilesLoaded) return;
+    if (!shouldAutoLoad || queue.length === 0) return;
+    setShouldAutoLoad(false);
+
+    if (preprocessingManager.current) {
+      const context = getEligibilityContext();
+      const eligibleItems = queue.filter(item => isFileEligiblePure(item, context));
+      debug('FileQueue', 'Starting preprocessing for', eligibleItems.length, 'eligible items');
+      eligibleItems.forEach(item => preprocessingManager.current.addToQueue(item.filePath));
+    }
+
+    if (!getAutoLoadPreference()) {
+      debug('FileQueue', 'Auto-load disabled in preferences');
+      return;
+    }
+
+    const preferIndex = savedIndexRef.current;
+    debug('FileQueue', 'Auto-load: trying to start with preferIndex:', preferIndex);
+    startNextEligible({ preferIndex, showToastIfNone: true });
+  }, [shouldAutoLoad, queue, processedFilesLoaded, getEligibilityContext, startNextEligible]);
+
   const addFiles = useCallback((filePaths, position = 'default') => {
     if (!filePaths || filePaths.length === 0) return;
 
@@ -1012,6 +1001,8 @@ export function FileQueueModule() {
     emit('load-image', { imagePath: item.filePath, skipAutoDetect });
     emitQueueStatus(index);
   }, [api, loadProcessedFiles, emit, showToast, emitQueueStatus]);
+
+  loadFileRef.current = loadFile;
 
   // Force reprocess a file (when fix-mode is OFF but user wants to reprocess)
   const forceReprocess = useCallback(async (index) => {
