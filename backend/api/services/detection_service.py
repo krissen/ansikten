@@ -499,7 +499,13 @@ class DetectionService:
 
         return buffer.read()
 
-    async def confirm_identity(self, face_id: str, person_name: str, image_path: str) -> Dict[str, Any]:
+    async def confirm_identity(
+        self, 
+        face_id: str, 
+        person_name: str, 
+        image_path: str,
+        suggested_name: Optional[str] = None
+    ) -> Dict[str, Any]:
         """
         Confirm face identity and save to database
 
@@ -507,6 +513,7 @@ class DetectionService:
             face_id: Face identifier from detection
             person_name: Person name to associate with this face
             image_path: Source image path
+            suggested_name: Original suggestion (if user corrected, adds hard negative)
 
         Returns:
             Success status
@@ -557,7 +564,21 @@ class DetectionService:
 
         self.known_faces[person_name].append(entry)
 
-        # Save database
+        if suggested_name and suggested_name != person_name:
+            if suggested_name not in self.hard_negatives:
+                self.hard_negatives[suggested_name] = []
+            hard_neg_entry = {
+                "encoding": encoding,
+                "file": str(image_path),
+                "hash": file_hash,
+                "backend": self.backend.backend_name,
+                "backend_version": backend_info.get("version", "unknown"),
+                "created_at": datetime.now().isoformat(),
+                "encoding_hash": encoding_hash
+            }
+            self.hard_negatives[suggested_name].append(hard_neg_entry)
+            logger.info(f"[DetectionService] Added hard negative for {suggested_name} (corrected to {person_name})")
+
         save_database(self.known_faces, self.ignored_faces, self.hard_negatives, self.processed_files)
 
         logger.info(f"[DetectionService] Saved encoding for {person_name} (total: {len(self.known_faces[person_name])})")

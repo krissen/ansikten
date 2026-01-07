@@ -229,12 +229,18 @@ export function ReviewModule() {
 
     setPendingConfirmations(prev => {
       const existing = prev.findIndex(p => p.face_id === face.face_id);
+      const suggestedName = face.person_name || null;
       if (existing >= 0) {
         const updated = [...prev];
         updated[existing] = { ...updated[existing], person_name: personName.trim() };
         return updated;
       }
-      return [...prev, { face_id: face.face_id, person_name: personName.trim(), image_path: currentImagePath }];
+      return [...prev, { 
+        face_id: face.face_id, 
+        person_name: personName.trim(), 
+        image_path: currentImagePath,
+        suggested_name: suggestedName !== personName.trim() ? suggestedName : null
+      }];
     });
 
     navigateToFace(1, index);
