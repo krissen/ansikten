@@ -275,19 +275,48 @@ export function FileQueueModule() {
   useEffect(() => {
     if (!processedFilesLoaded || processedFiles.size === 0) return;
     
+    const newlyProcessedItems = [];
     setQueue(prev => {
       let hasChanges = false;
       const updated = prev.map(item => {
         const shouldBeProcessed = processedFiles.has(item.fileName);
         if (shouldBeProcessed && !item.isAlreadyProcessed) {
           hasChanges = true;
+          newlyProcessedItems.push({ ...item, isAlreadyProcessed: true });
           return { ...item, isAlreadyProcessed: true };
         }
         return item;
       });
       return hasChanges ? updated : prev;
     });
-  }, [processedFilesLoaded, processedFiles]);
+
+    // Fetch face stats for items that were just marked as already-processed
+    if (newlyProcessedItems.length > 0 && api) {
+      const filenames = newlyProcessedItems.map(item => item.fileName);
+      debug('FileQueue', 'Fetching stats for newly-marked processed files:', filenames.length);
+      api.post('/api/statistics/file-stats', { filenames })
+        .then(stats => {
+          debug('FileQueue', 'Got stats for', Object.keys(stats).length, 'newly-processed files');
+          setPreprocessingStatus(prev => {
+            const updates = {};
+            for (const item of newlyProcessedItems) {
+              const stat = stats[item.fileName];
+              if (stat) {
+                updates[item.filePath] = {
+                  status: PreprocessingStatus.COMPLETED,
+                  faceCount: stat.face_count,
+                  persons: stat.persons,
+                };
+              }
+            }
+            return { ...prev, ...updates };
+          });
+        })
+        .catch(err => {
+          debugWarn('FileQueue', 'Failed to fetch stats for newly-processed files:', err);
+        });
+    }
+  }, [processedFilesLoaded, processedFiles, api]);
 
   // Subscribe to preprocessing manager events
   useEffect(() => {
