@@ -783,17 +783,17 @@ export function FileQueueModule() {
       const uniqueNew = newItems.filter(item => !existingPaths.has(item.filePath));
       addedCount = uniqueNew.length;
 
-      if (preprocessingManager.current) {
-        const currentFixMode = fixModeRef.current;
-        uniqueNew.forEach(item => {
-          if (!currentFixMode && item.isAlreadyProcessed) {
-            debug('FileQueue', 'Skipping preprocessing (already processed, fix-mode OFF):', item.fileName);
-            alreadyProcessedFiles.push(item);
-            return;
-          }
+      const currentFixMode = fixModeRef.current;
+      uniqueNew.forEach(item => {
+        if (!currentFixMode && item.isAlreadyProcessed) {
+          debug('FileQueue', 'Skipping preprocessing (already processed, fix-mode OFF):', item.fileName);
+          alreadyProcessedFiles.push(item);
+          return;
+        }
+        if (preprocessingManager.current) {
           preprocessingManager.current.addToQueue(item.filePath);
-        });
-      }
+        }
+      });
 
       if (effectivePosition === 'start') {
         return [...uniqueNew, ...prev];
