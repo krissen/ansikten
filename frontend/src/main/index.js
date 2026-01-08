@@ -108,7 +108,7 @@ function parseCommandLineArgs(argv) {
     const arg = argv[i];
 
     if (arg === "--queue" || arg === "-q") {
-      result.queuePosition = "sorted";
+      result.queuePosition = "end";
     } else if (arg === "--queue-start" || arg === "-qs") {
       result.queuePosition = "start";
     } else if (arg === "--queue-end" || arg === "-qe") {
