@@ -271,6 +271,12 @@
   color: var(--color-info);
 }
 
+.reprocess-btn-placeholder {
+  flex-shrink: 0;
+  width: 18px;
+  height: 18px;
+}
+
 /* Footer - inherits from .module-footer */
 
 /* Progress */
@@ -386,9 +392,19 @@
   to { transform: rotate(360deg); }
 }
 
-/* File name - grows to fill space, pushing right elements to the right */
-.file-name {
+/* File name area - wrapper for name + preview, takes remaining space */
+.file-name-area {
   flex: 1;
+  display: flex;
+  align-items: center;
+  gap: var(--space-xs);
+  min-width: 0;
+  overflow: hidden;
+}
+
+/* File name - shrinks to make room for preview */
+.file-name {
+  flex-shrink: 1;
   min-width: 60px;
   overflow: hidden;
   text-overflow: ellipsis;
@@ -399,7 +415,7 @@
 
 /* Inline preview of new name */
 .inline-preview {
-  flex: 1;
+  flex-shrink: 1;
   display: flex;
   align-items: center;
   gap: var(--space-xs);
