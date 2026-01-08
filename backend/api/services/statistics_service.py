@@ -302,6 +302,52 @@ class StatisticsService:
             logger.error(f"[StatisticsService] Failed to read log file: {e}")
             return [{"level": "error", "message": f"Could not read log file: {e}", "timestamp": ""}]
 
+    async def get_file_stats(self, filenames: List[str]) -> Dict[str, Dict[str, Any]]:
+        """
+        Get face detection stats for specific files by filename.
+
+        Args:
+            filenames: List of filenames (just the name, not path) to look up
+
+        Returns:
+            Dict mapping filename -> {face_count, persons}
+            Files not found in attempt log are omitted from result
+        """
+        if not filenames:
+            return {}
+
+        stats = load_attempt_log(all_files=False)
+
+        # Build lookup by filename (just the basename)
+        filename_set = set(filenames)
+        result = {}
+
+        for entry in stats:
+            fname = Path(entry.get("filename", "")).name
+            if fname not in filename_set:
+                continue
+
+            used = entry.get("used_attempt")
+            attempts = entry.get("attempts", [])
+            labels_per_attempt = entry.get("labels_per_attempt")
+
+            # Get face count from the used attempt
+            face_count = 0
+            if used is not None and attempts and used < len(attempts):
+                face_count = attempts[used].get("faces_found", 0)
+
+            # Get person names
+            persons = []
+            if used is not None and labels_per_attempt and used < len(labels_per_attempt):
+                persons = extract_face_labels(labels_per_attempt[used])
+
+            result[fname] = {
+                "face_count": face_count,
+                "persons": persons,
+            }
+
+        return result
+
     async def get_summary(self) -> Dict[str, Any]:
         """
         Get complete statistics summary
