@@ -696,11 +696,14 @@ class DetectionService:
                 "hash": face.get('encoding_hash', '')
             })
 
-        # Build attempt info (simplified for API usage)
+        # Build attempt info with backend metadata for statistics compatibility
+        backend_info = self.backend.get_model_info()
         attempts = [{
             "resolution": "api",
             "face_count": len(reviewed_faces),
-            "source": "bildvisare"
+            "source": "bildvisare",
+            "backend": self.backend.backend_name,
+            "backend_version": backend_info.get('model', 'unknown'),
         }]
 
         # Log to attempt_stats.jsonl

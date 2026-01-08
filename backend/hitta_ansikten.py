@@ -543,12 +543,9 @@ def handle_manual_add(known_faces, image_path, file_hash, input_name_func, backe
 
     if namn and namn not in known_faces:
         known_faces[namn] = []
-    # NOTE: CLI uses basename (image_path.name), GUI uses full path.
-    # Full path is preferred - preserves directory context for rename operations.
-    # See detection_service.py for GUI implementation.
     known_faces[namn].append({
         "encoding": None,
-        "file": str(image_path.name) if image_path is not None and hasattr(image_path, "name") else str(image_path),
+        "file": str(image_path) if image_path else None,
         "hash": file_hash,
         "backend": backend.backend_name,
         "backend_version": backend.get_model_info().get('model', 'unknown'),
@@ -609,7 +606,7 @@ def add_hard_negative(hard_negatives, person, encoding, backend, image_path=None
     normalized_encoding = backend.normalize_encoding(encoding)
     hard_negatives[person].append({
         "encoding": normalized_encoding,
-        "file": str(image_path.name) if image_path and hasattr(image_path, "name") else str(image_path) if image_path else None,
+        "file": str(image_path) if image_path else None,
         "hash": file_hash,
         "backend": backend.backend_name,
         "backend_version": backend.get_model_info().get('model', 'unknown'),
@@ -899,7 +896,7 @@ def user_review_encodings(
                 normalized_encoding = backend.normalize_encoding(encoding)
                 ignored_faces.append({
                     "encoding": normalized_encoding,
-                    "file": str(image_path.name) if image_path and hasattr(image_path, "name") else str(image_path),
+                    "file": str(image_path) if image_path else None,
                     "hash": file_hash,
                     "backend": backend.backend_name,
                     "backend_version": backend.get_model_info().get('model', 'unknown'),
@@ -927,7 +924,7 @@ def user_review_encodings(
             normalized_encoding = backend.normalize_encoding(encoding)
             known_faces[name].append({
                 "encoding": normalized_encoding,
-                "file": str(image_path.name) if image_path is not None and hasattr(image_path, "name") else str(image_path),
+                "file": str(image_path) if image_path else None,
                 "hash": file_hash,
                 "backend": backend.backend_name,
                 "backend_version": backend.get_model_info().get('model', 'unknown'),
@@ -1530,11 +1527,13 @@ def remove_encodings_for_file(known_faces, ignored_faces, hard_negatives, identi
         if match:
             for attempt in entry.get("labels_per_attempt", []):
                 for lbl in attempt:
-                    if isinstance(lbl, dict) and "hash" in lbl:
-                        hashes_to_remove.append(lbl["hash"])
-                        labelstr = lbl.get("label", "")
-                        namn = labelstr.split("\n")[1] if "\n" in labelstr else None
-                        labels_by_hash[lbl["hash"]] = namn
+                    if isinstance(lbl, dict):
+                        lbl_id = lbl.get("hash") or lbl.get("face_id")
+                        if lbl_id:
+                            hashes_to_remove.append(lbl_id)
+                            labelstr = lbl.get("label", "")
+                            namn = labelstr.split("\n")[1] if "\n" in labelstr else None
+                            labels_by_hash[lbl_id] = namn
     # Ta bort encodings från ignored_faces (matcha via hash)
     removed = 0
     for hashval in hashes_to_remove:
