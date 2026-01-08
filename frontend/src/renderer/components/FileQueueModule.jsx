@@ -777,6 +777,7 @@ export function FileQueueModule() {
     });
 
     let addedCount = 0;
+    let alreadyProcessedFiles = [];
     setQueue(prev => {
       const existingPaths = new Set(prev.map(item => item.filePath));
       const uniqueNew = newItems.filter(item => !existingPaths.has(item.filePath));
@@ -785,9 +786,9 @@ export function FileQueueModule() {
       if (preprocessingManager.current) {
         const currentFixMode = fixModeRef.current;
         uniqueNew.forEach(item => {
-          // Skip preprocessing for already-processed files when fix-mode is OFF
           if (!currentFixMode && item.isAlreadyProcessed) {
             debug('FileQueue', 'Skipping preprocessing (already processed, fix-mode OFF):', item.fileName);
+            alreadyProcessedFiles.push(item);
             return;
           }
           preprocessingManager.current.addToQueue(item.filePath);
@@ -820,7 +821,33 @@ export function FileQueueModule() {
     }
 
     debug('FileQueue', 'Added', newItems.length, 'files, mode:', effectivePosition);
-  }, [showToast]);
+
+    // Fetch face stats for already-processed files that weren't preprocessed
+    if (alreadyProcessedFiles.length > 0 && api) {
+      const filenames = alreadyProcessedFiles.map(item => item.fileName);
+      api.post('/api/statistics/file-stats', { filenames })
+        .then(stats => {
+          debug('FileQueue', 'Got file stats for', Object.keys(stats).length, 'files');
+          setPreprocessingStatus(prev => {
+            const updates = {};
+            for (const item of alreadyProcessedFiles) {
+              const stat = stats[item.fileName];
+              if (stat) {
+                updates[item.filePath] = {
+                  status: PreprocessingStatus.COMPLETED,
+                  faceCount: stat.face_count,
+                  persons: stat.persons,
+                };
+              }
+            }
+            return { ...prev, ...updates };
+          });
+        })
+        .catch(err => {
+          debugWarn('FileQueue', 'Failed to fetch file stats:', err);
+        });
+    }
+  }, [showToast, api]);
 
   // Sort existing queue alphabetically
   const sortQueue = useCallback(() => {
@@ -1878,8 +1905,9 @@ function FileQueueItem({ item, index, isActive, isSelected, onClick, onDoubleCli
   const detectedFaceCount = reviewedCount > 0 ? reviewedCount : (ppFaceCount || null);
   const hasDetectedFaces = detectedFaceCount !== null;
 
-  // Confirmed names for hover: from previewInfo (rename) or reviewedFaces (this session)
-  const confirmedNames = previewInfo?.persons || item.reviewedFaces?.map(f => f.personName).filter(Boolean) || [];
+  // Confirmed names: previewInfo (rename) > reviewedFaces (this session) > preprocessingStatus (from file stats)
+  const ppPersons = preprocessingStatus?.persons;
+  const confirmedNames = previewInfo?.persons || item.reviewedFaces?.map(f => f.personName).filter(Boolean) || ppPersons || [];
   const confirmedCount = confirmedNames.length;
 
   return (
@@ -1902,26 +1930,29 @@ function FileQueueItem({ item, index, isActive, isSelected, onClick, onDoubleCli
         onClick={(e) => e.stopPropagation()}
       />
       {getStatusIcon()}
-      <span className="file-name">
-        {truncateFilename(item.fileName)}
-      </span>
-      {/* Inline preview of new name (only if name would actually change) */}
-      {shouldShowPreview && nameWouldChange && (
-        <span className="inline-preview">
-          <span className="arrow">→</span>
-          <span className="new-name">{truncateFilename(newName, 30)}</span>
+      {/* Wrapper for file name + preview to maintain consistent right-column alignment */}
+      <div className="file-name-area">
+        <span className="file-name">
+          {truncateFilename(item.fileName)}
         </span>
-      )}
-      {shouldShowPreview && !newName && previewStatus && previewStatus !== 'ok' && (
-        <span className={`inline-preview ${previewStatus === 'no_persons' || previewStatus === 'already_renamed' ? 'muted' : 'error'}`}>
-          <span className="arrow">→</span>
-          <span className={previewStatus === 'no_persons' || previewStatus === 'already_renamed' ? 'preview-muted' : 'preview-error'}>
-            {previewStatus === 'no_persons' ? '(no persons)' :
-             previewStatus === 'already_renamed' ? '(already renamed)' :
-             previewStatus}
+        {/* Inline preview of new name (only if name would actually change) */}
+        {shouldShowPreview && nameWouldChange && (
+          <span className="inline-preview">
+            <span className="arrow">→</span>
+            <span className="new-name">{truncateFilename(newName, 30)}</span>
           </span>
-        </span>
-      )}
+        )}
+        {shouldShowPreview && !newName && previewStatus && previewStatus !== 'ok' && (
+          <span className={`inline-preview ${previewStatus === 'no_persons' || previewStatus === 'already_renamed' ? 'muted' : 'error'}`}>
+            <span className="arrow">→</span>
+            <span className={previewStatus === 'no_persons' || previewStatus === 'already_renamed' ? 'preview-muted' : 'preview-error'}>
+              {previewStatus === 'no_persons' ? '(no persons)' :
+               previewStatus === 'already_renamed' ? '(already renamed)' :
+               previewStatus}
+            </span>
+          </span>
+        )}
+      </div>
       {/* Fixed-width columns for alignment */}
       <span className="preprocess-col">
         {getPreprocessingIndicator()}
@@ -1930,7 +1961,7 @@ function FileQueueItem({ item, index, isActive, isSelected, onClick, onDoubleCli
         <Icon name="user" size={12} />{hasDetectedFaces ? detectedFaceCount : '–'}
       </span>
       <span className="file-status">{getStatusText()}</span>
-      {!fixMode && item.isAlreadyProcessed && (
+      {!fixMode && item.isAlreadyProcessed ? (
         <button
           className="reprocess-btn"
           onClick={(e) => {
@@ -1941,6 +1972,8 @@ function FileQueueItem({ item, index, isActive, isSelected, onClick, onDoubleCli
         >
           <Icon name="refresh" size={12} />
         </button>
+      ) : (
+        <span className="reprocess-btn-placeholder" />
       )}
       <button
         className="remove-btn"
