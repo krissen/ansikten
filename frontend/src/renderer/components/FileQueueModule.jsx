@@ -272,51 +272,59 @@ export function FileQueueModule() {
       preprocessingManager.current.setHashChecker((hash) => processedHashesRef.current.has(hash));
     }
   }, [processedFilesLoaded]);
+  const statsFetchedRef = useRef(new Set());
   useEffect(() => {
     if (!processedFilesLoaded || processedFiles.size === 0) return;
     
-    const newlyProcessedItems = [];
     setQueue(prev => {
       let hasChanges = false;
       const updated = prev.map(item => {
         const shouldBeProcessed = processedFiles.has(item.fileName);
         if (shouldBeProcessed && !item.isAlreadyProcessed) {
           hasChanges = true;
-          newlyProcessedItems.push({ ...item, isAlreadyProcessed: true });
           return { ...item, isAlreadyProcessed: true };
         }
         return item;
       });
       return hasChanges ? updated : prev;
     });
+  }, [processedFilesLoaded, processedFiles]);
 
-    // Fetch face stats for items that were just marked as already-processed
-    if (newlyProcessedItems.length > 0 && api) {
-      const filenames = newlyProcessedItems.map(item => item.fileName);
-      debug('FileQueue', 'Fetching stats for newly-marked processed files:', filenames.length);
-      api.post('/api/statistics/file-stats', { filenames })
-        .then(stats => {
-          debug('FileQueue', 'Got stats for', Object.keys(stats).length, 'newly-processed files');
-          setPreprocessingStatus(prev => {
-            const updates = {};
-            for (const item of newlyProcessedItems) {
-              const stat = stats[item.fileName];
-              if (stat) {
-                updates[item.filePath] = {
-                  status: PreprocessingStatus.COMPLETED,
-                  faceCount: stat.face_count,
-                  persons: stat.persons,
-                };
-              }
+  useEffect(() => {
+    if (!processedFilesLoaded || processedFiles.size === 0 || !api) return;
+    
+    const itemsNeedingStats = queue.filter(item => 
+      item.isAlreadyProcessed && !statsFetchedRef.current.has(item.filePath)
+    );
+    
+    if (itemsNeedingStats.length === 0) return;
+    
+    itemsNeedingStats.forEach(item => statsFetchedRef.current.add(item.filePath));
+    
+    const filepaths = itemsNeedingStats.map(item => item.filePath);
+    debug('FileQueue', 'Fetching stats via hash for', filepaths.length, 'files');
+    api.post('/api/statistics/file-stats', { filepaths })
+      .then(stats => {
+        debug('FileQueue', 'Got stats for', Object.keys(stats).length, 'files');
+        setPreprocessingStatus(prev => {
+          const updates = {};
+          for (const item of itemsNeedingStats) {
+            const stat = stats[item.fileName];
+            if (stat) {
+              updates[item.filePath] = {
+                status: PreprocessingStatus.COMPLETED,
+                faceCount: stat.face_count,
+                persons: stat.persons,
+              };
             }
-            return { ...prev, ...updates };
-          });
-        })
-        .catch(err => {
-          debugWarn('FileQueue', 'Failed to fetch stats for newly-processed files:', err);
+          }
+          return { ...prev, ...updates };
         });
-    }
-  }, [processedFilesLoaded, processedFiles, api]);
+      })
+      .catch(err => {
+        debugWarn('FileQueue', 'Failed to fetch stats for processed files:', err);
+      });
+  }, [processedFilesLoaded, processedFiles, api, queue]);
 
   // Subscribe to preprocessing manager events
   useEffect(() => {
@@ -853,8 +861,8 @@ export function FileQueueModule() {
 
     // Fetch face stats for already-processed files that weren't preprocessed
     if (alreadyProcessedFiles.length > 0 && api) {
-      const filenames = alreadyProcessedFiles.map(item => item.fileName);
-      api.post('/api/statistics/file-stats', { filenames })
+      const filepaths = alreadyProcessedFiles.map(item => item.filePath);
+      api.post('/api/statistics/file-stats', { filepaths })
         .then(stats => {
           debug('FileQueue', 'Got file stats for', Object.keys(stats).length, 'files');
           setPreprocessingStatus(prev => {

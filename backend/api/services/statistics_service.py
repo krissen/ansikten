@@ -20,6 +20,7 @@ from faceid_db import (
     ATTEMPT_LOG_PATH,
     LOGGING_PATH,
     extract_face_labels,
+    get_file_hash,
     load_attempt_log,
     load_database,
 )
@@ -143,7 +144,7 @@ class StatisticsService:
                     setting.get("scale_px"),
                 )
                 attempt_info[key]["used"] += 1
-                attempt_info[key]["faces"] += setting.get("faces_found", 0)
+                attempt_info[key]["faces"] += setting.get("face_count", 0)
                 attempt_info[key]["time"] += setting.get("time_seconds", 0.0)
 
         # Convert to list of dicts
@@ -302,37 +303,31 @@ class StatisticsService:
             logger.error(f"[StatisticsService] Failed to read log file: {e}")
             return [{"level": "error", "message": f"Could not read log file: {e}", "timestamp": ""}]
 
-    async def get_file_stats(self, filenames: List[str]) -> Dict[str, Dict[str, Any]]:
+    async def get_file_stats(self, filenames: List[str] = None, filepaths: List[str] = None) -> Dict[str, Dict[str, Any]]:
         """
-        Get face detection stats for specific files by filename.
-        Handles renamed files by looking up via file hash.
+        Get face detection stats for specific files.
+        
+        Supports two lookup methods:
+        - filepaths: Computes hash from file content (survives renames)
+        - filenames: Falls back to name-based lookup
 
         Args:
-            filenames: List of filenames (just the name, not path) to look up
+            filenames: List of filenames (just the name, not path)
+            filepaths: List of full file paths (preferred - uses hash lookup)
 
         Returns:
             Dict mapping filename -> {face_count, persons}
-            Files not found in attempt log are omitted from result
         """
-        if not filenames:
+        filenames = filenames or []
+        filepaths = filepaths or []
+        
+        if not filenames and not filepaths:
             return {}
 
         stats = load_attempt_log(all_files=False)
-        _, _, _, processed_files = load_database()
-
-        filename_set = set(filenames)
+        
         result = {}
 
-        # Build name->hash mapping from processed_files (handles renamed files)
-        name_to_hash = {}
-        for pf in processed_files:
-            if isinstance(pf, dict):
-                name = pf.get("name", "")
-                file_hash = pf.get("hash")
-                if name and file_hash:
-                    name_to_hash[name] = file_hash
-
-        # Build hash->entry index from attempt_stats
         hash_to_entry = {}
         filename_to_entry = {}
         for entry in stats:
@@ -349,7 +344,7 @@ class StatisticsService:
 
             face_count = 0
             if used is not None and attempts and used < len(attempts):
-                face_count = attempts[used].get("faces_found", 0)
+                face_count = attempts[used].get("face_count", 0)
 
             persons = []
             if used is not None and labels_per_attempt and used < len(labels_per_attempt):
@@ -357,16 +352,40 @@ class StatisticsService:
 
             return {"face_count": face_count, "persons": persons}
 
+        for fpath in filepaths:
+            p = Path(fpath)
+            fname = p.name
+            if p.exists():
+                file_hash = get_file_hash(str(p))
+                if file_hash and file_hash in hash_to_entry:
+                    result[fname] = extract_stats(hash_to_entry[file_hash])
+                    logger.debug(f"[get_file_stats] {fname}: hash match")
+                elif file_hash:
+                    logger.debug(f"[get_file_stats] {fname}: hash {file_hash[:8]} not found")
+            else:
+                logger.debug(f"[get_file_stats] {fname}: file not found at {fpath}")
+
+        _, _, _, processed_files = load_database()
+        name_to_hash = {}
+        for pf in processed_files:
+            if isinstance(pf, dict):
+                name = pf.get("name", "")
+                file_hash = pf.get("hash")
+                if name and file_hash:
+                    name_to_hash[name] = file_hash
+
         for fname in filenames:
-            # Try direct filename match first
+            if fname in result:
+                continue
             if fname in filename_to_entry:
                 result[fname] = extract_stats(filename_to_entry[fname])
-            # Fallback: look up hash from processed_files, then find in attempt_stats
             elif fname in name_to_hash:
                 file_hash = name_to_hash[fname]
                 if file_hash in hash_to_entry:
                     result[fname] = extract_stats(hash_to_entry[file_hash])
 
+        total = len(filenames) + len(filepaths)
+        logger.info(f"[Statistics] Returning stats for {len(result)}/{total} files")
         return result
 
     async def get_summary(self) -> Dict[str, Any]:
