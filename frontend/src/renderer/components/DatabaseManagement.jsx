@@ -25,6 +25,18 @@ function fuzzyMatch(text, query) {
   return { match: false, score: 0 };
 }
 
+function formatBackendBreakdown(byBackend) {
+  if (!byBackend || Object.keys(byBackend).length === 0) return null;
+  if (Object.keys(byBackend).length === 1) {
+    const [backend, count] = Object.entries(byBackend)[0];
+    return `${count} ${backend}`;
+  }
+  return Object.entries(byBackend)
+    .sort(([a], [b]) => a.localeCompare(b))
+    .map(([backend, count]) => `${count} ${backend}`)
+    .join(', ');
+}
+
 /**
  * DatabaseManagement Component
  */
@@ -40,12 +52,12 @@ export function DatabaseManagement() {
 
   // Form states
   const [renameForm, setRenameForm] = useState({ oldName: '', newName: '' });
-  const [mergeForm, setMergeForm] = useState({ source1: '', source2: '', target: '' });
+  const [mergeForm, setMergeForm] = useState({ source1: '', source2: '', target: '', backend: '' });
   const [deleteForm, setDeleteForm] = useState({ name: '' });
-  const [moveToIgnoreForm, setMoveToIgnoreForm] = useState({ name: '' });
-  const [moveFromIgnoreForm, setMoveFromIgnoreForm] = useState({ count: '', target: '' });
+  const [moveToIgnoreForm, setMoveToIgnoreForm] = useState({ name: '', backend: '' });
+  const [moveFromIgnoreForm, setMoveFromIgnoreForm] = useState({ count: '', target: '', backend: '' });
   const [undoForm, setUndoForm] = useState({ pattern: '' });
-  const [purgeForm, setPurgeForm] = useState({ name: '', count: '' });
+  const [purgeForm, setPurgeForm] = useState({ name: '', count: '', backend: '' });
 
   const filteredPeople = useMemo(() => {
     if (!databaseState?.people) return [];
@@ -122,24 +134,30 @@ export function DatabaseManagement() {
   };
 
   const handleMerge = async () => {
-    const { source1, source2, target } = mergeForm;
+    const { source1, source2, target, backend } = mergeForm;
     if (!source1.trim() || !source2.trim()) {
       showError('Please enter two people to merge');
       return;
     }
 
     const targetName = target.trim() || source1.trim();
+    const backendDesc = backend ? ` (${backend} only)` : '';
 
-    if (!confirm(`Merge '${source1}' and '${source2}' into '${targetName}'?`)) return;
+    if (!confirm(`Merge '${source1}' and '${source2}' into '${targetName}'${backendDesc}?`)) return;
 
     try {
       const result = await api.post('/api/management/merge-people', {
         source_names: [source1.trim(), source2.trim()],
-        target_name: targetName
+        target_name: targetName,
+        backend_filter: backend || null
       });
-      showSuccess(result.message);
+      let msg = result.message;
+      if (result.warning) {
+        msg += `\n⚠️ ${result.warning}`;
+      }
+      showSuccess(msg);
       setDatabaseState(result.new_state);
-      setMergeForm({ source1: '', source2: '', target: '' });
+      setMergeForm({ source1: '', source2: '', target: '', backend: '' });
     } catch (err) {
       showError('Merge failed: ' + err.message);
     }
@@ -165,26 +183,30 @@ export function DatabaseManagement() {
   };
 
   const handleMoveToIgnore = async () => {
-    const { name } = moveToIgnoreForm;
+    const { name, backend } = moveToIgnoreForm;
     if (!name.trim()) {
       showError('Please enter person name');
       return;
     }
 
-    if (!confirm(`Move '${name}' to ignored list?`)) return;
+    const backendDesc = backend ? ` (${backend} only)` : '';
+    if (!confirm(`Move '${name}' to ignored list${backendDesc}?`)) return;
 
     try {
-      const result = await api.post('/api/management/move-to-ignore', { name: name.trim() });
+      const result = await api.post('/api/management/move-to-ignore', {
+        name: name.trim(),
+        backend_filter: backend || null
+      });
       showSuccess(result.message);
       setDatabaseState(result.new_state);
-      setMoveToIgnoreForm({ name: '' });
+      setMoveToIgnoreForm({ name: '', backend: '' });
     } catch (err) {
       showError('Move to ignore failed: ' + err.message);
     }
   };
 
   const handleMoveFromIgnore = async () => {
-    const { count, target } = moveFromIgnoreForm;
+    const { count, target, backend } = moveFromIgnoreForm;
     const countNum = parseInt(count, 10);
 
     if (isNaN(countNum) || !target.trim()) {
@@ -192,16 +214,18 @@ export function DatabaseManagement() {
       return;
     }
 
-    if (!confirm(`Move ${countNum === -1 ? 'all' : countNum} encodings from ignored to '${target}'?`)) return;
+    const backendDesc = backend ? ` (${backend} only)` : '';
+    if (!confirm(`Move ${countNum === -1 ? 'all' : countNum} encodings from ignored to '${target}'${backendDesc}?`)) return;
 
     try {
       const result = await api.post('/api/management/move-from-ignore', {
         count: countNum,
-        target_name: target.trim()
+        target_name: target.trim(),
+        backend_filter: backend || null
       });
       showSuccess(result.message);
       setDatabaseState(result.new_state);
-      setMoveFromIgnoreForm({ count: '', target: '' });
+      setMoveFromIgnoreForm({ count: '', target: '', backend: '' });
     } catch (err) {
       showError('Move from ignore failed: ' + err.message);
     }
@@ -241,7 +265,7 @@ export function DatabaseManagement() {
   };
 
   const handlePurge = async () => {
-    const { name, count } = purgeForm;
+    const { name, count, backend } = purgeForm;
     const countNum = parseInt(count, 10);
 
     if (!name.trim() || isNaN(countNum) || countNum < 1) {
@@ -249,16 +273,18 @@ export function DatabaseManagement() {
       return;
     }
 
-    if (!confirm(`Remove last ${countNum} encodings from '${name}'? This cannot be undone.`)) return;
+    const backendDesc = backend ? ` (${backend} only)` : '';
+    if (!confirm(`Remove last ${countNum} encodings from '${name}'${backendDesc}? This cannot be undone.`)) return;
 
     try {
       const result = await api.post('/api/management/purge-encodings', {
         name: name.trim(),
-        count: countNum
+        count: countNum,
+        backend_filter: backend || null
       });
       showSuccess(result.message);
       setDatabaseState(result.new_state);
-      setPurgeForm({ name: '', count: '' });
+      setPurgeForm({ name: '', count: '', backend: '' });
     } catch (err) {
       showError('Purge failed: ' + err.message);
     }
@@ -286,8 +312,16 @@ export function DatabaseManagement() {
           <>
             <div className="db-stats">
               <strong>{databaseState.people?.length || 0}</strong> people,{' '}
-              <strong>{databaseState.ignored_count || 0}</strong> ignored,{' '}
+              <strong>{databaseState.ignored_count || 0}</strong> ignored
+              {databaseState.ignored_by_backend && Object.keys(databaseState.ignored_by_backend).length > 1 && (
+                <span className="backend-detail"> ({formatBackendBreakdown(databaseState.ignored_by_backend)})</span>
+              )},{' '}
               <strong>{databaseState.processed_files_count || 0}</strong> files processed
+              {databaseState.backends_in_use?.length > 0 && (
+                <div className="backends-in-use">
+                  Backends: {databaseState.backends_in_use.join(', ')}
+                </div>
+              )}
             </div>
             <input
               type="text"
@@ -297,11 +331,17 @@ export function DatabaseManagement() {
               onChange={(e) => setSearchTerm(e.target.value)}
             />
             <div className="people-list">
-              {filteredPeople.map(person => (
-                <div key={person.name} className="person-item">
-                  {person.name} ({person.encoding_count})
-                </div>
-              ))}
+              {filteredPeople.map(person => {
+                const breakdown = formatBackendBreakdown(person.encodings_by_backend);
+                return (
+                  <div key={person.name} className="person-item">
+                    <span className="person-name">{person.name}</span>
+                    <span className="person-count">
+                      {breakdown || person.encoding_count}
+                    </span>
+                  </div>
+                );
+              })}
               {searchTerm && filteredPeople.length === 0 && (
                 <div className="person-item no-match">No matches</div>
               )}
@@ -355,7 +395,14 @@ export function DatabaseManagement() {
               value={mergeForm.target}
               onChange={(e) => setMergeForm(prev => ({ ...prev, target: e.target.value }))}
             />
-            <button className="btn-action" onClick={handleMerge}>Merge</button>
+            <div className="form-row">
+              <BackendSelect
+                value={mergeForm.backend}
+                onChange={(v) => setMergeForm(prev => ({ ...prev, backend: v }))}
+                backends={databaseState?.backends_in_use}
+              />
+              <button className="btn-action" onClick={handleMerge}>Merge</button>
+            </div>
           </div>
         </OperationForm>
 
@@ -379,7 +426,12 @@ export function DatabaseManagement() {
               list="people-list"
               placeholder="Person name"
               value={moveToIgnoreForm.name}
-              onChange={(e) => setMoveToIgnoreForm({ name: e.target.value })}
+              onChange={(e) => setMoveToIgnoreForm(prev => ({ ...prev, name: e.target.value }))}
+            />
+            <BackendSelect
+              value={moveToIgnoreForm.backend}
+              onChange={(v) => setMoveToIgnoreForm(prev => ({ ...prev, backend: v }))}
+              backends={databaseState?.backends_in_use}
             />
             <button className="btn-action" onClick={handleMoveToIgnore}>Move to Ignored</button>
           </div>
@@ -387,21 +439,30 @@ export function DatabaseManagement() {
 
         {/* 5. Move from Ignore */}
         <OperationForm title="5. Move from Ignored">
-          <div className="form-row">
-            <input
-              type="number"
-              placeholder="Count (-1 for all)"
-              min="-1"
-              value={moveFromIgnoreForm.count}
-              onChange={(e) => setMoveFromIgnoreForm(prev => ({ ...prev, count: e.target.value }))}
-            />
-            <span>→</span>
-            <input
-              placeholder="New person name"
-              value={moveFromIgnoreForm.target}
-              onChange={(e) => setMoveFromIgnoreForm(prev => ({ ...prev, target: e.target.value }))}
-            />
-            <button className="btn-action" onClick={handleMoveFromIgnore}>Move</button>
+          <div className="form-column">
+            <div className="form-row">
+              <input
+                type="number"
+                placeholder="Count (-1 for all)"
+                min="-1"
+                value={moveFromIgnoreForm.count}
+                onChange={(e) => setMoveFromIgnoreForm(prev => ({ ...prev, count: e.target.value }))}
+              />
+              <span>→</span>
+              <input
+                placeholder="New person name"
+                value={moveFromIgnoreForm.target}
+                onChange={(e) => setMoveFromIgnoreForm(prev => ({ ...prev, target: e.target.value }))}
+              />
+            </div>
+            <div className="form-row">
+              <BackendSelect
+                value={moveFromIgnoreForm.backend}
+                onChange={(v) => setMoveFromIgnoreForm(prev => ({ ...prev, backend: v }))}
+                backends={databaseState?.backends_in_use}
+              />
+              <button className="btn-action" onClick={handleMoveFromIgnore}>Move</button>
+            </div>
           </div>
         </OperationForm>
 
@@ -424,21 +485,30 @@ export function DatabaseManagement() {
 
         {/* 9. Purge */}
         <OperationForm title="9. Purge Last X Encodings">
-          <div className="form-row">
-            <input
-              list="people-list-with-ignore"
-              placeholder="Person or 'ignore'"
-              value={purgeForm.name}
-              onChange={(e) => setPurgeForm(prev => ({ ...prev, name: e.target.value }))}
-            />
-            <input
-              type="number"
-              placeholder="Count"
-              min="1"
-              value={purgeForm.count}
-              onChange={(e) => setPurgeForm(prev => ({ ...prev, count: e.target.value }))}
-            />
-            <button className="btn-danger" onClick={handlePurge}>Purge</button>
+          <div className="form-column">
+            <div className="form-row">
+              <input
+                list="people-list-with-ignore"
+                placeholder="Person or 'ignore'"
+                value={purgeForm.name}
+                onChange={(e) => setPurgeForm(prev => ({ ...prev, name: e.target.value }))}
+              />
+              <input
+                type="number"
+                placeholder="Count"
+                min="1"
+                value={purgeForm.count}
+                onChange={(e) => setPurgeForm(prev => ({ ...prev, count: e.target.value }))}
+              />
+            </div>
+            <div className="form-row">
+              <BackendSelect
+                value={purgeForm.backend}
+                onChange={(v) => setPurgeForm(prev => ({ ...prev, backend: v }))}
+                backends={databaseState?.backends_in_use}
+              />
+              <button className="btn-danger" onClick={handlePurge}>Purge</button>
+            </div>
           </div>
         </OperationForm>
       </div>
@@ -463,15 +533,28 @@ export function DatabaseManagement() {
   );
 }
 
-/**
- * OperationForm Component
- */
 function OperationForm({ title, children }) {
   return (
     <div className="section-card operation-form">
       <h5 className="subsection-title">{title}</h5>
       {children}
     </div>
+  );
+}
+
+function BackendSelect({ value, onChange, backends }) {
+  if (!backends || backends.length < 2) return null;
+  return (
+    <select
+      className="backend-select"
+      value={value}
+      onChange={(e) => onChange(e.target.value)}
+    >
+      <option value="">All backends</option>
+      {backends.map(b => (
+        <option key={b} value={b}>{b}</option>
+      ))}
+    </select>
   );
 }
 

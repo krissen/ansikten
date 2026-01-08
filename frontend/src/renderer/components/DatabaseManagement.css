@@ -101,3 +101,52 @@
 .operation-form button {
   white-space: nowrap;
 }
+
+/* Backend select dropdown */
+.backend-select {
+  padding: 6px var(--space-sm);
+  border: 1px solid var(--border-medium);
+  border-radius: var(--radius-sm);
+  font-size: var(--font-sm);
+  background: var(--bg-elevated);
+  color: var(--text-primary);
+  min-width: 120px;
+}
+
+.backend-select:focus {
+  outline: none;
+  border-color: var(--accent-primary);
+}
+
+/* Person item with backend breakdown */
+.person-item {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.person-name {
+  font-weight: 500;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.person-count {
+  color: var(--text-secondary);
+  font-size: var(--font-xs);
+  margin-left: var(--space-sm);
+  white-space: nowrap;
+}
+
+/* Backend breakdown in stats */
+.backend-detail {
+  color: var(--text-tertiary);
+  font-size: var(--font-sm);
+}
+
+.backends-in-use {
+  margin-top: var(--space-xs);
+  font-size: var(--font-xs);
+  color: var(--text-tertiary);
+}
