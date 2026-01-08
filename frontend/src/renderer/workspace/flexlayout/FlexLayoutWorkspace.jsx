@@ -396,12 +396,17 @@ export function FlexLayoutWorkspace() {
   }, [model]);
 
   // Modules that are singletons (only one instance allowed, switch to existing)
-  // These modules show content related to "the current file" or global state
+  // Most modules should be singletons - multiple instances rarely make sense
   const SINGLETON_MODULES = new Set([
-    'image-viewer',    // Shows current file being reviewed
-    'review-module',   // Shows faces for current file
-    'file-queue',      // Only one queue exists
-    'original-view'    // Shows original of current file
+    'image-viewer',
+    'review-module',
+    'file-queue',
+    'original-view',
+    'preferences',
+    'statistics-dashboard',
+    'log-viewer',
+    'database-management',
+    'theme-editor'
   ]);
 
   // Open a module tab
