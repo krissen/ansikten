@@ -305,6 +305,7 @@ class StatisticsService:
     async def get_file_stats(self, filenames: List[str]) -> Dict[str, Dict[str, Any]]:
         """
         Get face detection stats for specific files by filename.
+        Handles renamed files by looking up via file hash.
 
         Args:
             filenames: List of filenames (just the name, not path) to look up
@@ -317,34 +318,54 @@ class StatisticsService:
             return {}
 
         stats = load_attempt_log(all_files=False)
+        _, _, _, processed_files = load_database()
 
-        # Build lookup by filename (just the basename)
         filename_set = set(filenames)
         result = {}
 
+        # Build name->hash mapping from processed_files (handles renamed files)
+        name_to_hash = {}
+        for pf in processed_files:
+            if isinstance(pf, dict):
+                name = pf.get("name", "")
+                file_hash = pf.get("hash")
+                if name and file_hash:
+                    name_to_hash[name] = file_hash
+
+        # Build hash->entry index from attempt_stats
+        hash_to_entry = {}
+        filename_to_entry = {}
         for entry in stats:
             fname = Path(entry.get("filename", "")).name
-            if fname not in filename_set:
-                continue
+            file_hash = entry.get("file_hash")
+            filename_to_entry[fname] = entry
+            if file_hash:
+                hash_to_entry[file_hash] = entry
 
+        def extract_stats(entry):
             used = entry.get("used_attempt")
             attempts = entry.get("attempts", [])
             labels_per_attempt = entry.get("labels_per_attempt")
 
-            # Get face count from the used attempt
             face_count = 0
             if used is not None and attempts and used < len(attempts):
                 face_count = attempts[used].get("faces_found", 0)
 
-            # Get person names
             persons = []
             if used is not None and labels_per_attempt and used < len(labels_per_attempt):
                 persons = extract_face_labels(labels_per_attempt[used])
 
-            result[fname] = {
-                "face_count": face_count,
-                "persons": persons,
-            }
+            return {"face_count": face_count, "persons": persons}
+
+        for fname in filenames:
+            # Try direct filename match first
+            if fname in filename_to_entry:
+                result[fname] = extract_stats(filename_to_entry[fname])
+            # Fallback: look up hash from processed_files, then find in attempt_stats
+            elif fname in name_to_hash:
+                file_hash = name_to_hash[fname]
+                if file_hash in hash_to_entry:
+                    result[fname] = extract_stats(hash_to_entry[file_hash])
 
         return result
 
