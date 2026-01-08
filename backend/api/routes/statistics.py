@@ -209,7 +209,8 @@ async def get_processed_files(n: int = 200, source: Optional[str] = None):
 
 class FileStatsRequest(BaseModel):
     """Request body for file stats lookup"""
-    filenames: List[str]
+    filenames: Optional[List[str]] = None
+    filepaths: Optional[List[str]] = None
 
 
 class FileStatInfo(BaseModel):
@@ -222,12 +223,16 @@ class FileStatInfo(BaseModel):
 async def get_file_stats(request: FileStatsRequest):
     """
     Get face detection stats for specific files.
-
-    Useful for showing face counts in file queue without re-processing.
+    
+    Accepts either filenames or filepaths. Filepaths are preferred as they
+    allow hash-based lookup which survives file renames.
     """
     try:
-        logger.info(f"[Statistics] Getting stats for {len(request.filenames)} files")
-        result = await statistics_service.get_file_stats(request.filenames)
+        filepaths = request.filepaths or []
+        filenames = request.filenames or []
+        total = len(filepaths) + len(filenames)
+        logger.info(f"[Statistics] Getting stats for {total} files")
+        result = await statistics_service.get_file_stats(filenames, filepaths)
         return result
 
     except Exception as e:

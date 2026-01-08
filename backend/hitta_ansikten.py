@@ -1637,7 +1637,7 @@ def preprocess_image(
             "scale_label": setting["scale_label"],
             "scale_px": setting["scale_px"],
             "time_seconds": round(elapsed, 3),
-            "faces_found": len(face_encodings),
+            "face_count": len(face_encodings),
             "face_locations": face_locations,
             "face_encodings": face_encodings,
             "preview_labels": preview_labels,
@@ -1695,7 +1695,7 @@ def main_process_image_loop(image_path, known_faces, ignored_faces, hard_negativ
         "scale_label": res["scale_label"],
         "scale_px": res["scale_px"],
         "time_seconds": elapsed,
-        "faces_found": len(face_encodings),
+        "face_count": len(face_encodings),
     })
 
     import shutil
@@ -2235,7 +2235,7 @@ def preprocess_worker(
                     )
                     preprocessed_queue.put((path, cached[:]))
                     # Stop processing this image if faces were found
-                    if cached[-1]["faces_found"] > 0:
+                    if cached[-1]["face_count"] > 0:
                         active_paths.remove(path)
     except Exception as e:
         logging.error(f"[PREPROCESS worker][ERROR] {e}")
