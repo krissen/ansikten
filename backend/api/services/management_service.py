@@ -21,6 +21,54 @@ from faceid_db import load_attempt_log, load_database, save_database
 logger = logging.getLogger(__name__)
 
 
+def _count_encodings_by_backend(encodings: List) -> Dict[str, int]:
+    """
+    Count encodings grouped by backend.
+
+    Args:
+        encodings: List of encoding entries (dicts or numpy arrays)
+
+    Returns:
+        Dict mapping backend name to count, e.g. {"insightface": 5, "dlib": 3}
+    """
+    counts = {}
+    for entry in encodings:
+        if isinstance(entry, dict):
+            backend = entry.get("backend", "dlib")
+        else:
+            # Legacy numpy array - assume dlib
+            backend = "dlib"
+        counts[backend] = counts.get(backend, 0) + 1
+    return counts
+
+
+def _filter_encodings_by_backend(encodings: List, backend: Optional[str]) -> List:
+    """
+    Filter encodings to only include those from specified backend.
+
+    Args:
+        encodings: List of encoding entries
+        backend: Backend name to filter by, or None to include all
+
+    Returns:
+        Filtered list of encodings
+    """
+    if backend is None:
+        return encodings
+
+    filtered = []
+    for entry in encodings:
+        if isinstance(entry, dict):
+            entry_backend = entry.get("backend", "dlib")
+        else:
+            entry_backend = "dlib"
+
+        if entry_backend == backend:
+            filtered.append(entry)
+
+    return filtered
+
+
 class ManagementService:
     """Service for database management operations"""
 
@@ -54,26 +102,41 @@ class ManagementService:
 
     async def get_database_state(self) -> Dict[str, Any]:
         """
-        Get current database state
+        Get current database state with per-backend encoding counts.
 
-        Returns:
-        - people: List of {name, encoding_count}
-        - ignored_count: Number of ignored encodings
+        Returns dict with:
+        - people: List of {name, encoding_count, encodings_by_backend}
+        - ignored_count: Total ignored encodings
+        - ignored_by_backend: Dict of backend -> count
         - hard_negatives_count: Number of hard negative examples
         - processed_files_count: Number of processed files
+        - backends_in_use: List of backend names with data
         """
         self.reload_database()
 
-        people = [
-            {"name": name, "encoding_count": len(encodings)}
-            for name, encodings in sorted(self.known_faces.items())
-        ]
+        # Collect all backends in use
+        all_backends = set()
+
+        people = []
+        for name, encodings in sorted(self.known_faces.items()):
+            by_backend = _count_encodings_by_backend(encodings)
+            all_backends.update(by_backend.keys())
+            people.append({
+                "name": name,
+                "encoding_count": len(encodings),
+                "encodings_by_backend": by_backend
+            })
+
+        ignored_by_backend = _count_encodings_by_backend(self.ignored_faces)
+        all_backends.update(ignored_by_backend.keys())
 
         return {
             "people": people,
             "ignored_count": len(self.ignored_faces),
+            "ignored_by_backend": ignored_by_backend,
             "hard_negatives_count": sum(len(v) for v in self.hard_negatives.values()),
             "processed_files_count": len(self.processed_files),
+            "backends_in_use": sorted(all_backends),
         }
 
     async def rename_person(self, old_name: str, new_name: str) -> Dict[str, Any]:
@@ -107,51 +170,58 @@ class ManagementService:
             "new_state": await self.get_database_state(),
         }
 
-    async def merge_people(self, source_names: List[str], target_name: str) -> Dict[str, Any]:
+    async def merge_people(
+        self,
+        source_names: List[str],
+        target_name: str,
+        backend_filter: Optional[str] = None
+    ) -> Dict[str, Any]:
         """
-        Merge multiple people into target name
+        Merge multiple people into target name.
 
         Args:
         - source_names: List of person names to merge
         - target_name: Result name (can be one of source_names or new name)
+        - backend_filter: If set, only merge encodings from this backend
 
-        Deduplicates encodings by encoding_hash to avoid duplicates.
+        Deduplicates encodings by encoding_hash. Returns warning if mixing backends.
         """
         self._reload_from_disk()
 
-        # Validate all source names exist
         for name in source_names:
             if name not in self.known_faces:
                 raise ValueError(f"Person '{name}' not found")
 
-        # Collect all encodings
         encodings = []
+        backends_involved = set()
 
-        # If target already exists, include its encodings
         if target_name in self.known_faces:
-            encodings.extend(self.known_faces[target_name])
+            target_encodings = self.known_faces[target_name]
+            if backend_filter:
+                target_encodings = _filter_encodings_by_backend(target_encodings, backend_filter)
+            encodings.extend(target_encodings)
+            backends_involved.update(_count_encodings_by_backend(target_encodings).keys())
 
-        # Add encodings from all source names
         for name in source_names:
             if name in self.known_faces:
-                encodings.extend(self.known_faces[name])
+                source_encodings = self.known_faces[name]
+                if backend_filter:
+                    source_encodings = _filter_encodings_by_backend(source_encodings, backend_filter)
+                encodings.extend(source_encodings)
+                backends_involved.update(_count_encodings_by_backend(source_encodings).keys())
 
-        # Deduplicate by encoding_hash
         seen = set()
         encodings_unique = []
 
         for enc in encodings:
-            # Get encoding hash for deduplication
             if isinstance(enc, dict):
                 enc_hash = enc.get('encoding_hash')
             else:
-                # Legacy numpy array - compute hash
                 try:
                     enc_hash = hashlib.sha1(enc.tobytes()).hexdigest()
                 except (AttributeError, ValueError):
                     enc_hash = None
 
-            # Skip if we've seen this exact encoding before
             if enc_hash and enc_hash in seen:
                 continue
 
@@ -159,21 +229,37 @@ class ManagementService:
                 seen.add(enc_hash)
             encodings_unique.append(enc)
 
-        # Set target encodings
+        if backend_filter:
+            existing_other_backend = _filter_encodings_by_backend(
+                self.known_faces.get(target_name, []),
+                None
+            )
+            existing_other_backend = [
+                e for e in existing_other_backend
+                if (e.get("backend", "dlib") if isinstance(e, dict) else "dlib") != backend_filter
+            ]
+            encodings_unique = existing_other_backend + encodings_unique
+
         self.known_faces[target_name] = encodings_unique
 
-        # Remove source names (except target if it was in sources)
         for name in source_names:
             if name != target_name and name in self.known_faces:
                 del self.known_faces[name]
 
         self.save()
 
+        final_by_backend = _count_encodings_by_backend(encodings_unique)
+        warning = None
+        if len(backends_involved) > 1:
+            warning = f"Merged encodings from multiple backends: {', '.join(sorted(backends_involved))}"
+
         logger.info(f"[ManagementService] Merged {source_names} into '{target_name}' ({len(encodings_unique)} unique encodings)")
 
         return {
             "status": "success",
             "message": f"Merged {len(source_names)} people into '{target_name}' ({len(encodings_unique)} unique encodings)",
+            "warning": warning,
+            "encodings_by_backend": final_by_backend,
             "new_state": await self.get_database_state(),
         }
 
@@ -204,72 +290,98 @@ class ManagementService:
             "new_state": await self.get_database_state(),
         }
 
-    async def move_to_ignore(self, name: str) -> Dict[str, Any]:
+    async def move_to_ignore(
+        self,
+        name: str,
+        backend_filter: Optional[str] = None
+    ) -> Dict[str, Any]:
         """
-        Move person's encodings to ignored list
+        Move person's encodings to ignored list.
 
         Args:
         - name: Person name to move to ignored
-
-        Raises:
-        - ValueError if person doesn't exist
+        - backend_filter: If set, only move encodings from this backend
         """
         self._reload_from_disk()
 
         if name not in self.known_faces:
             raise ValueError(f"Person '{name}' not found")
 
-        encoding_count = len(self.known_faces[name])
-        self.ignored_faces.extend(self.known_faces[name])
-        del self.known_faces[name]
+        all_encodings = self.known_faces[name]
+        to_move = _filter_encodings_by_backend(all_encodings, backend_filter)
+
+        if not to_move:
+            backend_desc = backend_filter or "any backend"
+            raise ValueError(f"No encodings for '{name}' from {backend_desc}")
+
+        self.ignored_faces.extend(to_move)
+
+        if backend_filter:
+            remaining = [e for e in all_encodings if e not in to_move]
+            if remaining:
+                self.known_faces[name] = remaining
+            else:
+                del self.known_faces[name]
+        else:
+            del self.known_faces[name]
+
         self.save()
 
-        logger.info(f"[ManagementService] Moved '{name}' to ignored ({encoding_count} encodings)")
+        moved_by_backend = _count_encodings_by_backend(to_move)
+        logger.info(f"[ManagementService] Moved '{name}' to ignored ({len(to_move)} encodings)")
 
         return {
             "status": "success",
-            "message": f"Moved '{name}' to ignored ({encoding_count} encodings)",
+            "message": f"Moved {len(to_move)} encodings from '{name}' to ignored",
+            "moved_by_backend": moved_by_backend,
             "new_state": await self.get_database_state(),
         }
 
-    async def move_from_ignore(self, count: int, target_name: str) -> Dict[str, Any]:
+    async def move_from_ignore(
+        self,
+        count: int,
+        target_name: str,
+        backend_filter: Optional[str] = None
+    ) -> Dict[str, Any]:
         """
-        Move encodings from ignored list to person
+        Move encodings from ignored list to person.
 
         Args:
-        - count: Number of encodings to move (or -1 for all)
+        - count: Number of encodings to move (or -1 for all matching)
         - target_name: Person name to receive encodings
-
-        Raises:
-        - ValueError if count is invalid
+        - backend_filter: If set, only move encodings from this backend
         """
         self._reload_from_disk()
 
+        available = _filter_encodings_by_backend(self.ignored_faces, backend_filter)
+
         if count == -1:
-            count = len(self.ignored_faces)
+            count = len(available)
 
         if count < 1:
             raise ValueError("Count must be at least 1 (or -1 for all)")
 
-        if count > len(self.ignored_faces):
-            raise ValueError(f"Only {len(self.ignored_faces)} ignored encodings available")
+        if count > len(available):
+            backend_desc = backend_filter or "any backend"
+            raise ValueError(f"Only {len(available)} ignored encodings available from {backend_desc}")
 
-        # Get encodings to move
-        to_move = self.ignored_faces[:count]
-        self.ignored_faces = self.ignored_faces[count:]
+        to_move = available[:count]
+        to_move_set = set(id(e) for e in to_move)
+        self.ignored_faces = [e for e in self.ignored_faces if id(e) not in to_move_set]
 
-        # Add to target person
         if target_name not in self.known_faces:
             self.known_faces[target_name] = []
         self.known_faces[target_name].extend(to_move)
 
         self.save()
 
+        moved_by_backend = _count_encodings_by_backend(to_move)
         logger.info(f"[ManagementService] Moved {count} encodings from ignored to '{target_name}'")
 
         return {
             "status": "success",
             "message": f"Moved {count} encodings from ignored to '{target_name}'",
+            "moved_by_backend": moved_by_backend,
             "new_state": await self.get_database_state(),
         }
 
@@ -346,16 +458,19 @@ class ManagementService:
             "new_state": await self.get_database_state(),
         }
 
-    async def purge_encodings(self, name: str, count: int) -> Dict[str, Any]:
+    async def purge_encodings(
+        self,
+        name: str,
+        count: int,
+        backend_filter: Optional[str] = None
+    ) -> Dict[str, Any]:
         """
-        Remove last X encodings from person or ignore list
+        Remove last X encodings from person or ignore list.
 
         Args:
         - name: Person name or "ignore"
         - count: Number of encodings to remove from end
-
-        Raises:
-        - ValueError if name not found or count invalid
+        - backend_filter: If set, only purge encodings from this backend
         """
         self._reload_from_disk()
 
@@ -363,10 +478,22 @@ class ManagementService:
             raise ValueError("Count must be at least 1")
 
         if name == "ignore":
-            if count > len(self.ignored_faces):
-                raise ValueError(f"Only {len(self.ignored_faces)} ignored encodings available")
+            if backend_filter:
+                matching_indices = [
+                    i for i, e in enumerate(self.ignored_faces)
+                    if (e.get("backend", "dlib") if isinstance(e, dict) else "dlib") == backend_filter
+                ]
+                if count > len(matching_indices):
+                    raise ValueError(f"Only {len(matching_indices)} ignored encodings from {backend_filter}")
+                to_remove = set(matching_indices[-count:])
+                purged_by_backend = {backend_filter: count}
+            else:
+                if count > len(self.ignored_faces):
+                    raise ValueError(f"Only {len(self.ignored_faces)} ignored encodings available")
+                to_remove = set(range(len(self.ignored_faces) - count, len(self.ignored_faces)))
+                purged_by_backend = _count_encodings_by_backend(self.ignored_faces[-count:])
 
-            self.ignored_faces = self.ignored_faces[:-count] if count < len(self.ignored_faces) else []
+            self.ignored_faces = [e for i, e in enumerate(self.ignored_faces) if i not in to_remove]
             self.save()
 
             logger.info(f"[ManagementService] Purged {count} encodings from ignored")
@@ -374,14 +501,29 @@ class ManagementService:
             return {
                 "status": "success",
                 "message": f"Purged {count} encodings from ignored",
+                "purged_by_backend": purged_by_backend,
                 "new_state": await self.get_database_state(),
             }
 
         elif name in self.known_faces:
-            if count > len(self.known_faces[name]):
-                raise ValueError(f"Only {len(self.known_faces[name])} encodings available for '{name}'")
+            encodings = self.known_faces[name]
 
-            self.known_faces[name] = self.known_faces[name][:-count] if count < len(self.known_faces[name]) else []
+            if backend_filter:
+                matching_indices = [
+                    i for i, e in enumerate(encodings)
+                    if (e.get("backend", "dlib") if isinstance(e, dict) else "dlib") == backend_filter
+                ]
+                if count > len(matching_indices):
+                    raise ValueError(f"Only {len(matching_indices)} encodings from {backend_filter} for '{name}'")
+                to_remove = set(matching_indices[-count:])
+                purged_by_backend = {backend_filter: count}
+            else:
+                if count > len(encodings):
+                    raise ValueError(f"Only {len(encodings)} encodings available for '{name}'")
+                to_remove = set(range(len(encodings) - count, len(encodings)))
+                purged_by_backend = _count_encodings_by_backend(encodings[-count:])
+
+            self.known_faces[name] = [e for i, e in enumerate(encodings) if i not in to_remove]
             self.save()
 
             logger.info(f"[ManagementService] Purged {count} encodings from '{name}'")
@@ -389,6 +531,7 @@ class ManagementService:
             return {
                 "status": "success",
                 "message": f"Purged {count} encodings from '{name}'",
+                "purged_by_backend": purged_by_backend,
                 "new_state": await self.get_database_state(),
             }
 

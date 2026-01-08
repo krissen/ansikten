@@ -21,17 +21,18 @@ router = APIRouter()
 
 
 class PersonEntry(BaseModel):
-    """Person with encoding count"""
     name: str
     encoding_count: int
+    encodings_by_backend: Optional[dict] = None
 
 
 class DatabaseState(BaseModel):
-    """Current database state"""
     people: List[PersonEntry]
     ignored_count: int
+    ignored_by_backend: Optional[dict] = None
     hard_negatives_count: int
     processed_files_count: int
+    backends_in_use: Optional[List[str]] = None
 
 
 class RenamePersonRequest(BaseModel):
@@ -41,42 +42,43 @@ class RenamePersonRequest(BaseModel):
 
 
 class MergePeopleRequest(BaseModel):
-    """Request to merge multiple people"""
     source_names: List[str]
     target_name: str
+    backend_filter: Optional[str] = None
 
 
 class DeletePersonRequest(BaseModel):
-    """Request to delete person"""
     name: str
 
 
 class MoveToIgnoreRequest(BaseModel):
-    """Request to move person to ignored"""
     name: str
+    backend_filter: Optional[str] = None
 
 
 class MoveFromIgnoreRequest(BaseModel):
-    """Request to move encodings from ignored"""
-    count: int  # -1 for all
+    count: int
     target_name: str
+    backend_filter: Optional[str] = None
 
 
 class UndoFileRequest(BaseModel):
-    """Request to undo file processing"""
-    filename_pattern: str  # Exact name or glob
+    filename_pattern: str
 
 
 class PurgeEncodingsRequest(BaseModel):
-    """Request to purge encodings"""
-    name: str  # Person name or "ignore"
+    name: str
     count: int
+    backend_filter: Optional[str] = None
 
 
 class OperationResponse(BaseModel):
-    """Response from management operation"""
     status: str
     message: str
+    warning: Optional[str] = None
+    encodings_by_backend: Optional[dict] = None
+    moved_by_backend: Optional[dict] = None
+    purged_by_backend: Optional[dict] = None
     new_state: Optional[DatabaseState] = None
     files_undone: Optional[List[str]] = None
 
@@ -169,15 +171,20 @@ async def rename_person(request: RenamePersonRequest):
 @router.post("/management/merge-people", response_model=OperationResponse)
 async def merge_people(request: MergePeopleRequest):
     """
-    Merge multiple people into target name
+    Merge multiple people into target name.
 
     Deduplicates encodings by encoding_hash.
     Target name can be one of source_names or a new name.
-    Returns new database state on success.
+    Optional backend_filter to only merge encodings from specific backend.
+    Returns warning if mixing backends.
     """
     try:
         logger.info(f"[Management] Merging {request.source_names} into '{request.target_name}'")
-        result = await management_service.merge_people(request.source_names, request.target_name)
+        result = await management_service.merge_people(
+            request.source_names,
+            request.target_name,
+            backend_filter=request.backend_filter
+        )
         return OperationResponse(**result)
 
     except ValueError as e:
@@ -212,14 +219,17 @@ async def delete_person(request: DeletePersonRequest):
 @router.post("/management/move-to-ignore", response_model=OperationResponse)
 async def move_to_ignore(request: MoveToIgnoreRequest):
     """
-    Move person's encodings to ignored list
+    Move person's encodings to ignored list.
 
     Removes person from database and adds their encodings to ignored.
-    Returns new database state on success.
+    Optional backend_filter to only move encodings from specific backend.
     """
     try:
         logger.info(f"[Management] Moving '{request.name}' to ignored")
-        result = await management_service.move_to_ignore(request.name)
+        result = await management_service.move_to_ignore(
+            request.name,
+            backend_filter=request.backend_filter
+        )
         return OperationResponse(**result)
 
     except ValueError as e:
@@ -233,17 +243,20 @@ async def move_to_ignore(request: MoveToIgnoreRequest):
 @router.post("/management/move-from-ignore", response_model=OperationResponse)
 async def move_from_ignore(request: MoveFromIgnoreRequest):
     """
-    Move encodings from ignored to person
+    Move encodings from ignored to person.
 
     Args:
-    - count: Number to move (or -1 for all)
+    - count: Number to move (or -1 for all matching)
     - target_name: Person name to receive encodings
-
-    Returns new database state on success.
+    - backend_filter: Optional, only move encodings from this backend
     """
     try:
         logger.info(f"[Management] Moving {request.count} from ignored to '{request.target_name}'")
-        result = await management_service.move_from_ignore(request.count, request.target_name)
+        result = await management_service.move_from_ignore(
+            request.count,
+            request.target_name,
+            backend_filter=request.backend_filter
+        )
         return OperationResponse(**result)
 
     except ValueError as e:
@@ -279,17 +292,20 @@ async def undo_file(request: UndoFileRequest):
 @router.post("/management/purge-encodings", response_model=OperationResponse)
 async def purge_encodings(request: PurgeEncodingsRequest):
     """
-    Remove last X encodings from person or ignore
+    Remove last X encodings from person or ignore.
 
     Args:
     - name: Person name or "ignore"
     - count: Number to remove from end
-
-    Returns new database state on success.
+    - backend_filter: Optional, only purge encodings from this backend
     """
     try:
         logger.info(f"[Management] Purging {request.count} encodings from '{request.name}'")
-        result = await management_service.purge_encodings(request.name, request.count)
+        result = await management_service.purge_encodings(
+            request.name,
+            request.count,
+            backend_filter=request.backend_filter
+        )
         return OperationResponse(**result)
 
     except ValueError as e:
