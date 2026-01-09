@@ -144,7 +144,7 @@ def _cluster_filter(
 def _mahalanobis_outlier_filter(
     encodings: List[np.ndarray],
     threshold: float = DEFAULT_MAHALANOBIS_THRESHOLD
-) -> Tuple[np.ndarray, np.ndarray]:
+) -> Tuple[np.ndarray, np.ndarray, bool]:
     """
     Filter encodings using Mahalanobis distance.
 
@@ -157,7 +157,10 @@ def _mahalanobis_outlier_filter(
         threshold: Maximum Mahalanobis distance to keep
 
     Returns:
-        mask (True=keep) and distances array
+        (mask, distances, fell_back_to_std)
+        - mask: boolean array (True=keep)
+        - distances: distance array
+        - fell_back_to_std: True if fallback to std filter was used
     """
     arr = np.stack(encodings)
     n_samples, n_features = arr.shape
@@ -168,7 +171,8 @@ def _mahalanobis_outlier_filter(
             f"Mahalanobis: Not enough samples ({n_samples}) for {n_features} features. "
             f"Falling back to std filter."
         )
-        return _std_outlier_filter(encodings, DEFAULT_STD_THRESHOLD)
+        mask, distances = _std_outlier_filter(encodings, DEFAULT_STD_THRESHOLD)
+        return mask, distances, True  # fell_back_to_std = True
 
     mean = np.mean(arr, axis=0)
 
@@ -190,7 +194,7 @@ def _mahalanobis_outlier_filter(
     distances = np.sqrt(np.sum(diff @ cov_inv * diff, axis=1))
 
     mask = distances < threshold
-    return mask, distances
+    return mask, distances, False  # fell_back_to_std = False
 
 
 def _compute_stats(distances: np.ndarray) -> Dict[str, float]:
@@ -365,17 +369,18 @@ class RefinementService:
                 mask, distances = _cluster_filter(encodings, cluster_dist, cluster_min)
                 reason = "cluster_outlier"
             elif mode == "mahalanobis":
-                mask, distances = _mahalanobis_outlier_filter(encodings, mahalanobis_threshold)
-                reason = "mahalanobis_outlier"
+                mask, distances, fell_back = _mahalanobis_outlier_filter(encodings, mahalanobis_threshold)
+                reason = "std_outlier" if fell_back else "mahalanobis_outlier"
             else:  # std
                 mask, distances = _std_outlier_filter(encodings, std_threshold)
                 reason = "std_outlier"
+                fell_back = False
 
             remove_count = np.count_nonzero(~mask)
             if remove_count > 0:
                 affected_people += 1
                 remove_indices = [indices[i] for i in range(len(mask)) if not mask[i]]
-                preview_results.append({
+                result_entry = {
                     "person": name,
                     "total": len(encodings),
                     "keep": int(np.count_nonzero(mask)),
@@ -383,8 +388,21 @@ class RefinementService:
                     "remove_indices": remove_indices,
                     "reason": reason,
                     "stats": _compute_stats(distances) if len(distances) > 0 and distances.any() else None
-                })
+                }
+                if mode == "mahalanobis" and fell_back:
+                    result_entry["fallback"] = True
+                preview_results.append(result_entry)
                 total_remove += remove_count
+
+        # Build warnings list
+        warnings = []
+        if mode == "mahalanobis":
+            fallback_count = sum(1 for r in preview_results if r.get("fallback"))
+            if fallback_count > 0:
+                warnings.append(
+                    f"Mahalanobis kräver >512 encodings per person. "
+                    f"{fallback_count} person(er) använder std-filter istället."
+                )
 
         return {
             "preview": preview_results,
@@ -392,7 +410,8 @@ class RefinementService:
                 "total_people": len(people_to_check),
                 "affected_people": affected_people,
                 "total_remove": total_remove
-            }
+            },
+            "warnings": warnings
         }
 
     async def apply(
@@ -451,7 +470,7 @@ class RefinementService:
             if mode == "cluster":
                 mask, _ = _cluster_filter(encodings, cluster_dist, cluster_min)
             elif mode == "mahalanobis":
-                mask, _ = _mahalanobis_outlier_filter(encodings, mahalanobis_threshold)
+                mask, _, _ = _mahalanobis_outlier_filter(encodings, mahalanobis_threshold)
             else:  # std
                 mask, _ = _std_outlier_filter(encodings, std_threshold)
 

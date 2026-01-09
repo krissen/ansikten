@@ -352,6 +352,16 @@ class StatisticsService:
 
             return {"face_count": face_count, "persons": persons}
 
+        # Build name_to_hash mapping first (needed for fallback)
+        _, _, _, processed_files = load_database()
+        name_to_hash = {}
+        for pf in processed_files:
+            if isinstance(pf, dict):
+                name = pf.get("name", "")
+                file_hash = pf.get("hash")
+                if name and file_hash:
+                    name_to_hash[name] = file_hash
+
         for fpath in filepaths:
             p = Path(fpath)
             fname = p.name
@@ -363,16 +373,14 @@ class StatisticsService:
                 elif file_hash:
                     logger.debug(f"[get_file_stats] {fname}: hash {file_hash[:8]} not found")
             else:
-                logger.debug(f"[get_file_stats] {fname}: file not found at {fpath}")
-
-        _, _, _, processed_files = load_database()
-        name_to_hash = {}
-        for pf in processed_files:
-            if isinstance(pf, dict):
-                name = pf.get("name", "")
-                file_hash = pf.get("hash")
-                if name and file_hash:
-                    name_to_hash[name] = file_hash
+                # File doesn't exist - try fallback via name_to_hash
+                if fname in name_to_hash:
+                    file_hash = name_to_hash[fname]
+                    if file_hash in hash_to_entry:
+                        result[fname] = extract_stats(hash_to_entry[file_hash])
+                        logger.debug(f"[get_file_stats] {fname}: fallback via name_to_hash")
+                        continue
+                logger.debug(f"[get_file_stats] {fname}: file not found at {fpath}, no fallback")
 
         for fname in filenames:
             if fname in result:

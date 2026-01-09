@@ -374,6 +374,13 @@ export function RefineFacesModule() {
         {preview && preview.preview.length > 0 && (
           <div className="section-card preview-results">
             <h4 className="section-title">Förhandsgranskning</h4>
+            {preview.warnings && preview.warnings.length > 0 && (
+              <div className="preview-warnings">
+                {preview.warnings.map((warning, idx) => (
+                  <div key={idx} className="warning-message">{warning}</div>
+                ))}
+              </div>
+            )}
             <div className="preview-table-container">
               <table className="preview-table">
                 <thead>

@@ -160,51 +160,67 @@ class PreprocessingCache:
     def processing_slot(self, file_hash: str, operation: str = "processing"):
         """
         Context manager for exclusive processing of a file hash.
-        
+
         If another thread is already processing this hash, waits for it to complete
         and then checks if the result is cached (avoiding duplicate work).
-        
+
+        Uses timestamp-based stale detection: only considers a slot "stuck" if it's
+        been running for > 2x PROCESSING_TIMEOUT (to avoid killing slow but valid work).
+
         Yields: (should_process, attempt) tuple
           - should_process: True if this thread should do the work, False if cached
           - attempt: Current attempt number (1-based, for retry logic)
         """
         attempt = 0
-        
+        STALE_THRESHOLD = self.PROCESSING_TIMEOUT * 2  # Consider stale after 2x timeout
+
         while attempt < self.MAX_RETRIES:
             attempt += 1
-            
+
             with self._lock:
                 if file_hash in self._in_progress:
-                    event = self._in_progress[file_hash]
+                    event, start_time = self._in_progress[file_hash]
                 else:
-                    self._in_progress[file_hash] = threading.Event()
+                    # Store (event, start_time) tuple
+                    self._in_progress[file_hash] = (threading.Event(), time.time())
                     event = None
-            
+                    start_time = None
+
             if event:
                 logger.debug(f"[PreprocessingCache] Waiting for {operation} on {file_hash[:8]}...")
                 completed = event.wait(timeout=self.PROCESSING_TIMEOUT)
-                
+
                 if not completed:
-                    logger.warning(f"[PreprocessingCache] Timeout waiting for {file_hash[:8]}, retrying (attempt {attempt})")
-                    # Clean up stuck event so next attempt can acquire fresh slot
-                    with self._lock:
-                        current = self._in_progress.get(file_hash)
-                        if current is event:
-                            del self._in_progress[file_hash]
+                    # Check if the slot is truly stale (running > 2x timeout)
+                    elapsed = time.time() - start_time
+                    if elapsed > STALE_THRESHOLD:
+                        logger.warning(
+                            f"[PreprocessingCache] Stale slot for {file_hash[:8]} "
+                            f"(running {elapsed:.1f}s), cleaning up (attempt {attempt})"
+                        )
+                        with self._lock:
+                            current = self._in_progress.get(file_hash)
+                            if current and current[0] is event:
+                                del self._in_progress[file_hash]
+                    else:
+                        logger.debug(
+                            f"[PreprocessingCache] Timeout for {file_hash[:8]} but not stale "
+                            f"({elapsed:.1f}s < {STALE_THRESHOLD:.1f}s), waiting more"
+                        )
                     continue
-                
+
                 yield (False, attempt)
                 return
-            
+
             try:
                 yield (True, attempt)
                 return
             finally:
                 with self._lock:
                     if file_hash in self._in_progress:
-                        self._in_progress[file_hash].set()
+                        self._in_progress[file_hash][0].set()
                         del self._in_progress[file_hash]
-        
+
         logger.error(f"[PreprocessingCache] Max retries ({self.MAX_RETRIES}) exceeded for {file_hash[:8]}")
         yield (False, attempt)
 
