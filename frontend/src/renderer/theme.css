@@ -61,6 +61,10 @@
   --shadow-sm: 0 1px 3px rgba(26, 16, 8, 0.25);
   --shadow-md: 0 2px 6px rgba(26, 16, 8, 0.30);
   --shadow-lg: 0 4px 12px rgba(26, 16, 8, 0.35);
+
+  /* Component-specific */
+  --toast-opacity: 0.75;
+  --dropdown-selected-bg: var(--color-info-bg);
 }
 
 /* ===========================
@@ -119,6 +123,10 @@
   /* CRT effects (optional glow) */
   --glow-text: 0 0 2px currentColor;
   --glow-accent: 0 0 8px var(--accent-primary);
+
+  /* Component-specific */
+  --toast-opacity: 0.75;
+  --dropdown-selected-bg: #454545;  /* Neutral gray for contrast with sky blue text */
 }
 
 /* ===========================
@@ -165,7 +173,7 @@
   --z-tooltip: 2000;
 
   /* Opacity Values */
-  --toast-opacity: 0.94;
+  --toast-opacity: 0.75;
   --overlay-opacity: 0.7;
 }
 

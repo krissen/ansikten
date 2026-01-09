@@ -184,6 +184,8 @@ export function FileQueueModule() {
   const [showPreviewNames, setShowPreviewNames] = useState(false);
   const [previewData, setPreviewData] = useState(null); // { path: { newName, status, persons } }
   const [renameInProgress, setRenameInProgress] = useState(false);
+  const renameInProgressRef = useRef(false);
+  renameInProgressRef.current = renameInProgress;
 
   // Toast wrapper that applies duration preference
   // Base durations are longer now: success=4s, info=4s, warning=5s, error=6s
@@ -504,7 +506,13 @@ export function FileQueueModule() {
 
       const fileName = filePath.split('/').pop();
       setQueue(prev => prev.filter(item => item.filePath !== filePath));
-      showToast(`Removed deleted file: ${fileName}`, 'info', 3000);
+
+      // Only show toast if not renaming (rename moves files, triggering delete events)
+      if (renameInProgressRef.current) {
+        debug('FileQueue', 'File removed during rename (no toast):', fileName);
+      } else {
+        showToast(`Removed deleted file: ${fileName}`, 'info', 3000);
+      }
     };
 
     const unsubscribe = window.bildvisareAPI?.onFileDeleted(handleFileDeleted);
@@ -1351,6 +1359,29 @@ export function FileQueueModule() {
           }
           return item;
         }));
+
+        // Update preprocessingManager state for renamed files
+        if (preprocessingManager.current) {
+          for (const [oldPath, newPath] of Object.entries(renamedMap)) {
+            const cachedData = preprocessingManager.current.getCachedData(oldPath);
+            if (cachedData) {
+              preprocessingManager.current.removeFile(oldPath);
+              preprocessingManager.current.completed.set(newPath, cachedData);
+            }
+          }
+        }
+
+        // Update React preprocessingStatus state
+        setPreprocessingStatus(prev => {
+          const updated = { ...prev };
+          for (const [oldPath, newPath] of Object.entries(renamedMap)) {
+            if (updated[oldPath]) {
+              updated[newPath] = updated[oldPath];
+              delete updated[oldPath];
+            }
+          }
+          return updated;
+        });
       }
 
       // Refresh preview data to get updated info for renamed files

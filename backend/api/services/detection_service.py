@@ -124,8 +124,8 @@ class DetectionService:
             img = Image.open(image_path)
             return np.array(img.convert('RGB'))
 
-    def _detect_and_match_faces(self, rgb: np.ndarray, max_dimension: int = 4500) -> List[Dict[str, Any]]:
-        """Detect faces and match against database"""
+    def _detect_and_match_faces(self, rgb: np.ndarray, max_dimension: int = 4500) -> Tuple[List[Dict[str, Any]], Dict[str, Any]]:
+        """Detect faces and match against database. Returns (faces, detection_meta)."""
         import cv2
 
         # Resize if needed (optimize performance)
@@ -136,9 +136,20 @@ class DetectionService:
             new_height = int(height * scale)
             rgb_resized = cv2.resize(rgb, (new_width, new_height), interpolation=cv2.INTER_AREA)
             scale_factor = 1 / scale
+            detection_px = max(new_width, new_height)
+            scale_label = "mid"  # Scaled to ~4500px, matching CLI "mid" level
         else:
             rgb_resized = rgb
             scale_factor = 1.0
+            detection_px = max(width, height)
+            scale_label = "full"
+
+        # Build detection metadata
+        detection_meta = {
+            "scale_label": scale_label,
+            "scale_px": detection_px,
+            "original_size": (width, height),
+        }
 
         # Detect faces using configured backend
         detection_model = self.config.get('detection_model', 'hog')
@@ -152,7 +163,7 @@ class DetectionService:
         logger.info(f"[DetectionService] Detected {len(face_locations)} faces")
 
         if not face_locations:
-            return []
+            return [], detection_meta
 
         # Match against database
         results = []
@@ -212,7 +223,7 @@ class DetectionService:
                 "encoding_hash": full_encoding_hash
             })
 
-        return results
+        return results, detection_meta
 
     def _match_encoding(self, encoding: np.ndarray) -> Tuple[Optional[str], Optional[float]]:
         """Match encoding against known faces database"""
@@ -398,7 +409,7 @@ class DetectionService:
         rgb = self._load_image(path)
 
         # Detect and match faces
-        faces = self._detect_and_match_faces(rgb)
+        faces, detection_meta = self._detect_and_match_faces(rgb)
 
         # Build result
         processing_time = (time.time() - start_time) * 1000  # milliseconds
@@ -406,7 +417,8 @@ class DetectionService:
             "faces": faces,
             "processing_time_ms": processing_time,
             "cached": False,
-            "file_hash": file_hash  # Include hash for reuse in mark-review-complete
+            "file_hash": file_hash,  # Include hash for reuse in mark-review-complete
+            "detection_meta": detection_meta  # Include scale info for statistics
         }
 
         # Cache result
@@ -696,14 +708,25 @@ class DetectionService:
                 "hash": face.get('encoding_hash', '')
             })
 
+        # Get detection metadata from cache if available
+        detection_meta = {}
+        processing_time_ms = 0
+        if file_hash and file_hash in self.cache:
+            cached = self.cache[file_hash]
+            detection_meta = cached.get("detection_meta", {})
+            processing_time_ms = cached.get("processing_time_ms", 0)
+
         # Build attempt info with backend metadata for statistics compatibility
         backend_info = self.backend.get_model_info()
         attempts = [{
-            "resolution": "api",
             "face_count": len(reviewed_faces),
             "source": "bildvisare",
             "backend": self.backend.backend_name,
             "backend_version": backend_info.get('model', 'unknown'),
+            "upsample": 0,  # API never upsamples
+            "scale_label": detection_meta.get("scale_label", "api"),
+            "scale_px": detection_meta.get("scale_px", 0),
+            "time_seconds": round(processing_time_ms / 1000, 3),
         }]
 
         # Log to attempt_stats.jsonl
