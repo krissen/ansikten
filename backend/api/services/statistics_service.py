@@ -113,12 +113,10 @@ class StatisticsService:
                 if not backend or backend == "unknown":
                     continue
 
-                # Use resolution as fallback for scale_label (Bildvisare uses "api")
-                scale_label = att.get("scale_label") or att.get("resolution")
                 key = (
                     backend,
                     att.get("upsample"),
-                    scale_label,
+                    att.get("scale_label"),
                     att.get("scale_px"),
                 )
                 attempt_info[key]["total"] += 1
@@ -131,12 +129,10 @@ class StatisticsService:
                 if not backend or backend == "unknown":
                     continue
 
-                # Use resolution as fallback for scale_label (Bildvisare uses "api")
-                scale_label = setting.get("scale_label") or setting.get("resolution")
                 key = (
                     backend,
                     setting.get("upsample"),
-                    scale_label,
+                    setting.get("scale_label"),
                     setting.get("scale_px"),
                 )
                 attempt_info[key]["used"] += 1
