@@ -13,6 +13,7 @@ import React, { useState, useEffect, useRef, useCallback, useMemo } from 'react'
 import { createPortal } from 'react-dom';
 import { useModuleEvent, useEmitEvent } from '../hooks/useModuleEvent.js';
 import { useBackend } from '../context/BackendContext.jsx';
+import { useToast } from '../context/ToastContext.jsx';
 import { useWebSocket } from '../hooks/useWebSocket.js';
 import { debug, debugWarn, debugError } from '../shared/debug.js';
 import { preferences } from '../workspace/preferences.js';
@@ -85,6 +86,7 @@ function useDropdownPosition(open, anchorEl, { maxHeight = 200, gap = 4 } = {}) 
 export function ReviewModule() {
   const { api } = useBackend();
   const emit = useEmitEvent();
+  const showToast = useToast();
 
   // State
   const [currentImagePath, setCurrentImagePath] = useState(null);
@@ -150,23 +152,9 @@ export function ReviewModule() {
           moduleRef.current?.focus();
         }, 100);
       } else {
-        try {
-          await api.post('/api/mark-review-complete', {
-            image_path: imagePath,
-            reviewed_faces: [],
-            file_hash: result.file_hash || null
-          });
-          debug('ReviewModule', 'No faces - marked as processed');
-        } catch (markErr) {
-          debugError('ReviewModule', 'Failed to mark no-faces file as processed:', markErr);
-        }
-        emit('review-complete', {
-          imagePath,
-          facesReviewed: 0,
-          skipped: false,
-          success: true,
-          reviewedFaces: []
-        });
+        // No faces detected - show toast and wait for user to press X (skip) or M (add manual)
+        const fileName = imagePath.split('/').pop();
+        showToast(`No faces found in ${fileName}`, 'info');
       }
     } catch (err) {
       debugError('ReviewModule', 'Face detection failed:', err);
@@ -174,7 +162,7 @@ export function ReviewModule() {
     } finally {
       setIsLoading(false);
     }
-  }, [api, emit]);
+  }, [api, emit, showToast]);
 
   /**
    * Navigate to face

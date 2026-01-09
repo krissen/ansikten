@@ -106,15 +106,11 @@ class StatisticsService:
             attempts = entry.get("attempts", [])
             used = entry.get("used_attempt")
 
-            # Count all attempts (skip API/manual entries without real detection info)
+            # Count all attempts (skip entries without real detection info)
             for att in attempts:
-                # Skip Bildvisare API entries (they don't have real detection backend info)
-                if att.get("resolution") == "api" or att.get("source") == "bildvisare":
-                    continue
-
-                backend = att.get("backend", att.get("model", "unknown"))
+                backend = att.get("backend", att.get("model", ""))
                 # Skip if no real backend info
-                if backend == "unknown" and not att.get("scale_label"):
+                if not backend or backend == "unknown":
                     continue
 
                 key = (
@@ -128,13 +124,9 @@ class StatisticsService:
             # Count used attempts
             if used is not None and attempts and used < len(attempts):
                 setting = attempts[used]
-                # Skip API/manual entries
-                if setting.get("resolution") == "api" or setting.get("source") == "bildvisare":
-                    continue
-
-                backend = setting.get("backend", setting.get("model", "unknown"))
+                backend = setting.get("backend", setting.get("model", ""))
                 # Skip if no real backend info
-                if backend == "unknown" and not setting.get("scale_label"):
+                if not backend or backend == "unknown":
                     continue
 
                 key = (

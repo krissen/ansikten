@@ -232,6 +232,13 @@ export class PreprocessingManager {
    */
   clearCompleted() {
     this.completed.clear();
+    this.doneItems.clear();
+    this.doneCount = 0;
+    // Check if we should resume after clearing
+    if (this.isPaused && this.queue.length > 0) {
+      this.isPaused = false;
+      this._processNext();
+    }
     debug('Preprocessing', 'Cleared completed entries');
   }
 
@@ -257,6 +264,13 @@ export class PreprocessingManager {
     if (hash) {
       debug('Preprocessing', `Removed file from cache: ${filePath} (hash: ${hash.substring(0, 8)}...)`);
       this.emit('file-removed', { filePath, hash });
+    }
+
+    // Check if we should resume after removing files
+    if (this.isPaused && this.getReadyCount() < this.rollingWindow.minQueueBuffer) {
+      this.isPaused = false;
+      debug('Preprocessing', 'Auto-resumed after file removal (ready count below threshold)');
+      this._processNext();
     }
 
     return hash;
@@ -645,7 +659,13 @@ export class PreprocessingManager {
    */
   stop() {
     this.queue = [];
-    debug('Preprocessing', 'Manager stopped, queue cleared');
+    this.processing.clear();
+    this.completed.clear();
+    this.activeWorkers = 0;
+    this.isPaused = false;
+    this.doneItems.clear();
+    this.doneCount = 0;
+    debug('Preprocessing', 'Manager stopped, all state reset');
   }
 }
 
