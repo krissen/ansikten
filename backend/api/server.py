@@ -137,12 +137,13 @@ async def health_check():
 
 
 # Import routes
-from .routes import detection, status, database, statistics, management, preprocessing, files, startup
+from .routes import detection, status, database, statistics, management, preprocessing, files, startup, refinement
 app.include_router(detection.router, prefix="/api", tags=["detection"])
 app.include_router(status.router, prefix="/api", tags=["status"])
 app.include_router(database.router, prefix="/api", tags=["database"])
 app.include_router(statistics.router, prefix="/api", tags=["statistics"])
 app.include_router(management.router, prefix="/api", tags=["management"])
+app.include_router(refinement.router, prefix="/api", tags=["refinement"])
 app.include_router(preprocessing.router, prefix="/api/preprocessing", tags=["preprocessing"])
 app.include_router(files.router, prefix="/api", tags=["files"])
 app.include_router(startup.router, prefix="/api", tags=["startup"])
