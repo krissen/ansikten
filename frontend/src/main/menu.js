@@ -279,6 +279,13 @@ function createApplicationMenu(mainWindow) {
           }
         },
         {
+          label: 'Refine Faces',
+          accelerator: 'CmdOrCtrl+Shift+E',
+          click: () => {
+            sendMenuCommand('open-refine-faces');
+          }
+        },
+        {
           label: 'File Queue',
           accelerator: 'CmdOrCtrl+Shift+U',
           click: () => {
