@@ -198,6 +198,25 @@
   color: var(--text-primary);
 }
 
+/* Preview warnings */
+.preview-warnings {
+  margin-bottom: var(--space-sm);
+}
+
+.warning-message {
+  padding: var(--space-xs) var(--space-sm);
+  background: var(--bg-warning, #fff3cd);
+  border: 1px solid var(--status-warning, #ffc107);
+  border-radius: var(--radius-sm);
+  color: var(--text-warning, #856404);
+  font-size: var(--font-sm);
+  margin-bottom: var(--space-xs);
+}
+
+.warning-message:last-child {
+  margin-bottom: 0;
+}
+
 /* Info box */
 .info-box {
   margin-top: var(--space-lg);

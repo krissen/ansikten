@@ -16,7 +16,7 @@ from typing import Any, Dict, List, Optional
 # Add parent directory to path to import CLI modules
 sys.path.insert(0, str(Path(__file__).parent.parent.parent))
 
-from faceid_db import load_attempt_log, load_database, save_database
+from faceid_db import load_database, save_database
 
 logger = logging.getLogger(__name__)
 
@@ -214,13 +214,22 @@ class ManagementService:
         encodings_unique = []
 
         for enc in encodings:
+            enc_hash = None
             if isinstance(enc, dict):
                 enc_hash = enc.get('encoding_hash')
+                # If encoding_hash missing, compute from encoding array
+                if not enc_hash and 'encoding' in enc:
+                    try:
+                        encoding_arr = enc['encoding']
+                        if hasattr(encoding_arr, 'tobytes'):
+                            enc_hash = hashlib.sha1(encoding_arr.tobytes()).hexdigest()
+                    except (AttributeError, ValueError):
+                        pass
             else:
                 try:
                     enc_hash = hashlib.sha1(enc.tobytes()).hexdigest()
                 except (AttributeError, ValueError):
-                    enc_hash = None
+                    pass
 
             if enc_hash and enc_hash in seen:
                 continue
@@ -394,6 +403,9 @@ class ManagementService:
 
         Returns information about how many encodings were removed.
         Supports glob patterns via fnmatch.
+
+        Uses file hash to identify and remove exact encodings added by the file,
+        avoiding issues with list ordering.
         """
         self._reload_from_disk()
 
@@ -411,10 +423,12 @@ class ManagementService:
                 "new_state": await self.get_database_state(),
             }
 
-        # Load attempt log to find what was added by these files
-        log = load_attempt_log()
+        # Build set of file hashes to remove
+        file_hashes_to_remove = set()
+        for pf in matched_files:
+            if isinstance(pf, dict) and pf.get("hash"):
+                file_hashes_to_remove.add(pf["hash"])
 
-        removed_total = 0
         names_to_remove = set(
             pf["name"] if isinstance(pf, dict) else pf for pf in matched_files
         )
@@ -426,26 +440,29 @@ class ManagementService:
             if (pf["name"] if isinstance(pf, dict) else pf) not in names_to_remove
         ]
 
-        # Remove encodings added by these files
-        for target_name in names_to_remove:
-            for entry in reversed(log):
-                if Path(entry.get("filename", "")).name == target_name:
-                    labels_per_attempt = entry.get("labels_per_attempt", [])
-                    for labels in labels_per_attempt:
-                        for label in labels:
-                            if isinstance(label, dict):
-                                label = label.get("label", "")
-                            parts = label.split("\n")
-                            if len(parts) == 2:
-                                name = parts[1]
-                                if name == "ignorerad":
-                                    if self.ignored_faces:
-                                        self.ignored_faces.pop()
-                                        removed_total += 1
-                                else:
-                                    if name in self.known_faces and self.known_faces[name]:
-                                        self.known_faces[name].pop()
-                                        removed_total += 1
+        removed_total = 0
+
+        # Remove encodings by file hash (preferred method - exact match)
+        if file_hashes_to_remove:
+            # Remove from known_faces
+            for name in list(self.known_faces.keys()):
+                original_count = len(self.known_faces[name])
+                self.known_faces[name] = [
+                    enc for enc in self.known_faces[name]
+                    if not (isinstance(enc, dict) and enc.get("hash") in file_hashes_to_remove)
+                ]
+                removed_total += original_count - len(self.known_faces[name])
+                # Clean up empty entries
+                if not self.known_faces[name]:
+                    del self.known_faces[name]
+
+            # Remove from ignored_faces
+            original_ignored = len(self.ignored_faces)
+            self.ignored_faces = [
+                enc for enc in self.ignored_faces
+                if not (isinstance(enc, dict) and enc.get("hash") in file_hashes_to_remove)
+            ]
+            removed_total += original_ignored - len(self.ignored_faces)
 
         self.save()
 

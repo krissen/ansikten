@@ -38,16 +38,31 @@ async def lifespan(app: FastAPI):
         svc = get_management_service()
         return len(svc.known_faces)
 
-    async def _migrate_dlib_encodings():
-        """Remove deprecated dlib encodings during startup"""
+    async def _check_dlib_encodings():
+        """Check for deprecated dlib encodings and notify user if found"""
         from .services.refinement_service import get_refinement_service
+        from .websocket.progress import broadcast_event
         try:
             service = get_refinement_service()
-            result = await service.remove_dlib_encodings(dry_run=False)
+            result = await service.remove_dlib_encodings(dry_run=True)
             if result["total_removed"] > 0:
-                logger.info(f"[Migration] Removed {result['total_removed']} deprecated dlib encodings from {result['people_affected']} people")
+                count = result["total_removed"]
+                people = result["people_affected"]
+                logger.warning(
+                    f"[Migration] Found {count} deprecated dlib encodings from {people} people. "
+                    f"Run 'python backend/rensa_dlib.py' to remove them."
+                )
+                # Notify frontend after a short delay to ensure WebSocket is connected
+                await asyncio.sleep(2.0)
+                await broadcast_event("notification", {
+                    "type": "warning",
+                    "title": "Föråldrade dlib-encodings",
+                    "message": f"Databasen innehåller {count} dlib-encodings som bör tas bort. "
+                               f"Kör 'python backend/rensa_dlib.py' i terminalen.",
+                    "persistent": True
+                })
         except Exception as e:
-            logger.warning(f"[Migration] Could not remove dlib encodings: {e}")
+            logger.warning(f"[Migration] Could not check dlib encodings: {e}")
     
     async def preload_database():
         t0 = time.perf_counter()
@@ -58,8 +73,8 @@ async def lifespan(app: FastAPI):
             startup_state.set_state("database", LoadingState.READY,
                                     f"{people_count} persons")
             logger.info(f"[Startup Profile] Database loaded in {elapsed:.2f}s")
-            # Migrate away from deprecated dlib backend
-            await _migrate_dlib_encodings()
+            # Check for deprecated dlib encodings and notify user
+            await _check_dlib_encodings()
         except Exception as e:
             logger.error(f"Failed to pre-load database: {e}", exc_info=True)
             startup_state.set_state("database", LoadingState.ERROR, 
