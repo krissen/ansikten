@@ -394,7 +394,15 @@ def create_backend(config: dict) -> FaceBackend:
         ImportError: If backend dependencies are missing
     """
     backend_config = config.get('backend', {})
-    backend_type = backend_config.get('type', 'dlib')
+    backend_type = backend_config.get('type', 'insightface')
+
+    # dlib is deprecated - force insightface
+    if backend_type == 'dlib':
+        logging.warning(
+            "[DEPRECATED] dlib backend is no longer supported. "
+            "Using insightface instead. Please update your config.json."
+        )
+        backend_type = 'insightface'
 
     if backend_type not in _backend_registry:
         available = list(_backend_registry.keys())

@@ -2,8 +2,7 @@
 Encoding Refinement Service
 
 Provides statistical filtering operations to refine face encodings.
-Ports functionality from forfina_ansikten.py to API-friendly format
-with correct backend-aware distance calculations.
+Only InsightFace encodings are supported - dlib encodings are deprecated and will be removed.
 """
 
 import logging
@@ -21,28 +20,32 @@ from faceid_db import load_database, save_database
 
 logger = logging.getLogger(__name__)
 
-# Default thresholds per backend
-DEFAULT_THRESHOLDS = {
-    'dlib': {
-        'std_threshold': 2.0,
-        'cluster_dist': 0.55,  # Euclidean distance
-    },
-    'insightface': {
-        'std_threshold': 2.0,
-        'cluster_dist': 0.35,  # Cosine distance (lower = closer)
-    }
-}
-
-# Minimum encodings required for filtering
+# Default thresholds for InsightFace (cosine distance)
+DEFAULT_CLUSTER_DIST = 0.35
+DEFAULT_STD_THRESHOLD = 2.0
+DEFAULT_MAHALANOBIS_THRESHOLD = 3.0
 DEFAULT_MIN_ENCODINGS = 8
 DEFAULT_CLUSTER_MIN = 6
 
+# InsightFace encoding shape
+INSIGHTFACE_SHAPE = (512,)
 
-def _get_backend(entry) -> str:
-    """Extract backend type from encoding entry."""
+
+def _is_insightface_entry(entry) -> bool:
+    """Check if entry is an InsightFace encoding."""
     if isinstance(entry, dict):
-        return entry.get("backend", "dlib")
-    return "dlib"  # Legacy numpy array
+        backend = entry.get("backend", "dlib")
+        if backend == "insightface":
+            return True
+        # Check shape for ambiguous entries
+        encoding = entry.get("encoding")
+        if isinstance(encoding, np.ndarray) and encoding.shape == INSIGHTFACE_SHAPE:
+            return True
+        return False
+    elif isinstance(entry, np.ndarray):
+        # Legacy numpy array - check shape
+        return entry.shape == INSIGHTFACE_SHAPE
+    return False
 
 
 def _get_encoding(entry) -> Optional[np.ndarray]:
@@ -57,19 +60,16 @@ def _get_encoding(entry) -> Optional[np.ndarray]:
 
 
 def _compute_distances_to_centroid(
-    encodings: List[np.ndarray],
-    backend_type: str
+    encodings: List[np.ndarray]
 ) -> Tuple[np.ndarray, np.ndarray]:
     """
-    Compute distances from each encoding to the centroid.
+    Compute cosine distances from each encoding to the centroid.
 
-    Uses the correct distance metric for each backend:
-    - dlib: Euclidean distance
-    - insightface: Cosine distance
+    The centroid is projected back onto the unit sphere for proper
+    cosine distance calculation with L2-normalized embeddings.
 
     Args:
-        encodings: List of encoding vectors
-        backend_type: 'dlib' or 'insightface'
+        encodings: List of InsightFace encoding vectors (512-dim, L2-normalized)
 
     Returns:
         (centroid, distances) tuple
@@ -77,36 +77,28 @@ def _compute_distances_to_centroid(
     arr = np.stack(encodings)
     centroid = np.mean(arr, axis=0)
 
-    if backend_type == 'insightface':
-        # Cosine distance: 1 - dot(a, b) where both are L2-normalized
-        # Centroid must be normalized for proper cosine distance
-        centroid_norm = np.linalg.norm(centroid)
-        if centroid_norm > 1e-6:
-            centroid_normalized = centroid / centroid_norm
-        else:
-            centroid_normalized = centroid
+    # Project centroid back onto unit sphere
+    centroid_norm = np.linalg.norm(centroid)
+    if centroid_norm > 1e-6:
+        centroid = centroid / centroid_norm
 
-        # InsightFace encodings are already L2-normalized
-        similarities = np.dot(arr, centroid_normalized)
-        distances = 1.0 - similarities
-    else:
-        # dlib: Euclidean distance
-        distances = np.linalg.norm(arr - centroid, axis=1)
+    # Cosine distance: 1 - dot(a, b) where both are L2-normalized
+    similarities = np.dot(arr, centroid)
+    distances = 1.0 - similarities
 
     return centroid, distances
 
 
 def _std_outlier_filter(
     encodings: List[np.ndarray],
-    backend_type: str,
-    std_threshold: float = 2.0
+    std_threshold: float = DEFAULT_STD_THRESHOLD
 ) -> Tuple[np.ndarray, np.ndarray]:
     """
     Filter encodings by standard deviation from centroid.
 
     Returns mask (True=keep) and distances array.
     """
-    _, dists = _compute_distances_to_centroid(encodings, backend_type)
+    _, dists = _compute_distances_to_centroid(encodings)
     std = np.std(dists)
     mean = np.mean(dists)
     mask = np.abs(dists - mean) < std_threshold * std
@@ -115,8 +107,7 @@ def _std_outlier_filter(
 
 def _cluster_filter(
     encodings: List[np.ndarray],
-    backend_type: str,
-    cluster_dist: Optional[float] = None,
+    cluster_dist: float = DEFAULT_CLUSTER_DIST,
     cluster_min: int = DEFAULT_CLUSTER_MIN
 ) -> Tuple[np.ndarray, np.ndarray]:
     """
@@ -125,10 +116,7 @@ def _cluster_filter(
     If too few encodings would remain, keeps all.
     Returns mask (True=keep) and distances array.
     """
-    if cluster_dist is None:
-        cluster_dist = DEFAULT_THRESHOLDS.get(backend_type, {}).get('cluster_dist', 0.55)
-
-    _, dists = _compute_distances_to_centroid(encodings, backend_type)
+    _, dists = _compute_distances_to_centroid(encodings)
     inlier_mask = dists < cluster_dist
 
     if np.count_nonzero(inlier_mask) >= cluster_min:
@@ -136,6 +124,68 @@ def _cluster_filter(
     else:
         # Too few would remain - don't filter
         return np.ones_like(inlier_mask, dtype=bool), dists
+
+
+def _mahalanobis_outlier_filter(
+    encodings: List[np.ndarray],
+    threshold: float = DEFAULT_MAHALANOBIS_THRESHOLD
+) -> Tuple[np.ndarray, np.ndarray]:
+    """
+    Filter encodings using Mahalanobis distance.
+
+    Mahalanobis distance accounts for covariance between dimensions,
+    making it better at detecting multivariate outliers in high-dimensional
+    embedding spaces.
+
+    Args:
+        encodings: List of encoding vectors
+        threshold: Maximum Mahalanobis distance to keep
+
+    Returns:
+        mask (True=keep) and distances array
+    """
+    arr = np.stack(encodings)
+    n_samples, n_features = arr.shape
+
+    # Need more samples than features for stable covariance
+    if n_samples <= n_features:
+        logger.warning(
+            f"Mahalanobis: Not enough samples ({n_samples}) for {n_features} features. "
+            f"Falling back to std filter."
+        )
+        return _std_outlier_filter(encodings, DEFAULT_STD_THRESHOLD)
+
+    mean = np.mean(arr, axis=0)
+
+    # Compute covariance matrix with regularization
+    cov = np.cov(arr.T)
+    # Regularization to avoid singular matrix
+    cov += np.eye(n_features) * 1e-6
+
+    # Invert covariance matrix
+    try:
+        cov_inv = np.linalg.inv(cov)
+    except np.linalg.LinAlgError:
+        logger.warning("Mahalanobis: Singular covariance matrix. Using pseudo-inverse.")
+        cov_inv = np.linalg.pinv(cov)
+
+    # Compute Mahalanobis distances
+    diff = arr - mean
+    # Efficient computation: d = sqrt(diff @ cov_inv @ diff.T diagonal)
+    distances = np.sqrt(np.sum(diff @ cov_inv * diff, axis=1))
+
+    mask = distances < threshold
+    return mask, distances
+
+
+def _compute_stats(distances: np.ndarray) -> Dict[str, float]:
+    """Compute statistics for distance array."""
+    return {
+        "min_dist": float(np.min(distances)),
+        "max_dist": float(np.max(distances)),
+        "mean_dist": float(np.mean(distances)),
+        "std_dist": float(np.std(distances))
+    }
 
 
 class RefinementService:
@@ -169,46 +219,93 @@ class RefinementService:
         logger.info("[RefinementService] Saving database to disk")
         save_database(self.known_faces, self.ignored_faces, self.hard_negatives, self.processed_files)
 
-    def _group_by_backend(self, entries: List) -> Dict[str, List[Tuple[int, Any, np.ndarray]]]:
+    def _get_insightface_encodings(self, entries: List) -> List[Tuple[int, np.ndarray]]:
         """
-        Group encoding entries by backend.
+        Extract InsightFace encodings with their original indices.
 
-        Returns dict mapping backend -> list of (original_index, entry, encoding)
+        Returns list of (original_index, encoding) tuples.
+        Skips dlib encodings.
         """
-        groups = {}
+        result = []
         for i, entry in enumerate(entries):
-            backend = _get_backend(entry)
-            encoding = _get_encoding(entry)
-            if encoding is not None:
-                if backend not in groups:
-                    groups[backend] = []
-                groups[backend].append((i, entry, encoding))
-        return groups
+            if _is_insightface_entry(entry):
+                encoding = _get_encoding(entry)
+                if encoding is not None:
+                    result.append((i, encoding))
+        return result
+
+    async def remove_dlib_encodings(
+        self,
+        dry_run: bool = False
+    ) -> Dict[str, Any]:
+        """
+        Remove ALL dlib encodings from the database.
+
+        dlib backend is deprecated. Only InsightFace is supported.
+
+        Args:
+            dry_run: If True, don't save changes
+
+        Returns:
+            Results with counts per person
+        """
+        self._reload_from_disk()
+
+        removed_by_person = {}
+        total_removed = 0
+
+        for name, entries in list(self.known_faces.items()):
+            if not entries:
+                continue
+
+            # Keep only InsightFace encodings
+            insightface_entries = [e for e in entries if _is_insightface_entry(e)]
+            removed_count = len(entries) - len(insightface_entries)
+
+            if removed_count > 0:
+                removed_by_person[name] = removed_count
+                total_removed += removed_count
+
+                if not dry_run:
+                    self.known_faces[name] = insightface_entries
+
+        if not dry_run and total_removed > 0:
+            self.save()
+
+        return {
+            "status": "success",
+            "dry_run": dry_run,
+            "total_removed": total_removed,
+            "by_person": removed_by_person,
+            "people_affected": len(removed_by_person)
+        }
 
     async def preview(
         self,
         person: Optional[str] = None,
         mode: str = "std",
-        backend_filter: Optional[str] = None,
-        std_threshold: float = 2.0,
-        cluster_dist: Optional[float] = None,
+        std_threshold: float = DEFAULT_STD_THRESHOLD,
+        cluster_dist: float = DEFAULT_CLUSTER_DIST,
         cluster_min: int = DEFAULT_CLUSTER_MIN,
+        mahalanobis_threshold: float = DEFAULT_MAHALANOBIS_THRESHOLD,
         min_encodings: int = DEFAULT_MIN_ENCODINGS
     ) -> Dict[str, Any]:
         """
         Preview what encodings would be removed.
 
+        Only processes InsightFace encodings. dlib encodings are ignored.
+
         Args:
             person: Person name, or None for all people
-            mode: 'std' (standard deviation), 'cluster', or 'shape'
-            backend_filter: 'dlib', 'insightface', or None for all
+            mode: 'std', 'cluster', 'mahalanobis', or 'shape'
             std_threshold: Standard deviations for outlier detection
-            cluster_dist: Max distance from centroid (None = backend default)
+            cluster_dist: Max distance from centroid
             cluster_min: Minimum cluster size
+            mahalanobis_threshold: Mahalanobis distance threshold
             min_encodings: Skip filtering if fewer encodings
 
         Returns:
-            Preview results with per-person, per-backend breakdown
+            Preview results with per-person breakdown and statistics
         """
         self.reload_database()
 
@@ -226,61 +323,51 @@ class RefinementService:
             if not entries:
                 continue
 
-            # Group by backend
-            backend_groups = self._group_by_backend(entries)
+            # Get only InsightFace encodings
+            indexed_encodings = self._get_insightface_encodings(entries)
 
-            # Filter to requested backend if specified
-            if backend_filter:
-                backend_groups = {k: v for k, v in backend_groups.items() if k == backend_filter}
+            if len(indexed_encodings) < min_encodings:
+                continue
 
-            person_affected = False
+            indices = [ie[0] for ie in indexed_encodings]
+            encodings = [ie[1] for ie in indexed_encodings]
 
-            for backend, indexed_entries in backend_groups.items():
-                if len(indexed_entries) < min_encodings:
+            if mode == "shape":
+                # Shape repair: find encodings with non-majority shape
+                shapes = [enc.shape for enc in encodings]
+                shape_counts = {}
+                for s in shapes:
+                    shape_counts[s] = shape_counts.get(s, 0) + 1
+                if not shape_counts:
                     continue
+                common_shape = max(shape_counts, key=shape_counts.get)
+                mask = np.array([enc.shape == common_shape for enc in encodings])
+                distances = np.zeros(len(encodings))  # No distances for shape mode
+                reason = "shape_mismatch"
+            elif mode == "cluster":
+                mask, distances = _cluster_filter(encodings, cluster_dist, cluster_min)
+                reason = "cluster_outlier"
+            elif mode == "mahalanobis":
+                mask, distances = _mahalanobis_outlier_filter(encodings, mahalanobis_threshold)
+                reason = "mahalanobis_outlier"
+            else:  # std
+                mask, distances = _std_outlier_filter(encodings, std_threshold)
+                reason = "std_outlier"
 
-                indices = [ie[0] for ie in indexed_entries]
-                encodings = [ie[2] for ie in indexed_entries]
-
-                if mode == "shape":
-                    # Shape repair: find encodings with non-majority shape
-                    shapes = [enc.shape for enc in encodings]
-                    shape_counts = {}
-                    for s in shapes:
-                        shape_counts[s] = shape_counts.get(s, 0) + 1
-                    if not shape_counts:
-                        continue
-                    common_shape = max(shape_counts, key=shape_counts.get)
-                    mask = np.array([enc.shape == common_shape for enc in encodings])
-                    reason = "shape_mismatch"
-                elif mode == "cluster":
-                    mask, _ = _cluster_filter(
-                        encodings, backend, cluster_dist, cluster_min
-                    )
-                    reason = "cluster_outlier"
-                else:  # std
-                    mask, _ = _std_outlier_filter(
-                        encodings, backend, std_threshold
-                    )
-                    reason = "std_outlier"
-
-                remove_count = np.count_nonzero(~mask)
-                if remove_count > 0:
-                    person_affected = True
-                    remove_indices = [indices[i] for i in range(len(mask)) if not mask[i]]
-                    preview_results.append({
-                        "person": name,
-                        "backend": backend,
-                        "total": len(encodings),
-                        "keep": int(np.count_nonzero(mask)),
-                        "remove": remove_count,
-                        "remove_indices": remove_indices,
-                        "reason": reason
-                    })
-                    total_remove += remove_count
-
-            if person_affected:
+            remove_count = np.count_nonzero(~mask)
+            if remove_count > 0:
                 affected_people += 1
+                remove_indices = [indices[i] for i in range(len(mask)) if not mask[i]]
+                preview_results.append({
+                    "person": name,
+                    "total": len(encodings),
+                    "keep": int(np.count_nonzero(mask)),
+                    "remove": remove_count,
+                    "remove_indices": remove_indices,
+                    "reason": reason,
+                    "stats": _compute_stats(distances) if len(distances) > 0 and distances.any() else None
+                })
+                total_remove += remove_count
 
         return {
             "preview": preview_results,
@@ -294,24 +381,26 @@ class RefinementService:
     async def apply(
         self,
         mode: str = "std",
-        backend_filter: Optional[str] = None,
         persons: Optional[List[str]] = None,
-        std_threshold: float = 2.0,
-        cluster_dist: Optional[float] = None,
+        std_threshold: float = DEFAULT_STD_THRESHOLD,
+        cluster_dist: float = DEFAULT_CLUSTER_DIST,
         cluster_min: int = DEFAULT_CLUSTER_MIN,
+        mahalanobis_threshold: float = DEFAULT_MAHALANOBIS_THRESHOLD,
         min_encodings: int = DEFAULT_MIN_ENCODINGS,
         dry_run: bool = False
     ) -> Dict[str, Any]:
         """
         Apply filtering to remove outlier encodings.
 
+        Only processes InsightFace encodings.
+
         Args:
-            mode: 'std' or 'cluster'
-            backend_filter: 'dlib', 'insightface', or None for all
+            mode: 'std', 'cluster', or 'mahalanobis'
             persons: List of person names, or None for all
             std_threshold: Standard deviations for outlier detection
             cluster_dist: Max distance from centroid
             cluster_min: Minimum cluster size
+            mahalanobis_threshold: Mahalanobis distance threshold
             min_encodings: Skip filtering if fewer encodings
             dry_run: If True, don't save changes
 
@@ -321,7 +410,6 @@ class RefinementService:
         self._reload_from_disk()
 
         removed_by_person = {}
-        removed_by_backend = {}
         total_removed = 0
 
         # Determine which people to process
@@ -334,46 +422,38 @@ class RefinementService:
             if not entries:
                 continue
 
-            # Group by backend
-            backend_groups = self._group_by_backend(entries)
+            # Get only InsightFace encodings
+            indexed_encodings = self._get_insightface_encodings(entries)
 
-            # Filter to requested backend if specified
-            if backend_filter:
-                backend_groups = {k: v for k, v in backend_groups.items() if k == backend_filter}
+            if len(indexed_encodings) < min_encodings:
+                continue
+
+            indices = [ie[0] for ie in indexed_encodings]
+            encodings = [ie[1] for ie in indexed_encodings]
+
+            if mode == "cluster":
+                mask, _ = _cluster_filter(encodings, cluster_dist, cluster_min)
+            elif mode == "mahalanobis":
+                mask, _ = _mahalanobis_outlier_filter(encodings, mahalanobis_threshold)
+            else:  # std
+                mask, _ = _std_outlier_filter(encodings, std_threshold)
 
             # Track which indices to remove
             indices_to_remove = set()
-
-            for backend, indexed_entries in backend_groups.items():
-                if len(indexed_entries) < min_encodings:
-                    continue
-
-                indices = [ie[0] for ie in indexed_entries]
-                encodings = [ie[2] for ie in indexed_entries]
-
-                if mode == "cluster":
-                    mask, _ = _cluster_filter(
-                        encodings, backend, cluster_dist, cluster_min
-                    )
-                else:  # std
-                    mask, _ = _std_outlier_filter(
-                        encodings, backend, std_threshold
-                    )
-
-                for i, keep in enumerate(mask):
-                    if not keep:
-                        indices_to_remove.add(indices[i])
-                        removed_by_backend[backend] = removed_by_backend.get(backend, 0) + 1
+            for i, keep in enumerate(mask):
+                if not keep:
+                    indices_to_remove.add(indices[i])
 
             if indices_to_remove:
                 removed_count = len(indices_to_remove)
                 removed_by_person[name] = removed_count
                 total_removed += removed_count
 
-                # Keep only non-removed entries
-                self.known_faces[name] = [
-                    e for i, e in enumerate(entries) if i not in indices_to_remove
-                ]
+                if not dry_run:
+                    # Keep only non-removed entries
+                    self.known_faces[name] = [
+                        e for i, e in enumerate(entries) if i not in indices_to_remove
+                    ]
 
         if not dry_run and total_removed > 0:
             self.save()
@@ -382,8 +462,7 @@ class RefinementService:
             "status": "success",
             "dry_run": dry_run,
             "removed": total_removed,
-            "by_person": removed_by_person,
-            "by_backend": removed_by_backend
+            "by_person": removed_by_person
         }
 
     async def repair_shapes(
@@ -395,7 +474,7 @@ class RefinementService:
         Repair inconsistent encoding shapes.
 
         For each person, finds the most common shape and removes
-        encodings with different shapes.
+        encodings with different shapes. Only processes InsightFace encodings.
 
         Args:
             persons: List of person names, or None for all
@@ -419,15 +498,14 @@ class RefinementService:
             if not entries:
                 continue
 
-            # Extract shapes for all valid encodings
-            shapes_with_index = []
-            for i, entry in enumerate(entries):
-                encoding = _get_encoding(entry)
-                if encoding is not None:
-                    shapes_with_index.append((i, encoding.shape))
+            # Get InsightFace encodings only
+            indexed_encodings = self._get_insightface_encodings(entries)
 
-            if not shapes_with_index:
+            if not indexed_encodings:
                 continue
+
+            # Extract shapes for all valid encodings
+            shapes_with_index = [(i, enc.shape) for i, enc in indexed_encodings]
 
             # Find most common shape
             shape_counts = {}
