@@ -33,10 +33,36 @@ async def lifespan(app: FastAPI):
     logger.info(f"Server ready on http://127.0.0.1:{port}")
     
     def _load_database_sync():
-        """Sync function for thread pool - loads database"""
+        """Sync function for thread pool - loads database and migrates dlib"""
         from .services.management_service import get_management_service
         svc = get_management_service()
         return len(svc.known_faces)
+
+    async def _check_dlib_encodings():
+        """Check for deprecated dlib encodings and notify user if found"""
+        from .services.refinement_service import get_refinement_service
+        from .websocket.progress import broadcast_event
+        try:
+            service = get_refinement_service()
+            result = await service.remove_dlib_encodings(dry_run=True)
+            if result["total_removed"] > 0:
+                count = result["total_removed"]
+                people = result["people_affected"]
+                logger.warning(
+                    f"[Migration] Found {count} deprecated dlib encodings from {people} people. "
+                    f"Run 'python backend/rensa_dlib.py' to remove them."
+                )
+                # Notify frontend after a short delay to ensure WebSocket is connected
+                await asyncio.sleep(2.0)
+                await broadcast_event("notification", {
+                    "type": "warning",
+                    "title": "Föråldrade dlib-encodings",
+                    "message": f"Databasen innehåller {count} dlib-encodings som bör tas bort. "
+                               f"Kör 'python backend/rensa_dlib.py' i terminalen.",
+                    "persistent": True
+                })
+        except Exception as e:
+            logger.warning(f"[Migration] Could not check dlib encodings: {e}")
     
     async def preload_database():
         t0 = time.perf_counter()
@@ -44,9 +70,11 @@ async def lifespan(app: FastAPI):
         try:
             people_count = await asyncio.to_thread(_load_database_sync)
             elapsed = time.perf_counter() - t0
-            startup_state.set_state("database", LoadingState.READY, 
+            startup_state.set_state("database", LoadingState.READY,
                                     f"{people_count} persons")
             logger.info(f"[Startup Profile] Database loaded in {elapsed:.2f}s")
+            # Check for deprecated dlib encodings and notify user
+            await _check_dlib_encodings()
         except Exception as e:
             logger.error(f"Failed to pre-load database: {e}", exc_info=True)
             startup_state.set_state("database", LoadingState.ERROR, 
@@ -137,12 +165,13 @@ async def health_check():
 
 
 # Import routes
-from .routes import detection, status, database, statistics, management, preprocessing, files, startup
+from .routes import detection, status, database, statistics, management, preprocessing, files, startup, refinement
 app.include_router(detection.router, prefix="/api", tags=["detection"])
 app.include_router(status.router, prefix="/api", tags=["status"])
 app.include_router(database.router, prefix="/api", tags=["database"])
 app.include_router(statistics.router, prefix="/api", tags=["statistics"])
 app.include_router(management.router, prefix="/api", tags=["management"])
+app.include_router(refinement.router, prefix="/api", tags=["refinement"])
 app.include_router(preprocessing.router, prefix="/api/preprocessing", tags=["preprocessing"])
 app.include_router(files.router, prefix="/api", tags=["files"])
 app.include_router(startup.router, prefix="/api", tags=["startup"])

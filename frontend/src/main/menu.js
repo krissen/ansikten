@@ -79,7 +79,6 @@ function createApplicationMenu(mainWindow) {
         { type: 'separator' },
         {
           label: 'Preferences...',
-          accelerator: 'CmdOrCtrl+,',
           click: () => {
             sendMenuCommand('open-preferences');
           }
@@ -171,6 +170,14 @@ function createApplicationMenu(mainWindow) {
     {
       label: 'View',
       submenu: [
+        {
+          label: 'Image Viewer',
+          accelerator: 'CmdOrCtrl+,',
+          click: () => {
+            sendMenuCommand('open-image-viewer');
+          }
+        },
+        { type: 'separator' },
         {
           id: 'boxes-visible',
           label: 'Show Bounding Boxes',
@@ -279,10 +286,24 @@ function createApplicationMenu(mainWindow) {
           }
         },
         {
+          label: 'Refine Faces',
+          accelerator: 'CmdOrCtrl+Shift+E',
+          click: () => {
+            sendMenuCommand('open-refine-faces');
+          }
+        },
+        {
           label: 'File Queue',
           accelerator: 'CmdOrCtrl+Shift+U',
           click: () => {
             sendMenuCommand('open-file-queue');
+          }
+        },
+        {
+          label: 'Preferences',
+          accelerator: 'CmdOrCtrl+Shift+P',
+          click: () => {
+            sendMenuCommand('open-preferences');
           }
         },
         { type: 'separator' },
