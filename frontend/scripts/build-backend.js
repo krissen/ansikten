@@ -26,12 +26,16 @@ function run(cmd, options = {}) {
 function copyDirSync(src, dest) {
   fs.mkdirSync(dest, { recursive: true });
   const entries = fs.readdirSync(src, { withFileTypes: true });
-  
+
   for (const entry of entries) {
     const srcPath = path.join(src, entry.name);
     const destPath = path.join(dest, entry.name);
-    
-    if (entry.isDirectory()) {
+
+    if (entry.isSymbolicLink()) {
+      // Preserve symbolic links (needed for Python.framework on macOS)
+      const linkTarget = fs.readlinkSync(srcPath);
+      fs.symlinkSync(linkTarget, destPath);
+    } else if (entry.isDirectory()) {
       copyDirSync(srcPath, destPath);
     } else {
       fs.copyFileSync(srcPath, destPath);
