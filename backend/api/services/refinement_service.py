@@ -8,6 +8,7 @@ Only InsightFace encodings are supported - dlib encodings are deprecated and wil
 import logging
 import sys
 import threading
+import time
 from pathlib import Path
 from typing import Any, Dict, List, Optional, Tuple
 
@@ -69,11 +70,17 @@ def _compute_distances_to_centroid(
     cosine distance calculation with L2-normalized embeddings.
 
     Args:
-        encodings: List of InsightFace encoding vectors (512-dim, L2-normalized)
+        encodings: Non-empty list of InsightFace encoding vectors (512-dim, L2-normalized)
 
     Returns:
         (centroid, distances) tuple
+
+    Raises:
+        ValueError: If encodings list is empty
     """
+    if not encodings:
+        raise ValueError("_compute_distances_to_centroid requires a non-empty encodings list")
+
     arr = np.stack(encodings)
     centroid = np.mean(arr, axis=0)
 
@@ -97,9 +104,17 @@ def _std_outlier_filter(
     Filter encodings by standard deviation from centroid.
 
     Returns mask (True=keep) and distances array.
+    When std is near zero (all distances identical), keeps all encodings.
     """
     _, dists = _compute_distances_to_centroid(encodings)
     std = np.std(dists)
+
+    # Handle degenerate case: if all distances are (nearly) identical,
+    # standard deviation is zero and no meaningful outlier filtering
+    # can be performed. In this case, keep all encodings.
+    if std < 1e-8:
+        return np.ones_like(dists, dtype=bool), dists
+
     mean = np.mean(dists)
     mask = np.abs(dists - mean) < std_threshold * std
     return mask, dists
@@ -202,13 +217,11 @@ class RefinementService:
         self._reload_from_disk()
 
     def _reload_from_disk(self):
-        import time
         logger.debug("[RefinementService] Loading database from disk")
         self.known_faces, self.ignored_faces, self.hard_negatives, self.processed_files = load_database()
         self._last_reload = time.time()
 
     def reload_database(self):
-        import time
         if time.time() - self._last_reload > self._cache_ttl:
             with self._reload_lock:
                 if time.time() - self._last_reload > self._cache_ttl:
@@ -326,7 +339,11 @@ class RefinementService:
             # Get only InsightFace encodings
             indexed_encodings = self._get_insightface_encodings(entries)
 
-            if len(indexed_encodings) < min_encodings:
+            if not indexed_encodings:
+                continue
+
+            # For shape mode, don't apply min_encodings filter to match repair_shapes behavior
+            if mode != "shape" and len(indexed_encodings) < min_encodings:
                 continue
 
             indices = [ie[0] for ie in indexed_encodings]
