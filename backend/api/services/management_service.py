@@ -182,9 +182,9 @@ class ManagementService:
         Args:
         - source_names: List of person names to merge
         - target_name: Result name (can be one of source_names or new name)
-        - backend_filter: If set, only merge encodings from this backend
+        - backend_filter: Deprecated. Only InsightFace is supported now.
 
-        Deduplicates encodings by encoding_hash. Returns warning if mixing backends.
+        Source people are deleted after merge. Deduplicates by encoding_hash.
         """
         self._reload_from_disk()
 

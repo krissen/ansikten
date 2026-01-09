@@ -186,6 +186,11 @@ class PreprocessingCache:
                 
                 if not completed:
                     logger.warning(f"[PreprocessingCache] Timeout waiting for {file_hash[:8]}, retrying (attempt {attempt})")
+                    # Clean up stuck event so next attempt can acquire fresh slot
+                    with self._lock:
+                        current = self._in_progress.get(file_hash)
+                        if current is event:
+                            del self._in_progress[file_hash]
                     continue
                 
                 yield (False, attempt)
