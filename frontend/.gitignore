@@ -8,6 +8,6 @@ src/renderer/workspace/dist/
 src/version.json
 dist/
 
-# Backend executable (built by PyInstaller)
-resources/backend/bildvisare-backend
-resources/backend/bildvisare-backend.exe
+# Backend bundle (built by PyInstaller --onedir)
+resources/backend/*
+!resources/backend/.gitkeep

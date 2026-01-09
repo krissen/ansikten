@@ -1,9 +1,11 @@
 #!/usr/bin/env node
 /**
- * Build backend executable with PyInstaller
+ * Build backend with PyInstaller (--onedir mode)
  * 
- * Builds the Python backend into a standalone executable and copies it
+ * Builds the Python backend into a standalone directory and copies it
  * to resources/backend/ for inclusion in the Electron app.
+ * 
+ * --onedir mode is MUCH faster to start than --onefile since no extraction needed.
  */
 
 const { execSync } = require('child_process');
@@ -13,6 +15,7 @@ const path = require('path');
 const BACKEND_DIR = path.join(__dirname, '../../backend');
 const RESOURCES_DIR = path.join(__dirname, '../resources/backend');
 const IS_WIN = process.platform === 'win32';
+const BUNDLE_NAME = 'bildvisare-backend';
 const EXEC_NAME = IS_WIN ? 'bildvisare-backend.exe' : 'bildvisare-backend';
 
 function run(cmd, options = {}) {
@@ -20,17 +23,31 @@ function run(cmd, options = {}) {
   execSync(cmd, { stdio: 'inherit', ...options });
 }
 
-function main() {
-  console.log('=== Building Backend ===\n');
+function copyDirSync(src, dest) {
+  fs.mkdirSync(dest, { recursive: true });
+  const entries = fs.readdirSync(src, { withFileTypes: true });
+  
+  for (const entry of entries) {
+    const srcPath = path.join(src, entry.name);
+    const destPath = path.join(dest, entry.name);
+    
+    if (entry.isDirectory()) {
+      copyDirSync(srcPath, destPath);
+    } else {
+      fs.copyFileSync(srcPath, destPath);
+    }
+  }
+}
 
-  // Check if PyInstaller spec exists
+function main() {
+  console.log('=== Building Backend (onedir mode) ===\n');
+
   const specFile = path.join(BACKEND_DIR, 'bildvisare-backend.spec');
   if (!fs.existsSync(specFile)) {
     console.error('Error: bildvisare-backend.spec not found in backend/');
     process.exit(1);
   }
 
-  // Build with PyInstaller
   console.log('Building with PyInstaller...');
   try {
     run('pyinstaller bildvisare-backend.spec --noconfirm', { cwd: BACKEND_DIR });
@@ -41,28 +58,30 @@ function main() {
     process.exit(1);
   }
 
-  // Check output exists
-  const builtExec = path.join(BACKEND_DIR, 'dist', EXEC_NAME);
-  if (!fs.existsSync(builtExec)) {
-    console.error(`Error: Expected output not found: ${builtExec}`);
+  const builtDir = path.join(BACKEND_DIR, 'dist', BUNDLE_NAME);
+  const builtExec = path.join(builtDir, EXEC_NAME);
+  
+  if (!fs.existsSync(builtDir) || !fs.existsSync(builtExec)) {
+    console.error(`Error: Expected output not found: ${builtDir}`);
+    console.error('Make sure the spec file uses COLLECT for --onedir mode.');
     process.exit(1);
   }
 
-  // Ensure resources directory exists
-  if (!fs.existsSync(RESOURCES_DIR)) {
-    fs.mkdirSync(RESOURCES_DIR, { recursive: true });
+  if (fs.existsSync(RESOURCES_DIR)) {
+    console.log(`\nRemoving old resources/backend/...`);
+    fs.rmSync(RESOURCES_DIR, { recursive: true, force: true });
   }
 
-  // Copy to resources
-  const targetExec = path.join(RESOURCES_DIR, EXEC_NAME);
-  console.log(`\nCopying ${EXEC_NAME} to resources/backend/`);
-  fs.copyFileSync(builtExec, targetExec);
+  console.log(`\nCopying ${BUNDLE_NAME}/ to resources/backend/`);
+  copyDirSync(builtDir, RESOURCES_DIR);
 
-  // Make executable (Unix)
   if (!IS_WIN) {
+    const targetExec = path.join(RESOURCES_DIR, EXEC_NAME);
     fs.chmodSync(targetExec, 0o755);
   }
 
+  const fileCount = fs.readdirSync(RESOURCES_DIR, { recursive: true }).length;
+  console.log(`\nCopied ${fileCount} files to resources/backend/`);
   console.log('\n=== Backend build complete ===\n');
 }
 

@@ -2,10 +2,11 @@
 """
 PyInstaller spec for Bildvisare backend server.
 
-Bundles the FastAPI backend into a standalone executable.
-Run with: pyinstaller bildvisare-backend.spec
+Bundles the FastAPI backend into a standalone directory (--onedir mode).
+This is MUCH faster to start than --onefile since no extraction is needed.
 
-Output: dist/bildvisare-backend (or .exe on Windows)
+Run with: pyinstaller bildvisare-backend.spec
+Output: dist/bildvisare-backend/ (directory with executable + dependencies)
 """
 
 import sys
@@ -13,7 +14,6 @@ from PyInstaller.utils.hooks import collect_data_files, collect_submodules
 
 block_cipher = None
 
-# Collect all submodules for packages that need runtime discovery
 hiddenimports = [
     # FastAPI and dependencies
     'uvicorn',
@@ -70,11 +70,10 @@ hiddenimports = [
     'face_backends',
 ]
 
-# Collect data files needed at runtime
 datas = []
 
 a = Analysis(
-    ['run_server.py'],  # Entry point wrapper (avoids relative import issues)
+    ['run_server.py'],
     pathex=['.'],
     binaries=[],
     datas=datas,
@@ -83,9 +82,7 @@ a = Analysis(
     hooksconfig={},
     runtime_hooks=[],
     excludes=[
-        # Exclude unnecessary modules to reduce size
         'tkinter',
-        # Note: matplotlib is required by insightface (vis.py imports it at package load)
         'IPython',
         'jupyter',
         'notebook',
@@ -100,31 +97,34 @@ a = Analysis(
 
 pyz = PYZ(a.pure, a.zipped_data, cipher=block_cipher)
 
+# EXE without bundled binaries/data (they go in COLLECT)
 exe = EXE(
     pyz,
     a.scripts,
-    a.binaries,
-    a.zipfiles,
-    a.datas,
-    [],
+    [],  # Don't bundle binaries here - let COLLECT handle them
+    exclude_binaries=True,
     name='bildvisare-backend',
     debug=False,
     bootloader_ignore_signals=False,
     strip=False,
-    upx=True,
-    upx_exclude=[
-        'libonnxruntime*',
-        'onnxruntime*',
-        'libopencv*',
-        'opencv*',
-        'libmkl*',
-        'mkl*',
-    ],
+    upx=False,  # Disabled: UPX slows down startup due to decompression
     runtime_tmpdir=None,
-    console=True,  # Keep console for logging
+    console=True,
     disable_windowed_traceback=False,
     argv_emulation=False,
     target_arch=None,
     codesign_identity=None,
     entitlements_file=None,
+)
+
+# COLLECT creates the output directory with all dependencies
+coll = COLLECT(
+    exe,
+    a.binaries,
+    a.zipfiles,
+    a.datas,
+    strip=False,
+    upx=False,  # Disabled for faster startup
+    upx_exclude=[],
+    name='bildvisare-backend',
 )

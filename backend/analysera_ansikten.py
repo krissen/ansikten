@@ -91,7 +91,7 @@ def attempt_stats_table(stats):
                 setting.get("scale_px"),
             )
             attempt_info[key]["used"] += 1
-            attempt_info[key]["faces"] += setting.get("faces_found", 0)
+            attempt_info[key]["faces"] += setting.get("face_count", 0)
             attempt_info[key]["time"] += setting.get("time_seconds", 0.0)
     from rich.table import Table
     table = Table(show_header=True, header_style="bold")
@@ -357,11 +357,11 @@ def _analyze_single(stats):
                 setting.get("scale_px"),
             )
             attempt_info[key]["used"] += 1
-            attempt_info[key]["faces"] += setting.get("faces_found", 0)
+            attempt_info[key]["faces"] += setting.get("face_count", 0)
             attempt_info[key]["time"] += setting.get("time_seconds", 0.0)
-            scale_stats[setting.get("scale_label")]["faces"] += setting.get("faces_found", 0)
+            scale_stats[setting.get("scale_label")]["faces"] += setting.get("face_count", 0)
             scale_stats[setting.get("scale_label")]["time"] += setting.get("time_seconds", 0.0)
-            backend_stats[backend]["faces"] += setting.get("faces_found", 0)
+            backend_stats[backend]["faces"] += setting.get("face_count", 0)
             backend_stats[backend]["time"] += setting.get("time_seconds", 0.0)
 
         if review_results and labels_per_attempt:

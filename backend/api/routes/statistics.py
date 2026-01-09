@@ -205,3 +205,36 @@ async def get_processed_files(n: int = 200, source: Optional[str] = None):
     except Exception as e:
         logger.error(f"[Statistics] Error getting processed files: {e}", exc_info=True)
         raise HTTPException(status_code=500, detail=str(e))
+
+
+class FileStatsRequest(BaseModel):
+    """Request body for file stats lookup"""
+    filenames: Optional[List[str]] = None
+    filepaths: Optional[List[str]] = None
+
+
+class FileStatInfo(BaseModel):
+    """Stats for a single file"""
+    face_count: int
+    persons: List[str]
+
+
+@router.post("/statistics/file-stats")
+async def get_file_stats(request: FileStatsRequest):
+    """
+    Get face detection stats for specific files.
+    
+    Accepts either filenames or filepaths. Filepaths are preferred as they
+    allow hash-based lookup which survives file renames.
+    """
+    try:
+        filepaths = request.filepaths or []
+        filenames = request.filenames or []
+        total = len(filepaths) + len(filenames)
+        logger.info(f"[Statistics] Getting stats for {total} files")
+        result = await statistics_service.get_file_stats(filenames, filepaths)
+        return result
+
+    except Exception as e:
+        logger.error(f"[Statistics] Error getting file stats: {e}", exc_info=True)
+        raise HTTPException(status_code=500, detail=str(e))

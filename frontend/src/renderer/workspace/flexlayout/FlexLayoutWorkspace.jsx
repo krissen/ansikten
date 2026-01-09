@@ -23,6 +23,7 @@ import { DatabaseManagement } from '../../components/DatabaseManagement.jsx';
 import { FileQueueModule } from '../../components/FileQueueModule.jsx';
 import { ThemeEditor } from '../../components/ThemeEditor.jsx';
 import { PreferencesModule } from '../../components/PreferencesModule.jsx';
+import { RefineFacesModule } from '../../components/RefineFacesModule.jsx';
 
 
 // Storage key for layout persistence
@@ -126,6 +127,7 @@ const MODULE_COMPONENTS = {
   'statistics-dashboard': StatisticsDashboard,
   'review-module': ReviewModule,
   'database-management': DatabaseManagement,
+  'refine-faces': RefineFacesModule,
   'file-queue': FileQueueModule,
   'theme-editor': ThemeEditor,
   'preferences': PreferencesModule
@@ -139,6 +141,7 @@ const MODULE_TITLES = {
   'statistics-dashboard': 'Statistics Dashboard',
   'review-module': 'Face Review',
   'database-management': 'Database Management',
+  'refine-faces': 'Refine Faces',
   'file-queue': 'File Queue',
   'theme-editor': 'Theme Editor',
   'preferences': 'Preferences'
@@ -396,12 +399,18 @@ export function FlexLayoutWorkspace() {
   }, [model]);
 
   // Modules that are singletons (only one instance allowed, switch to existing)
-  // These modules show content related to "the current file" or global state
+  // Most modules should be singletons - multiple instances rarely make sense
   const SINGLETON_MODULES = new Set([
-    'image-viewer',    // Shows current file being reviewed
-    'review-module',   // Shows faces for current file
-    'file-queue',      // Only one queue exists
-    'original-view'    // Shows original of current file
+    'image-viewer',
+    'review-module',
+    'file-queue',
+    'original-view',
+    'preferences',
+    'statistics-dashboard',
+    'log-viewer',
+    'database-management',
+    'refine-faces',
+    'theme-editor'
   ]);
 
   // Open a module tab
@@ -1047,6 +1056,9 @@ export function FlexLayoutWorkspace() {
           break;
 
         // Open module commands
+        case 'open-image-viewer':
+          openModule('image-viewer');
+          break;
         case 'open-original-view':
           openModule('original-view');
           break;
@@ -1061,6 +1073,9 @@ export function FlexLayoutWorkspace() {
           break;
         case 'open-database-management':
           openModule('database-management');
+          break;
+        case 'open-refine-faces':
+          openModule('refine-faces');
           break;
         case 'open-file-queue':
           openModule('file-queue');
