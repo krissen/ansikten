@@ -33,10 +33,21 @@ async def lifespan(app: FastAPI):
     logger.info(f"Server ready on http://127.0.0.1:{port}")
     
     def _load_database_sync():
-        """Sync function for thread pool - loads database"""
+        """Sync function for thread pool - loads database and migrates dlib"""
         from .services.management_service import get_management_service
         svc = get_management_service()
         return len(svc.known_faces)
+
+    async def _migrate_dlib_encodings():
+        """Remove deprecated dlib encodings during startup"""
+        from .services.refinement_service import get_refinement_service
+        try:
+            service = get_refinement_service()
+            result = await service.remove_dlib_encodings(dry_run=False)
+            if result["total_removed"] > 0:
+                logger.info(f"[Migration] Removed {result['total_removed']} deprecated dlib encodings from {result['people_affected']} people")
+        except Exception as e:
+            logger.warning(f"[Migration] Could not remove dlib encodings: {e}")
     
     async def preload_database():
         t0 = time.perf_counter()
@@ -44,9 +55,11 @@ async def lifespan(app: FastAPI):
         try:
             people_count = await asyncio.to_thread(_load_database_sync)
             elapsed = time.perf_counter() - t0
-            startup_state.set_state("database", LoadingState.READY, 
+            startup_state.set_state("database", LoadingState.READY,
                                     f"{people_count} persons")
             logger.info(f"[Startup Profile] Database loaded in {elapsed:.2f}s")
+            # Migrate away from deprecated dlib backend
+            await _migrate_dlib_encodings()
         except Exception as e:
             logger.error(f"Failed to pre-load database: {e}", exc_info=True)
             startup_state.set_state("database", LoadingState.ERROR, 
@@ -137,12 +150,13 @@ async def health_check():
 
 
 # Import routes
-from .routes import detection, status, database, statistics, management, preprocessing, files, startup
+from .routes import detection, status, database, statistics, management, preprocessing, files, startup, refinement
 app.include_router(detection.router, prefix="/api", tags=["detection"])
 app.include_router(status.router, prefix="/api", tags=["status"])
 app.include_router(database.router, prefix="/api", tags=["database"])
 app.include_router(statistics.router, prefix="/api", tags=["statistics"])
 app.include_router(management.router, prefix="/api", tags=["management"])
+app.include_router(refinement.router, prefix="/api", tags=["refinement"])
 app.include_router(preprocessing.router, prefix="/api/preprocessing", tags=["preprocessing"])
 app.include_router(files.router, prefix="/api", tags=["files"])
 app.include_router(startup.router, prefix="/api", tags=["startup"])

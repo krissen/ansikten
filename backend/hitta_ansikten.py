@@ -143,11 +143,10 @@ DEFAULT_CONFIG = {
     "prefer_name_margin": 0.15,
 
     # === Backend configuration (face recognition engine) ===
+    # NOTE: dlib backend is DEPRECATED and no longer supported.
+    # Only "insightface" should be used. Existing dlib encodings will be removed.
     "backend": {
-        "type": "dlib",  # Backend to use: "dlib" or "insightface"
-        "dlib": {
-            "model": "large"  # Currently unused by DlibBackend; kept for compatibility/future use
-        },
+        "type": "insightface",  # Backend to use: only "insightface" is supported
         "insightface": {
             "model_name": "buffalo_l",  # Model: buffalo_s (fast), buffalo_m, buffalo_l (accurate)
             "ctx_id": -1,  # -1 = CPU, 0+ = GPU device ID

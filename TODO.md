@@ -80,6 +80,15 @@ Konsoliderad lista över planerade förbättringar, kända brister och teknisk s
 
 ## Slutfört (referens)
 
+### 2026-01-09: dlib deprecated & RefineFaces förbättringar
+- [x] **dlib backend avvecklat** - InsightFace är nu det enda stödda backend
+- [x] Automatisk borttagning av dlib-encodings vid serverstart
+- [x] RefineFacesModule: Mahalanobis outlier-detektion
+- [x] RefineFacesModule: Förbättrad centroid-beräkning (normaliserad på enhetssfär)
+- [x] RefineFacesModule: Statistik i preview (min/max/mean/std för avstånd)
+- [x] RefineFacesModule: Ta bort backend-dropdown (endast InsightFace)
+- [x] Deprecation warning i face_backends.py om dlib konfigureras
+
 ### 2026-01-05: UX-förbättringar och rakna_spelare
 - [x] ReviewModule autocomplete: portal-positionering, pil-förval, bättre highlight
 - [x] View > Show Review Progress menyval (Shift+I)
@@ -119,6 +128,12 @@ Konsoliderad lista över planerade förbättringar, kända brister och teknisk s
 ---
 
 ## Anteckningar
+
+### DEPRECATED: dlib backend
+dlib-backend är borttaget. InsightFace är det enda stödda backend.
+- Alla befintliga dlib-encodings raderas automatiskt vid serverstart
+- Legacy-scriptet (hitta_ansikten.py) tvingar insightface om dlib konfigureras
+- Encoding-shape är alltid (512,) för InsightFace
 
 ### Projektnamnbyte
 Projektet heter **Hitta ansikten**. "Bildvisare" var ett tidigare namn som inte längre används.
