@@ -79,7 +79,6 @@ function createApplicationMenu(mainWindow) {
         { type: 'separator' },
         {
           label: 'Preferences...',
-          accelerator: 'CmdOrCtrl+,',
           click: () => {
             sendMenuCommand('open-preferences');
           }
@@ -173,7 +172,7 @@ function createApplicationMenu(mainWindow) {
       submenu: [
         {
           label: 'Image Viewer',
-          accelerator: 'CmdOrCtrl+I',
+          accelerator: 'CmdOrCtrl+,',
           click: () => {
             sendMenuCommand('open-image-viewer');
           }
