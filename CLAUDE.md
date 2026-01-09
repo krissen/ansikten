@@ -1,6 +1,6 @@
 # CLAUDE.md
 
-Instructions for Claude Code when working in this repository.
+This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
 
 ---
 
@@ -8,11 +8,10 @@ Instructions for Claude Code when working in this repository.
 
 **Hitta ansikten** - Face recognition for event photography.
 
-- **Backend**: Python CLI + FastAPI server
-- **Frontend**: Electron workspace with FlexLayout
+- **Backend**: FastAPI server (`backend/api/`)
+- **Frontend**: Electron + React with FlexLayout (`frontend/`)
+- **Legacy CLI**: `hitta_ansikten.py` (batch processing, not used by GUI)
 - **Data**: `~/.local/share/faceid/`
-
-For architecture details: [docs/dev/architecture.md](docs/dev/architecture.md)
 
 ---
 
@@ -34,8 +33,6 @@ git push origin feature/my-feature
 # Create PR to dev
 ```
 
-For full workflow: [docs/dev/contributing.md](docs/dev/contributing.md)
-
 ### Commit Messages
 
 - **NO Claude references** in commits or PRs
@@ -51,50 +48,94 @@ Format: `(scope) description`
 
 ## Quick Commands
 
-### Backend
-
-```bash
-cd backend
-./hitta_ansikten.py 2024*.NEF              # Process images
-./hitta_ansikten.py --rename --processed . # Rename processed
-./hitta_ansikten.py --fix 250101.NEF       # Reprocess file
-./hantera_ansikten.py                      # Database management
-```
-
-### Frontend
+### Frontend (primary development)
 
 ```bash
 cd frontend
-npm run build:workspace
-npx electron .
+npm install
+npm run build:workspace                    # Build React workspace
+npm run watch:workspace                    # Watch mode for development
+npx electron .                             # Run app (auto-starts backend on :5001)
 ```
 
-For CLI reference: [docs/user/cli-reference.md](docs/user/cli-reference.md)
+### Backend API
+
+```bash
+cd backend
+pip install -r requirements.txt
+python -m api.server                       # Run API server standalone
+```
+
+### Legacy CLI
+
+```bash
+cd backend
+./hitta_ansikten.py 2024*.NEF              # Batch process images
+./hitta_ansikten.py --simulate *.NEF       # Dry-run (no writes)
+```
 
 ---
 
-## Architecture Summary
+## Architecture
 
-### Backend
+### Backend (FastAPI on port 5001)
 
-| Component | Purpose |
-|-----------|---------|
-| `hitta_ansikten.py` | Main CLI (~2000 lines) |
-| `faceid_db.py` | Database layer |
-| `face_backends.py` | InsightFace/dlib abstraction |
-| `api/` | FastAPI server |
+```
+backend/api/
+├── server.py              # FastAPI app entry, CORS, startup
+├── routes/
+│   ├── detection.py       # /api/detect-faces, /api/confirm-identity, /api/ignore-face
+│   ├── management.py      # /api/management/rename-person, merge, delete
+│   ├── database.py        # /api/database/people, names
+│   ├── statistics.py      # /api/statistics
+│   └── ...
+├── services/
+│   ├── detection_service.py   # Core detection logic, face matching, caching
+│   └── management_service.py  # Database operations (rename, merge, delete)
+└── websocket/
+    └── progress.py        # ws://localhost:5001/ws/progress
+```
 
-### Frontend
+Core modules (shared with legacy CLI):
+- `faceid_db.py` - Database layer (encodings.pkl, processed_files.jsonl)
+- `face_backends.py` - InsightFace/dlib abstraction
 
-| Component | Purpose |
-|-----------|---------|
-| `main.js` | Electron entry |
-| `src/renderer/workspace/` | FlexLayout React |
-| `src/renderer/modules/` | UI modules |
+### Frontend (Electron + React)
 
-Modules: ImageViewer, ReviewModule, FileQueueModule, LogViewer, OriginalView, StatisticsDashboard, DatabaseManagement, PreferencesModule, ThemeEditor
+```
+frontend/
+├── main.js → src/main/index.js    # Electron main process
+├── src/main/
+│   ├── index.js                   # Window management, IPC, file watching
+│   └── backend-service.js         # Auto-starts FastAPI server
+├── src/renderer/
+│   ├── workspace/flexlayout/
+│   │   └── FlexLayoutWorkspace.jsx  # Main workspace component
+│   ├── components/                # React module components
+│   │   ├── ImageViewer.jsx        # Canvas rendering with zoom/pan
+│   │   ├── ReviewModule.jsx       # Face review UI (keyboard nav, autocomplete)
+│   │   ├── FileQueueModule.jsx    # File queue management
+│   │   ├── DatabaseManagement.jsx # Database admin
+│   │   └── ...
+│   ├── shared/
+│   │   └── api-client.js          # HTTP + WebSocket client (singleton)
+│   └── context/
+│       └── ModuleAPIContext.jsx   # Inter-module communication
+```
 
-For full architecture: [docs/dev/architecture.md](docs/dev/architecture.md)
+### Module Communication
+
+```javascript
+// Inter-module events
+api.emit('image-loaded', { path });
+api.on('face-selected', callback);
+
+// Backend HTTP
+const result = await api.http.post('/api/detect-faces', { image_path });
+
+// WebSocket
+api.ws.on('progress', callback);
+```
 
 ---
 
@@ -118,11 +159,9 @@ Config in `~/.local/share/faceid/config.json`:
 
 | File | Purpose |
 |------|---------|
-| `encodings.pkl` | Known faces |
-| `processed_files.jsonl` | Processed files |
-| `attempt_stats.jsonl` | Attempt log |
-
-For data formats: [docs/dev/database.md](docs/dev/database.md)
+| `encodings.pkl` | Known faces database |
+| `processed_files.jsonl` | Files already processed |
+| `attempt_stats.jsonl` | Review attempt log |
 
 ---
 
@@ -130,20 +169,27 @@ For data formats: [docs/dev/database.md](docs/dev/database.md)
 
 - RAW files are `.NEF` (Nikon)
 - Filename format: `YYMMDD_HHMMSS[-N][_names].NEF`
-- Worker process handles detection, main process owns DB writes
-- Encodings only compared against same backend type
 - SHA1 hash used for file identity
+- Encodings only compared against same backend type
+- Backend auto-starts with Electron; use `python -m api.server` for standalone
+- DetectionService caches results by file hash (check cache when debugging)
 
 ---
 
 ## Code Principles
 
-From AGENTS.md:
 - **KISS** - Simple, readable solutions
 - **DRY** - Extract common logic
 - **YAGNI** - No speculative features
 - Comments and docs in English
 - User-facing strings in Swedish
+
+### Testing
+
+No automated test suite. Manual testing:
+- Run `npx electron .` and test modules in both light/dark themes
+- Check DevTools console for errors
+- Legacy CLI: `./hitta_ansikten.py --simulate *.NEF`
 
 ### Documentation Maintenance
 
@@ -154,8 +200,6 @@ From AGENTS.md:
 - **MINIMUM**: Note gaps in [TODO.md](TODO.md)
 - **IDEAL**: Update docs alongside code
 
-See [AGENTS.md](AGENTS.md) for detailed guidelines.
-
 ---
 
 ## Related Docs
@@ -165,4 +209,3 @@ See [AGENTS.md](AGENTS.md) for detailed guidelines.
 - [Database](docs/dev/database.md)
 - [Theming](docs/dev/theming.md)
 - [Contributing](docs/dev/contributing.md)
-- [TODO](TODO.md)
