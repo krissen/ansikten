@@ -175,34 +175,6 @@ export function RefineFacesModule() {
     }
   }, [api, config.person]);
 
-  /**
-   * Remove all dlib encodings
-   */
-  const handleRemoveDlib = useCallback(async (dryRun = false) => {
-    setIsLoading(true);
-    setStatus({ type: '', message: '' });
-
-    try {
-      const result = await api.post('/api/refinement/remove-dlib', { dry_run: dryRun });
-
-      if (result.total_removed === 0) {
-        showSuccess('Inga dlib-encodings hittades.');
-        return;
-      }
-
-      if (dryRun) {
-        showSuccess(`Simulering: ${result.total_removed} dlib-encodings från ${result.people_affected} personer skulle tas bort`);
-      } else {
-        showSuccess(`${result.total_removed} dlib-encodings borttagna från ${result.people_affected} personer`);
-      }
-    } catch (err) {
-      debugError('RefineFaces', 'Remove dlib failed:', err);
-      showError('Borttagning misslyckades: ' + err.message);
-    } finally {
-      setIsLoading(false);
-    }
-  }, [api]);
-
   return (
     <div className="module-container refine-faces">
       <div className="module-header">
@@ -210,31 +182,6 @@ export function RefineFacesModule() {
       </div>
 
       <div className="module-body">
-        {/* dlib Migration Section */}
-        <div className="section-card migration-section">
-          <h4 className="section-title">Backend-migration</h4>
-          <p className="migration-info">
-            dlib-backend stöds inte längre. Endast InsightFace-encodings behålls.
-            Ta bort alla dlib-encodings för att rensa databasen.
-          </p>
-          <div className="action-buttons">
-            <button
-              className="btn-secondary"
-              onClick={() => handleRemoveDlib(true)}
-              disabled={isLoading}
-            >
-              Simulera borttagning
-            </button>
-            <button
-              className="btn-danger"
-              onClick={() => handleRemoveDlib(false)}
-              disabled={isLoading}
-            >
-              Ta bort alla dlib-encodings
-            </button>
-          </div>
-        </div>
-
         {/* Filter Mode Selection */}
         <div className="section-card">
           <h4 className="section-title">Filterläge</h4>
