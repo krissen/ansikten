@@ -273,7 +273,7 @@
 }
 
 .autocomplete-item.selected {
-  background: var(--color-info-bg);
+  background: var(--dropdown-selected-bg);
   border-left-color: var(--color-info);
   color: var(--color-info);
   font-weight: 500;
