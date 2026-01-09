@@ -43,11 +43,13 @@ jobs:
         run: |
           pyinstaller bildvisare-backend.spec
           ls -la dist/
+          ls -la dist/bildvisare-backend/
 
       - name: Prepare backend for Electron
         run: |
           mkdir -p frontend/resources/backend
-          cp backend/dist/bildvisare-backend frontend/resources/backend/
+          # PyInstaller onedir mode creates a directory - copy contents
+          cp -r backend/dist/bildvisare-backend/* frontend/resources/backend/
           chmod +x frontend/resources/backend/bildvisare-backend
 
       - name: Setup Node.js
@@ -101,12 +103,14 @@ jobs:
         run: |
           pyinstaller bildvisare-backend.spec
           dir dist
+          dir dist\bildvisare-backend
 
       - name: Prepare backend for Electron
         run: |
           mkdir -p frontend/resources/backend
-          copy backend\dist\bildvisare-backend.exe frontend\resources\backend\
-        shell: cmd
+          # PyInstaller onedir mode creates a directory - copy contents
+          cp -r backend/dist/bildvisare-backend/* frontend/resources/backend/
+        shell: bash
 
       - name: Setup Node.js
         uses: actions/setup-node@v4
@@ -163,11 +167,13 @@ jobs:
         run: |
           pyinstaller bildvisare-backend.spec
           ls -la dist/
+          ls -la dist/bildvisare-backend/
 
       - name: Prepare backend for Electron
         run: |
           mkdir -p frontend/resources/backend
-          cp backend/dist/bildvisare-backend frontend/resources/backend/
+          # PyInstaller onedir mode creates a directory - copy contents
+          cp -r backend/dist/bildvisare-backend/* frontend/resources/backend/
           chmod +x frontend/resources/backend/bildvisare-backend
 
       - name: Setup Node.js
