@@ -1351,6 +1351,29 @@ export function FileQueueModule() {
           }
           return item;
         }));
+
+        // Update preprocessingManager state for renamed files
+        if (preprocessingManager.current) {
+          for (const [oldPath, newPath] of Object.entries(renamedMap)) {
+            const cachedData = preprocessingManager.current.getCachedData(oldPath);
+            if (cachedData) {
+              preprocessingManager.current.removeFile(oldPath);
+              preprocessingManager.current.completed.set(newPath, cachedData);
+            }
+          }
+        }
+
+        // Update React preprocessingStatus state
+        setPreprocessingStatus(prev => {
+          const updated = { ...prev };
+          for (const [oldPath, newPath] of Object.entries(renamedMap)) {
+            if (updated[oldPath]) {
+              updated[newPath] = updated[oldPath];
+              delete updated[oldPath];
+            }
+          }
+          return updated;
+        });
       }
 
       // Refresh preview data to get updated info for renamed files
