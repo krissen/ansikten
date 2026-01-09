@@ -2,10 +2,12 @@
  * RefineFacesModule - React component for encoding refinement
  *
  * Features:
- * - Filter outlier encodings (std deviation or cluster-based)
+ * - Filter outlier encodings (std deviation, cluster, or Mahalanobis)
  * - Repair inconsistent encoding shapes
- * - Preview changes before applying
- * - Backend-aware filtering (dlib vs InsightFace use different metrics)
+ * - Remove deprecated dlib encodings
+ * - Preview changes before applying with statistics
+ *
+ * Only InsightFace encodings are supported. dlib is deprecated.
  */
 
 import React, { useState, useCallback } from 'react';
@@ -20,15 +22,15 @@ export function RefineFacesModule() {
   const { api } = useBackend();
 
   // Mode selection
-  const [mode, setMode] = useState('std');  // 'std', 'cluster', 'shape'
+  const [mode, setMode] = useState('std');  // 'std', 'cluster', 'mahalanobis', 'shape'
 
   // Configuration
   const [config, setConfig] = useState({
     stdThreshold: 2.0,
-    clusterDist: '',  // Empty = use backend default
+    clusterDist: 0.35,
     clusterMin: 6,
+    mahalanobisThreshold: 3.0,
     minEncodings: 8,
-    backend: '',  // Empty = all backends
     person: ''    // Empty = all people
   });
 
@@ -70,17 +72,10 @@ export function RefineFacesModule() {
         params.set('person', '*');
       }
 
-      if (config.backend) {
-        params.set('backend_filter', config.backend);
-      }
-
       params.set('std_threshold', config.stdThreshold.toString());
-
-      if (config.clusterDist) {
-        params.set('cluster_dist', config.clusterDist.toString());
-      }
-
+      params.set('cluster_dist', config.clusterDist.toString());
       params.set('cluster_min', config.clusterMin.toString());
+      params.set('mahalanobis_threshold', config.mahalanobisThreshold.toString());
       params.set('min_encodings', config.minEncodings.toString());
 
       const result = await api.get(`/api/refinement/preview?${params.toString()}`);
@@ -116,11 +111,11 @@ export function RefineFacesModule() {
     try {
       const body = {
         mode,
-        backend_filter: config.backend || null,
         persons: config.person.trim() ? [config.person.trim()] : null,
         std_threshold: config.stdThreshold,
-        cluster_dist: config.clusterDist ? parseFloat(config.clusterDist) : null,
+        cluster_dist: config.clusterDist,
         cluster_min: config.clusterMin,
+        mahalanobis_threshold: config.mahalanobisThreshold,
         min_encodings: config.minEncodings,
         dry_run: dryRun
       };
@@ -180,6 +175,34 @@ export function RefineFacesModule() {
     }
   }, [api, config.person]);
 
+  /**
+   * Remove all dlib encodings
+   */
+  const handleRemoveDlib = useCallback(async (dryRun = false) => {
+    setIsLoading(true);
+    setStatus({ type: '', message: '' });
+
+    try {
+      const result = await api.post('/api/refinement/remove-dlib', { dry_run: dryRun });
+
+      if (result.total_removed === 0) {
+        showSuccess('Inga dlib-encodings hittades.');
+        return;
+      }
+
+      if (dryRun) {
+        showSuccess(`Simulering: ${result.total_removed} dlib-encodings från ${result.people_affected} personer skulle tas bort`);
+      } else {
+        showSuccess(`${result.total_removed} dlib-encodings borttagna från ${result.people_affected} personer`);
+      }
+    } catch (err) {
+      debugError('RefineFaces', 'Remove dlib failed:', err);
+      showError('Borttagning misslyckades: ' + err.message);
+    } finally {
+      setIsLoading(false);
+    }
+  }, [api]);
+
   return (
     <div className="module-container refine-faces">
       <div className="module-header">
@@ -187,6 +210,31 @@ export function RefineFacesModule() {
       </div>
 
       <div className="module-body">
+        {/* dlib Migration Section */}
+        <div className="section-card migration-section">
+          <h4 className="section-title">Backend-migration</h4>
+          <p className="migration-info">
+            dlib-backend stöds inte längre. Endast InsightFace-encodings behålls.
+            Ta bort alla dlib-encodings för att rensa databasen.
+          </p>
+          <div className="action-buttons">
+            <button
+              className="btn-secondary"
+              onClick={() => handleRemoveDlib(true)}
+              disabled={isLoading}
+            >
+              Simulera borttagning
+            </button>
+            <button
+              className="btn-danger"
+              onClick={() => handleRemoveDlib(false)}
+              disabled={isLoading}
+            >
+              Ta bort alla dlib-encodings
+            </button>
+          </div>
+        </div>
+
         {/* Filter Mode Selection */}
         <div className="section-card">
           <h4 className="section-title">Filterläge</h4>
@@ -219,12 +267,24 @@ export function RefineFacesModule() {
               <input
                 type="radio"
                 name="mode"
+                value="mahalanobis"
+                checked={mode === 'mahalanobis'}
+                onChange={(e) => setMode(e.target.value)}
+              />
+              <span className="mode-label">Mahalanobis</span>
+              <span className="mode-desc">Kovariansmedveten outlier-detektion (bättre för högdimensionell data)</span>
+            </label>
+
+            <label className="mode-option">
+              <input
+                type="radio"
+                name="mode"
                 value="shape"
                 checked={mode === 'shape'}
                 onChange={(e) => setMode(e.target.value)}
               />
               <span className="mode-label">Shape-reparation</span>
-              <span className="mode-desc">Ta bort encodings med inkonsistenta dimensioner (t.ex. blandade backends)</span>
+              <span className="mode-desc">Ta bort encodings med inkonsistenta dimensioner</span>
             </label>
           </div>
         </div>
@@ -260,11 +320,10 @@ export function RefineFacesModule() {
                     step="0.05"
                     min="0.1"
                     max="1.0"
-                    placeholder="Backend-default"
                     value={config.clusterDist}
-                    onChange={(e) => setConfig(prev => ({ ...prev, clusterDist: e.target.value }))}
+                    onChange={(e) => setConfig(prev => ({ ...prev, clusterDist: parseFloat(e.target.value) || 0.35 }))}
                   />
-                  <span className="config-hint">dlib: 0.55, insightface: 0.35</span>
+                  <span className="config-hint">Cosine-avstånd (0.35 = rekommenderat)</span>
                 </div>
                 <div className="config-row">
                   <label>Min klusterstorlek:</label>
@@ -277,6 +336,22 @@ export function RefineFacesModule() {
                   />
                 </div>
               </>
+            )}
+
+            {/* Mahalanobis threshold - only for mahalanobis mode */}
+            {mode === 'mahalanobis' && (
+              <div className="config-row">
+                <label>Mahal-tröskel:</label>
+                <input
+                  type="number"
+                  step="0.5"
+                  min="1"
+                  max="10"
+                  value={config.mahalanobisThreshold}
+                  onChange={(e) => setConfig(prev => ({ ...prev, mahalanobisThreshold: parseFloat(e.target.value) || 3.0 }))}
+                />
+                <span className="config-hint">Högre = färre tas bort (kräver många encodings)</span>
+              </div>
             )}
 
             {/* Common settings - not for shape mode */}
@@ -293,19 +368,6 @@ export function RefineFacesModule() {
                 <span className="config-hint">Hoppa över personer med färre</span>
               </div>
             )}
-
-            {/* Backend filter */}
-            <div className="config-row">
-              <label>Backend:</label>
-              <select
-                value={config.backend}
-                onChange={(e) => setConfig(prev => ({ ...prev, backend: e.target.value }))}
-              >
-                <option value="">Alla backends</option>
-                <option value="insightface">InsightFace</option>
-                <option value="dlib">dlib</option>
-              </select>
-            </div>
 
             {/* Person filter */}
             <div className="config-row">
@@ -370,9 +432,9 @@ export function RefineFacesModule() {
                 <thead>
                   <tr>
                     <th>Person</th>
-                    <th>Backend</th>
                     <th>Behåll</th>
                     <th>Ta bort</th>
+                    <th>Statistik</th>
                     <th>Orsak</th>
                   </tr>
                 </thead>
@@ -380,9 +442,15 @@ export function RefineFacesModule() {
                   {preview.preview.map((row, idx) => (
                     <tr key={idx}>
                       <td className="cell-person">{row.person}</td>
-                      <td className="cell-backend">{row.backend}</td>
                       <td className="cell-keep">{row.keep}</td>
                       <td className="cell-remove">{row.remove}</td>
+                      <td className="cell-stats">
+                        {row.stats ? (
+                          <span title={`min=${row.stats.min_dist.toFixed(4)}, max=${row.stats.max_dist.toFixed(4)}`}>
+                            μ={row.stats.mean_dist.toFixed(3)}, σ={row.stats.std_dist.toFixed(3)}
+                          </span>
+                        ) : '-'}
+                      </td>
                       <td className="cell-reason">{formatReason(row.reason)}</td>
                     </tr>
                   ))}
@@ -405,14 +473,15 @@ export function RefineFacesModule() {
 
         {/* Info Box */}
         <div className="info-box">
-          <h5>Om backend-hantering</h5>
+          <h5>Om filtrering</h5>
           <p>
-            <strong>dlib</strong> använder Euclidean-avstånd (tröskel ~0.54)<br />
-            <strong>InsightFace</strong> använder Cosine-avstånd (tröskel ~0.35)
+            Endast <strong>InsightFace</strong>-encodings stöds (512-dimensionella, cosine-avstånd).
+            dlib-backend är avvecklat och bör tas bort.
           </p>
           <p>
-            När "Alla backends" är valt processas varje backend separat
-            med rätt distansmetrik och tröskelvärden.
+            <strong>Standardavvikelse</strong> tar bort encodings som ligger långt från genomsnittet.<br />
+            <strong>Kluster</strong> behåller endast encodings nära centroiden.<br />
+            <strong>Mahalanobis</strong> tar hänsyn till korrelationer mellan dimensioner.
           </p>
         </div>
       </div>
@@ -427,6 +496,7 @@ function formatReason(reason) {
   const reasons = {
     'std_outlier': 'Standardavvikelse',
     'cluster_outlier': 'Utanför kluster',
+    'mahalanobis_outlier': 'Mahalanobis',
     'shape_mismatch': 'Fel shape'
   };
   return reasons[reason] || reason;
