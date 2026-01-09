@@ -65,7 +65,7 @@ jobs:
 
       - name: Build Electron app
         working-directory: frontend
-        run: npm run build:mac
+        run: npm run build:workspace && npx electron-builder --mac
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
@@ -125,7 +125,7 @@ jobs:
 
       - name: Build Electron app
         working-directory: frontend
-        run: npm run build:win
+        run: npm run build:workspace && npx electron-builder --win
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
@@ -189,7 +189,7 @@ jobs:
 
       - name: Build Electron app
         working-directory: frontend
-        run: npm run build:linux
+        run: npm run build:workspace && npx electron-builder --linux
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
