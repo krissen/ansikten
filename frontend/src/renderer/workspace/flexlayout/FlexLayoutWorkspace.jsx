@@ -1056,6 +1056,9 @@ export function FlexLayoutWorkspace() {
           break;
 
         // Open module commands
+        case 'open-image-viewer':
+          openModule('image-viewer');
+          break;
         case 'open-original-view':
           openModule('original-view');
           break;

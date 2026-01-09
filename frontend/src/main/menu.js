@@ -172,6 +172,14 @@ function createApplicationMenu(mainWindow) {
       label: 'View',
       submenu: [
         {
+          label: 'Image Viewer',
+          accelerator: 'CmdOrCtrl+I',
+          click: () => {
+            sendMenuCommand('open-image-viewer');
+          }
+        },
+        { type: 'separator' },
+        {
           id: 'boxes-visible',
           label: 'Show Bounding Boxes',
           accelerator: 'Shift+B',
@@ -290,6 +298,13 @@ function createApplicationMenu(mainWindow) {
           accelerator: 'CmdOrCtrl+Shift+U',
           click: () => {
             sendMenuCommand('open-file-queue');
+          }
+        },
+        {
+          label: 'Preferences',
+          accelerator: 'CmdOrCtrl+Shift+P',
+          click: () => {
+            sendMenuCommand('open-preferences');
           }
         },
         { type: 'separator' },
