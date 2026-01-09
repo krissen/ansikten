@@ -23,6 +23,7 @@ import { DatabaseManagement } from '../../components/DatabaseManagement.jsx';
 import { FileQueueModule } from '../../components/FileQueueModule.jsx';
 import { ThemeEditor } from '../../components/ThemeEditor.jsx';
 import { PreferencesModule } from '../../components/PreferencesModule.jsx';
+import { RefineFacesModule } from '../../components/RefineFacesModule.jsx';
 
 
 // Storage key for layout persistence
@@ -126,6 +127,7 @@ const MODULE_COMPONENTS = {
   'statistics-dashboard': StatisticsDashboard,
   'review-module': ReviewModule,
   'database-management': DatabaseManagement,
+  'refine-faces': RefineFacesModule,
   'file-queue': FileQueueModule,
   'theme-editor': ThemeEditor,
   'preferences': PreferencesModule
@@ -139,6 +141,7 @@ const MODULE_TITLES = {
   'statistics-dashboard': 'Statistics Dashboard',
   'review-module': 'Face Review',
   'database-management': 'Database Management',
+  'refine-faces': 'Refine Faces',
   'file-queue': 'File Queue',
   'theme-editor': 'Theme Editor',
   'preferences': 'Preferences'
@@ -406,6 +409,7 @@ export function FlexLayoutWorkspace() {
     'statistics-dashboard',
     'log-viewer',
     'database-management',
+    'refine-faces',
     'theme-editor'
   ]);
 
@@ -1066,6 +1070,9 @@ export function FlexLayoutWorkspace() {
           break;
         case 'open-database-management':
           openModule('database-management');
+          break;
+        case 'open-refine-faces':
+          openModule('refine-faces');
           break;
         case 'open-file-queue':
           openModule('file-queue');
