@@ -137,13 +137,13 @@ def main() -> int:
             files.extend(Path(f) for f in glob(pattern) if Path(f).is_file())
     
     if not files:
-        print(f"Inga filer matchar: {args.pattern}")
+        print(f"Inga filer matchar: {' '.join(args.files)}")
         return 0
-    
+
     entries = get_exif_data(files)
-    
+
     if not entries:
-        print(f"Inga filer med CreateDate i: {args.pattern}")
+        print(f"Inga filer med CreateDate i: {' '.join(args.files)}")
         return 0
     
     renames = compute_renames(entries)
