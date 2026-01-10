@@ -50,9 +50,9 @@ class DetectionService:
         self.encoding_cache: Dict[str, Tuple[np.ndarray, Dict[str, int]]] = {}
 
         # Cache for loaded images (keyed by image path) - for fast thumbnail generation
-        # Stores (rgb_array, timestamp) tuples, expires after 300 seconds
+        # Stores (rgb_array, timestamp) tuples, expires after 1800 seconds
         self.image_cache: Dict[str, Tuple[np.ndarray, float]] = {}
-        self.image_cache_ttl = 300  # 5 minutes
+        self.image_cache_ttl = 1800  # 30 minutes
 
     def reload_database(self) -> Dict[str, Any]:
         """

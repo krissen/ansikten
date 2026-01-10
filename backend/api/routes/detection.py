@@ -178,11 +178,51 @@ async def get_face_thumbnail(image_path: str, x: int, y: int, width: int, height
 
     Returns:
         JPEG image bytes
+
+    Caching:
+        - Checks disk cache first (preprocessing thumbnails)
+        - Falls back to on-demand generation
+        - Browser cache: 1 week (604800s)
     """
-    logger.info(f"[Detection] Getting thumbnail from {image_path} at ({x},{y},{width},{height})")
+    from pathlib import Path
+    from ..services.preprocessing_cache import get_cache
+
+    logger.debug(f"[Detection] Getting thumbnail from {image_path} at ({x},{y},{width},{height})")
+    bounding_box = {"x": x, "y": y, "width": width, "height": height}
+    cache = get_cache()
 
     try:
-        bounding_box = {"x": x, "y": y, "width": width, "height": height}
+        # Try disk cache first
+        file_hash = cache.compute_file_hash(image_path)
+
+        # Check if we have cached thumbnails and face detection data
+        if cache.has_thumbnails(file_hash):
+            faces_data = cache.get_face_detection(file_hash)
+            if faces_data and 'faces' in faces_data:
+                # Find matching face by bounding box
+                for i, face in enumerate(faces_data['faces']):
+                    bbox = face.get('bounding_box', {})
+                    if (bbox.get('x') == x and bbox.get('y') == y and
+                        bbox.get('width') == width and bbox.get('height') == height):
+                        # Found matching face - serve cached thumbnail
+                        thumb_paths = cache.get_thumbnails(file_hash)
+                        if thumb_paths and i < len(thumb_paths):
+                            thumb_path = Path(thumb_paths[i])
+                            if thumb_path.exists():
+                                logger.debug(f"[Detection] Serving cached thumbnail: {thumb_path.name}")
+                                with open(thumb_path, 'rb') as f:
+                                    thumbnail_bytes = f.read()
+                                return Response(
+                                    content=thumbnail_bytes,
+                                    media_type="image/jpeg",
+                                    headers={
+                                        "Cache-Control": "public, max-age=604800",
+                                        "X-Cache": "HIT"
+                                    }
+                                )
+
+        # Fall back to on-demand generation
+        logger.debug(f"[Detection] Generating thumbnail on-demand for {Path(image_path).name}")
         thumbnail_bytes = await get_detection_service().get_face_thumbnail(
             image_path,
             bounding_box,
@@ -192,7 +232,10 @@ async def get_face_thumbnail(image_path: str, x: int, y: int, width: int, height
         return Response(
             content=thumbnail_bytes,
             media_type="image/jpeg",
-            headers={"Cache-Control": "public, max-age=3600"}
+            headers={
+                "Cache-Control": "public, max-age=604800",
+                "X-Cache": "MISS"
+            }
         )
     except FileNotFoundError as e:
         logger.error(f"[Detection] File not found: {e}")

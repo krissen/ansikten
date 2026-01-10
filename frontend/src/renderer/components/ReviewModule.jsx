@@ -17,6 +17,7 @@ import { useToast } from '../context/ToastContext.jsx';
 import { useWebSocket } from '../hooks/useWebSocket.js';
 import { debug, debugWarn, debugError } from '../shared/debug.js';
 import { preferences } from '../workspace/preferences.js';
+import { useThumbnail } from '../shared/thumbnail-cache.js';
 import { Icon } from './Icon.jsx';
 import './ReviewModule.css';
 
@@ -907,7 +908,12 @@ function FaceCard({ face, index, isActive, imagePath, people, cardRef, inputRef,
   const initialValue = isProbableIgnoreCase ? '' : (face.person_name || '');
   const [inputValue, setInputValue] = useState(initialValue);
   const [typedValue, setTypedValue] = useState(initialValue);
-  const [imageError, setImageError] = useState(false);
+
+  // Use cached thumbnail
+  const { url: thumbnailUrl, loading: thumbnailLoading, error: thumbnailError } = useThumbnail(
+    imagePath,
+    face.bounding_box
+  );
   const [showSuggestions, setShowSuggestions] = useState(false);
   const [selectedSuggestion, setSelectedSuggestion] = useState(-1);
   const localInputRef = useRef(null);
@@ -950,14 +956,6 @@ function FaceCard({ face, index, isActive, imagePath, people, cardRef, inputRef,
     { maxHeight: 200, gap: 4 }
   );
 
-  // Build thumbnail URL (only for faces with bounding boxes)
-  const bbox = face.bounding_box;
-  const thumbnailUrl = (imagePath && bbox) ? (
-    `http://127.0.0.1:5001/api/face-thumbnail?` +
-    `image_path=${encodeURIComponent(imagePath)}` +
-    `&x=${bbox.x || 0}&y=${bbox.y || 0}&width=${bbox.width || 100}&height=${bbox.height || 100}&size=150`
-  ) : null;
-
   // Determine if this is a probable-ignore case
   const isProbableIgnore = face.match_case === 'ign' || face.match_case === 'uncertain_ign';
 
@@ -982,11 +980,12 @@ function FaceCard({ face, index, isActive, imagePath, people, cardRef, inputRef,
       <div className="face-number">{index + 1}</div>
 
       <div className="face-thumbnail">
-        {thumbnailUrl && !imageError ? (
+        {thumbnailLoading ? (
+          <div className="thumbnail-loading" />
+        ) : thumbnailUrl && !thumbnailError ? (
           <img
             src={thumbnailUrl}
             alt={face.person_name || 'Unknown'}
-            onError={() => setImageError(true)}
           />
         ) : (
           <Icon name="user" size={32} />
