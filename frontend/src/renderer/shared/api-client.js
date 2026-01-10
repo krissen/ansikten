@@ -16,8 +16,10 @@ export class APIClient {
     this.reconnectAttempts = 0;
     this.maxReconnectAttempts = 10;
     this.reconnectDelay = 1000;
+    this.maxReconnectDelay = 30000; // Cap at 30 seconds
     this.isConnecting = false;
     this._connected = false;
+    this._shouldReconnect = true; // Flag to prevent reconnection on intentional disconnect
   }
 
   addConnectionListener(callback) {
@@ -144,6 +146,7 @@ export class APIClient {
         debug('WebSocket', 'WebSocket connected');
         this.reconnectAttempts = 0;
         this.reconnectDelay = 1000;
+        this._shouldReconnect = true; // Re-enable reconnection on successful connect
         this.isConnecting = false;
         this._notifyConnectionListeners(true);
         resolve();
@@ -180,9 +183,22 @@ export class APIClient {
         this.isConnecting = false;
         this._notifyConnectionListeners(false);
 
+        // Don't reconnect if intentionally disconnected
+        if (!this._shouldReconnect) {
+          debug('WebSocket', 'Reconnection disabled');
+          return;
+        }
+
         if (this.reconnectAttempts < this.maxReconnectAttempts) {
           this.reconnectAttempts++;
-          const delay = this.reconnectDelay * Math.pow(2, this.reconnectAttempts - 1);
+
+          // Exponential backoff with cap and jitter
+          let delay = this.reconnectDelay * Math.pow(2, this.reconnectAttempts - 1);
+          delay = Math.min(delay, this.maxReconnectDelay); // Cap at max
+
+          // Add ±20% jitter to prevent thundering herd
+          const jitter = delay * 0.2 * (Math.random() * 2 - 1);
+          delay = Math.round(delay + jitter);
 
           debug('WebSocket', `Reconnecting in ${delay}ms (attempt ${this.reconnectAttempts}/${this.maxReconnectAttempts})`);
 
@@ -223,10 +239,11 @@ export class APIClient {
 
   /**
    * Disconnect WebSocket
+   * @param {boolean} allowReconnect - If false, prevents automatic reconnection
    */
-  disconnectWebSocket() {
+  disconnectWebSocket(allowReconnect = false) {
+    this._shouldReconnect = allowReconnect;
     if (this.ws) {
-      this.reconnectAttempts = this.maxReconnectAttempts; // Prevent reconnection
       this.ws.close();
       this.ws = null;
     }
