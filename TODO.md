@@ -2,7 +2,7 @@
 
 Konsoliderad lista över planerade förbättringar, kända brister och teknisk skuld.
 
-**Senast uppdaterad:** 2026-01-05
+**Senast uppdaterad:** 2026-01-10
 
 ---
 
@@ -10,12 +10,7 @@ Konsoliderad lista över planerade förbättringar, kända brister och teknisk s
 
 ### Nu
 
-- [ ] UX-förbättring vid rename:
-  - [ ] Vid många filer finns det en fördröjning mellan att användaren bockar i "visa nya namn" och att något synbarligen händer. Namnen uppdateras först när alla namnförslag är klara. Förslag: uppdatera vyn-per fil. Då ser användaren vad som pågår. Alternativ B, ifall tidigarenämnda inte är möjligt: visa en status-toast om vad som pågår, med en rubrik eller något samt progress indikator.
-  - [ ] Vid många filer, efter att användaren tryckt på rename: inget händer trots att den jobbar. Förslag: visa status-toast som visa vad som pågår, med en progress-indikator.
-  - [ ] Vid rename, i slutskedet någonstans, kommer alltid toasten "backend disconnected". Varför då? Handlar det på något sätt om att filer försvinner? Eller att den får mycket att göra/verkar låst, och därför ser ut att disconnecta?
-  - [ ] Vid rename, tidigare syntes filkön med de nya namnen efter rename. Nu blir det istället clearat. I praktiken: filkön töms efter rename. Så ska det inte vara; vi bör istället ha filerna laddade (med rätt status) och visa de nya filnamnen.
-  - [ ] I /Users/krisniem/.local/share/faceid finns en hitta_ansikten.log med info om vad som hänt. Hitta aktuell info (ifrån idag t ex, och kolla vad som hänt)
+*(Inga pågående prioriterade uppgifter)*
 
 ### Kort sikt
 
@@ -87,6 +82,14 @@ Konsoliderad lista över planerade förbättringar, kända brister och teknisk s
 ---
 
 ## Slutfört (referens)
+
+### 2026-01-10: Rename UX-förbättringar
+
+- [x] **Filkön töms inte längre efter rename** - Blockerar file-deleted events under rename
+- [x] **Ingen "backend disconnected" toast** - Ignorerar WebSocket-disconnect under rename
+- [x] **Progress-toast vid rename** - Visar "Renaming X file(s)..." medan operationen pågår
+- [x] **Loading-toast vid namnförslag** - Visar feedback när namn genereras (>5 filer)
+- [x] Logganalys genomförd - bekräftade att disconnect är normalt beteende
 
 ### 2026-01-09: dlib deprecated & RefineFaces förbättringar
 
