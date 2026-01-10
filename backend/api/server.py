@@ -159,8 +159,37 @@ app.add_middleware(
 # Health check endpoint
 @app.get("/health")
 async def health_check():
-    """Health check endpoint for backend readiness"""
-    return {"status": "ok", "service": "bildvisare-backend"}
+    """Health check endpoint for backend readiness.
+
+    Returns overall status and component states:
+    - status: "ok" (all ready), "degraded" (has errors), "starting" (still loading)
+    - components: backend, database, mlModels with individual states
+    """
+    from .services.startup_service import get_startup_state, LoadingState
+
+    startup = get_startup_state()
+    status_data = startup.get_status()
+
+    # Determine overall status
+    if status_data["allReady"]:
+        overall = "ok"
+    elif status_data["hasError"]:
+        overall = "degraded"
+    else:
+        overall = "starting"
+
+    return {
+        "status": overall,
+        "service": "bildvisare-backend",
+        "version": app.version,
+        "components": {
+            name: {
+                "state": info["state"],
+                "message": info["message"]
+            }
+            for name, info in status_data["items"].items()
+        }
+    }
 
 
 

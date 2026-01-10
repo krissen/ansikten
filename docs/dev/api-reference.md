@@ -16,15 +16,40 @@ REST and WebSocket API for the Hitta ansikten backend.
 
 ### `GET /health`
 
-Check backend status.
+Check backend status and component readiness.
 
-**Response:**
+**Response (all ready):**
 ```json
 {
   "status": "ok",
-  "service": "bildvisare-backend"
+  "service": "bildvisare-backend",
+  "version": "1.0.0",
+  "components": {
+    "backend": { "state": "ready", "message": "Connected" },
+    "database": { "state": "ready", "message": "42 persons" },
+    "mlModels": { "state": "ready", "message": "Ready (2.3s)" }
+  }
 }
 ```
+
+**Response (starting up):**
+```json
+{
+  "status": "starting",
+  "service": "bildvisare-backend",
+  "version": "1.0.0",
+  "components": {
+    "backend": { "state": "ready", "message": "Connected" },
+    "database": { "state": "loading", "message": "Läser in..." },
+    "mlModels": { "state": "pending", "message": "Waiting..." }
+  }
+}
+```
+
+**Status values:**
+- `ok` - All components ready
+- `starting` - Still initializing
+- `degraded` - One or more components have errors
 
 ---
 

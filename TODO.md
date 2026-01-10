@@ -81,7 +81,7 @@ Konsoliderad lista över planerade förbättringar, kända brister och teknisk s
 
 - [ ] Backend och frontend har ingen gemensam typdefinition
 - [ ] API-versioning saknas
-- [ ] Ingen health-check endpoint för backend
+- [x] ~~Ingen health-check endpoint~~ (förbättrad: /health returnerar komponentstatus)
 - [ ] Loggning är inkonsekvent mellan backend/frontend
 
 ---
