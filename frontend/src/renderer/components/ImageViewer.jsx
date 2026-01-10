@@ -840,7 +840,7 @@ export function ImageViewer() {
           {queueStatus && (
             <div className="file-info-queue">
               <span className="file-info-progress-text">
-                {queueStatus.done} done · {queueStatus.current + 1}/{queueStatus.total} · {queueStatus.remaining} left
+                {queueStatus.done} done · {queueStatus.remaining} left
               </span>
               <div className="file-info-progress-bar">
                 <div
