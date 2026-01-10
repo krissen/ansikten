@@ -37,10 +37,10 @@ Known faces database. Dictionary mapping person names to encoding lists.
 {
     "Anna": [
         {
-            "encoding": np.ndarray,    # 128-dim (dlib) or 512-dim (InsightFace)
+            "encoding": np.ndarray,    # 512-dim (InsightFace)
             "file": "250101_120000.NEF",
             "hash": "abc123...",       # SHA1 hash of source file
-            "backend": "insightface",  # or "dlib"
+            "backend": "insightface",
             "backend_version": "0.7.3",
             "created_at": "2025-01-01T12:00:00"
         },
@@ -53,9 +53,10 @@ Known faces database. Dictionary mapping person names to encoding lists.
 ```
 
 **Notes:**
-- Encodings are only compared against same backend type
+- All encodings are InsightFace (512-dim, cosine distance)
 - Legacy entries (bare numpy arrays) auto-migrate to dict format
 - One person can have multiple encodings from different images
+- dlib encodings (128-dim) are deprecated and auto-removed at server startup
 
 ### ignored.pkl
 
@@ -161,10 +162,12 @@ User configuration overrides.
 | Key | Default | Description |
 |-----|---------|-------------|
 | `detection_model` | `"hog"` | `"hog"` (fast) or `"cnn"` (accurate) |
-| `backend.type` | `"dlib"` | `"dlib"` or `"insightface"` |
-| `match_threshold` | `0.54` | Distance threshold for matches |
+| `backend.type` | `"insightface"` | InsightFace (512-dim, cosine distance) |
+| `match_threshold` | `0.4` | Distance threshold for matches |
 | `auto_ignore` | `false` | Auto-ignore unmatched faces |
 | `image_viewer_app` | `"Bildvisare"` | External preview app |
+
+> **Note:** dlib backend is deprecated since January 2026. Existing dlib encodings are automatically removed at server startup.
 
 ---
 
@@ -250,18 +253,20 @@ mark_processed(filename, file_hash)
 
 ### Legacy Formats
 
-Old encodings (bare numpy arrays) automatically migrate:
+Old encodings (bare numpy arrays) automatically migrate to dict format:
 
 ```python
-# Old format
+# Old format (legacy)
 {"Anna": [np.array([...]), np.array([...])]}
 
 # New format (auto-migrated)
 {"Anna": [
-    {"encoding": np.array([...]), "backend": "dlib", ...},
-    {"encoding": np.array([...]), "backend": "dlib", ...}
+    {"encoding": np.array([...]), "backend": "insightface", ...},
+    {"encoding": np.array([...]), "backend": "insightface", ...}
 ]}
 ```
+
+> **Note:** Any legacy dlib (128-dim) encodings are automatically purged at startup.
 
 ### Migration Scripts
 

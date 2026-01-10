@@ -431,6 +431,131 @@ Execute file renames.
 
 ---
 
+## Refinement
+
+Endpoints for filtering outlier encodings and maintaining database quality.
+
+### `GET /api/refinement/preview`
+
+Preview what encodings would be removed.
+
+**Query Parameters:**
+| Parameter | Default | Description |
+|-----------|---------|-------------|
+| `person` | null | Person name or `*` for all |
+| `mode` | `std` | Filter mode: `std`, `cluster`, `mahalanobis`, or `shape` |
+| `std_threshold` | 2.0 | Standard deviations for outlier detection |
+| `cluster_dist` | 0.35 | Max cosine distance from centroid |
+| `cluster_min` | 6 | Minimum cluster size |
+| `mahalanobis_threshold` | 3.0 | Mahalanobis distance threshold |
+| `min_encodings` | 8 | Skip filtering if fewer encodings |
+
+**Response:**
+```json
+{
+  "preview": [
+    {
+      "person": "Anna",
+      "total": 15,
+      "keep": 12,
+      "remove": 3,
+      "remove_indices": [2, 7, 14],
+      "reason": "std outlier",
+      "stats": {
+        "min_dist": 0.21,
+        "max_dist": 0.48,
+        "mean_dist": 0.31,
+        "std_dist": 0.08
+      }
+    }
+  ],
+  "summary": {
+    "total_people": 42,
+    "affected_people": 5,
+    "total_remove": 12
+  }
+}
+```
+
+### `POST /api/refinement/apply`
+
+Apply filtering to remove outlier encodings.
+
+**Request:**
+```json
+{
+  "mode": "mahalanobis",
+  "persons": ["Anna", "Bert"],
+  "mahalanobis_threshold": 3.0,
+  "min_encodings": 8,
+  "dry_run": false
+}
+```
+
+**Response:**
+```json
+{
+  "status": "ok",
+  "dry_run": false,
+  "removed": 5,
+  "by_person": { "Anna": 3, "Bert": 2 }
+}
+```
+
+### `POST /api/refinement/repair-shapes`
+
+Remove encodings with inconsistent shapes (keeps majority shape).
+
+**Request:**
+```json
+{
+  "persons": ["Anna"],
+  "dry_run": true
+}
+```
+
+**Response:**
+```json
+{
+  "status": "ok",
+  "dry_run": true,
+  "total_removed": 2,
+  "repaired": [
+    {
+      "person": "Anna",
+      "removed": 2,
+      "total": 15,
+      "kept_shape": [512],
+      "removed_shapes": [[128], [128]]
+    }
+  ]
+}
+```
+
+### `POST /api/refinement/remove-dlib`
+
+Remove ALL dlib (128-dim) encodings. dlib backend is deprecated.
+
+**Request:**
+```json
+{
+  "dry_run": true
+}
+```
+
+**Response:**
+```json
+{
+  "status": "ok",
+  "dry_run": true,
+  "total_removed": 45,
+  "by_person": { "Anna": 10, "Bert": 8 },
+  "people_affected": 12
+}
+```
+
+---
+
 ## WebSocket
 
 ### `ws://127.0.0.1:5001/ws/progress`

@@ -53,6 +53,7 @@ Workspace är ett modulärt gränssnitt byggt med FlexLayout. Paneler kan dockas
 | Genväg | Funktion |
 |--------|----------|
 | `Enter` / `A` | Acceptera föreslagen matchning |
+| `Shift+Cmd+A` | Acceptera alla förslag i bilden |
 | `i` | Ignorera ansikte |
 | `r` | Byt namn / ange namn (rensar fältet) |
 | `1-9` | Välj matchningsalternativ |

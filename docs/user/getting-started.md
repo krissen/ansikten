@@ -8,7 +8,7 @@ Guide för att installera och köra Hitta ansikten.
 
 ### Backend (Python)
 - Python 3.9+
-- dlib eller InsightFace (se nedan)
+- InsightFace + ONNX Runtime
 - ~2GB RAM för bearbetning
 - SSD rekommenderas för cache
 
@@ -42,17 +42,13 @@ pip install -r requirements.txt
 
 #### Face Recognition Backend
 
-Välj **en** av dessa:
+InsightFace används för ansiktsigenkänning:
 
-**dlib (standard):**
-```bash
-pip install face_recognition
-```
-
-**InsightFace (snabbare, bättre noggrannhet):**
 ```bash
 pip install insightface onnxruntime
 ```
+
+> **Not:** Äldre versioner använde dlib, men detta är deprecated sedan januari 2026. Om du har befintliga dlib-encodings kommer de att tas bort automatiskt vid serverstart.
 
 ### 3. Frontend-beroenden
 
