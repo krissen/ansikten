@@ -68,7 +68,7 @@ Konsoliderad lista över planerade förbättringar, kända brister och teknisk s
 - [ ] `hitta_ansikten.py` är 2000+ rader - bör brytas upp
 - [ ] Ingen typ-annotation i äldre Python-kod
 - [ ] Inkonsekvent error-handling (print vs logging)
-- [ ] Preprocessing-cache kan växa obegränsat
+- [x] ~~Preprocessing-cache kan växa obegränsat~~ (1GB limit med LRU, loggrotation vid startup)
 
 ### Frontend
 
