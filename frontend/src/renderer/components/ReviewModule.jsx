@@ -223,15 +223,21 @@ export function ReviewModule() {
         updated[existing] = { ...updated[existing], person_name: personName.trim() };
         return updated;
       }
-      return [...prev, { 
-        face_id: face.face_id, 
-        person_name: personName.trim(), 
+      return [...prev, {
+        face_id: face.face_id,
+        person_name: personName.trim(),
         image_path: currentImagePath,
         suggested_name: suggestedName !== personName.trim() ? suggestedName : null
       }];
     });
 
-    navigateToFace(1, index);
+    // Skip navigation if all faces will be done - auto-save will handle transition
+    const willAllBeDone = detectedFaces.every((f, i) =>
+      i === index || f.is_confirmed || f.is_rejected
+    );
+    if (!willAllBeDone) {
+      navigateToFace(1, index);
+    }
   }, [detectedFaces, currentImagePath, navigateToFace]);
 
   const doIgnoreFace = useCallback((index) => {
@@ -249,7 +255,13 @@ export function ReviewModule() {
       return [...prev, { face_id: face.face_id, image_path: currentImagePath }];
     });
 
-    navigateToFace(1, index);
+    // Skip navigation if all faces will be done - auto-save will handle transition
+    const willAllBeDone = detectedFaces.every((f, i) =>
+      i === index || f.is_confirmed || f.is_rejected
+    );
+    if (!willAllBeDone) {
+      navigateToFace(1, index);
+    }
   }, [detectedFaces, currentImagePath, navigateToFace]);
 
   const confirmFace = useCallback((index, personName) => {
