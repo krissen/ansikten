@@ -82,12 +82,35 @@ a = Analysis(
     hooksconfig={},
     runtime_hooks=[],
     excludes=[
+        # GUI toolkits (not needed for headless server)
         'tkinter',
+        'PyQt5',
+        'PyQt6',
+        'PySide2',
+        'PySide6',
+        'wx',
+
+        # Development/testing tools
         'IPython',
         'jupyter',
         'notebook',
         'pytest',
         'sphinx',
+        'setuptools',
+        'pip',
+        'wheel',
+
+        # Unused ML frameworks (insightface uses onnxruntime only)
+        'tensorflow',
+        'tensorboard',
+        'torch',
+        'torchvision',
+        'keras',
+
+        # Unused matplotlib backends
+        'matplotlib.backends.backend_qt5agg',
+        'matplotlib.backends.backend_tkagg',
+        'matplotlib.backends.backend_wxagg',
     ],
     win_no_prefer_redirects=False,
     win_private_assemblies=False,
