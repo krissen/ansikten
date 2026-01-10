@@ -10,7 +10,7 @@
  * - Configurable sections via preferences
  */
 
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import { useBackend } from '../context/BackendContext.jsx';
 import { useAutoRefresh } from '../hooks/useAutoRefresh.js';
 import { debug, debugWarn, debugError, getLogBuffer } from '../shared/debug.js';
@@ -35,9 +35,9 @@ export function StatisticsDashboard() {
   // Dashboard preferences
   const [dashboardPrefs, setDashboardPrefs] = useState(() => preferences.get('dashboard') || {});
 
-  // Auto-refresh settings (from prefs or defaults)
-  const [autoRefresh, setAutoRefresh] = useState(() => dashboardPrefs.autoRefresh ?? true);
-  const [refreshRate, setRefreshRate] = useState(() => dashboardPrefs.refreshInterval ?? 5000);
+  // Refresh interval from prefs (stable reference)
+  const refreshInterval = dashboardPrefs.refreshInterval ?? 5000;
+  const initialAutoRefresh = dashboardPrefs.autoRefresh ?? true;
 
   /**
    * Get logs from frontend debug buffer (same source as LogViewer)
@@ -58,6 +58,7 @@ export function StatisticsDashboard() {
    * Fetch statistics from backend
    */
   const fetchStatistics = useCallback(async () => {
+    debug('Statistics', `Fetching summary... (interval=${refreshInterval}ms)`);
     try {
       const data = await api.get('/api/v1/statistics/summary');
 
@@ -80,21 +81,21 @@ export function StatisticsDashboard() {
     }
   }, [api, getLogsFromBuffer]);
 
-  // Use auto-refresh hook (handles initial fetch via refreshOnMount)
-  useAutoRefresh(fetchStatistics, {
-    interval: refreshRate,
-    initialEnabled: autoRefresh,
+  // Use auto-refresh hook - use returned controls instead of separate state
+  const { isEnabled: autoRefresh, setEnabled: setAutoRefresh, refresh } = useAutoRefresh(fetchStatistics, {
+    interval: refreshInterval,
+    initialEnabled: initialAutoRefresh,
     refreshOnMount: true
   });
+
+  // Local state for refresh rate selector (to update interval)
+  const [refreshRate, setRefreshRate] = useState(refreshInterval);
 
   // Listen for preference changes
   useEffect(() => {
     const handlePrefsChanged = () => {
       const newPrefs = preferences.get('dashboard') || {};
       setDashboardPrefs(newPrefs);
-      // Update refresh settings if changed
-      if (newPrefs.autoRefresh !== undefined) setAutoRefresh(newPrefs.autoRefresh);
-      if (newPrefs.refreshInterval !== undefined) setRefreshRate(newPrefs.refreshInterval);
     };
     window.addEventListener('preferences-changed', handlePrefsChanged);
     return () => window.removeEventListener('preferences-changed', handlePrefsChanged);
@@ -129,7 +130,7 @@ export function StatisticsDashboard() {
             <option value="10000">10s</option>
             <option value="30000">30s</option>
           </select>
-          <button className="btn-secondary" onClick={fetchStatistics}>
+          <button className="btn-secondary" onClick={refresh}>
             Refresh Now
           </button>
         </div>
