@@ -48,7 +48,6 @@ jobs:
       - name: Prepare backend for Electron
         run: |
           mkdir -p frontend/resources/backend
-          # PyInstaller onedir mode creates a directory - copy contents
           cp -r backend/dist/bildvisare-backend/* frontend/resources/backend/
           chmod +x frontend/resources/backend/bildvisare-backend
 
@@ -59,13 +58,22 @@ jobs:
           cache: 'npm'
           cache-dependency-path: frontend/package-lock.json
 
+      - name: Cache Electron
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/Library/Caches/electron
+            ~/Library/Caches/electron-builder
+          key: electron-macos-${{ hashFiles('frontend/package-lock.json') }}
+          restore-keys: electron-macos-
+
       - name: Install Node dependencies
         working-directory: frontend
         run: npm ci
 
       - name: Build Electron app
         working-directory: frontend
-        run: npm run build:mac
+        run: npm run build:workspace && npx electron-builder --mac
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
@@ -119,13 +127,22 @@ jobs:
           cache: 'npm'
           cache-dependency-path: frontend/package-lock.json
 
+      - name: Cache Electron
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/AppData/Local/electron/Cache
+            ~/AppData/Local/electron-builder/Cache
+          key: electron-windows-${{ hashFiles('frontend/package-lock.json') }}
+          restore-keys: electron-windows-
+
       - name: Install Node dependencies
         working-directory: frontend
         run: npm ci
 
       - name: Build Electron app
         working-directory: frontend
-        run: npm run build:win
+        run: npm run build:workspace && npx electron-builder --win
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
@@ -183,13 +200,22 @@ jobs:
           cache: 'npm'
           cache-dependency-path: frontend/package-lock.json
 
+      - name: Cache Electron
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.cache/electron
+            ~/.cache/electron-builder
+          key: electron-linux-${{ hashFiles('frontend/package-lock.json') }}
+          restore-keys: electron-linux-
+
       - name: Install Node dependencies
         working-directory: frontend
         run: npm ci
 
       - name: Build Electron app
         working-directory: frontend
-        run: npm run build:linux
+        run: npm run build:workspace && npx electron-builder --linux
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
