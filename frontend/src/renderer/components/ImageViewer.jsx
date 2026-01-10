@@ -15,6 +15,7 @@ import { useCanvasDimensions } from '../hooks/useCanvas.js';
 import { debug, debugWarn, debugError } from '../shared/debug.js';
 import { apiClient } from '../shared/api-client.js';
 import { preferences } from '../workspace/preferences.js';
+import { LoadingOverlay } from './ProgressBar.jsx';
 import './ImageViewer.css';
 
 // Constants (will be user-configurable in Phase 4)
@@ -823,12 +824,7 @@ export function ImageViewer() {
         ref={canvasRef}
         style={{ cursor: zoomMode === 'manual' ? 'grab' : 'default' }}
       />
-      {isLoading && (
-        <div className="image-viewer-loading">
-          <div className="loading-spinner">⏳</div>
-          <div>{loadingMessage}</div>
-        </div>
-      )}
+      <LoadingOverlay visible={isLoading} message={loadingMessage} />
       {!image && !isLoading && (
         <div className="image-viewer-placeholder">
           <div className="placeholder-icon">📷</div>

@@ -96,13 +96,13 @@
 .thumbnail-loading {
   width: 40px;
   height: 40px;
-  border: 3px solid var(--border-primary);
-  border-top-color: var(--accent-primary);
+  border: 3px solid var(--progress-track-bg);
+  border-top-color: var(--progress-fill);
   border-radius: 50%;
-  animation: spin 0.8s linear infinite;
+  animation: thumbnail-spin 0.8s linear infinite;
 }
 
-@keyframes spin {
+@keyframes thumbnail-spin {
   to { transform: rotate(360deg); }
 }
 
