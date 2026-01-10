@@ -12,6 +12,8 @@
 import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import { useBackend } from '../context/BackendContext.jsx';
 import { useModuleEvent } from '../hooks/useModuleEvent.js';
+import { useOperationStatus } from '../hooks/useOperationStatus.js';
+import { useFormState } from '../hooks/useFormState.js';
 import { debug, debugWarn, debugError } from '../shared/debug.js';
 import './DatabaseManagement.css';
 
@@ -45,19 +47,19 @@ export function DatabaseManagement() {
 
   // Database state
   const [databaseState, setDatabaseState] = useState(null);
-  const [isLoading, setIsLoading] = useState(true);
-  const [status, setStatus] = useState({ type: '', message: '' });
-
   const [searchTerm, setSearchTerm] = useState('');
 
-  // Form states
-  const [renameForm, setRenameForm] = useState({ oldName: '', newName: '' });
-  const [mergeForm, setMergeForm] = useState({ source1: '', source2: '', target: '', backend: '' });
-  const [deleteForm, setDeleteForm] = useState({ name: '' });
-  const [moveToIgnoreForm, setMoveToIgnoreForm] = useState({ name: '', backend: '' });
-  const [moveFromIgnoreForm, setMoveFromIgnoreForm] = useState({ count: '', target: '', backend: '' });
-  const [undoForm, setUndoForm] = useState({ pattern: '' });
-  const [purgeForm, setPurgeForm] = useState({ name: '', count: '', backend: '' });
+  // Operation status (loading, success, error) - replaces manual isLoading/status/showSuccess/showError
+  const { isLoading, setIsLoading, status, showSuccess, showError } = useOperationStatus();
+
+  // Form states - using useFormState hook for cleaner reset handling
+  const renameForm = useFormState({ oldName: '', newName: '' });
+  const mergeForm = useFormState({ source1: '', source2: '', target: '', backend: '' });
+  const deleteForm = useFormState({ name: '' });
+  const moveToIgnoreForm = useFormState({ name: '', backend: '' });
+  const moveFromIgnoreForm = useFormState({ count: '', target: '', backend: '' });
+  const undoForm = useFormState({ pattern: '' });
+  const purgeForm = useFormState({ name: '', count: '', backend: '' });
 
   const filteredPeople = useMemo(() => {
     if (!databaseState?.people) return [];
@@ -94,25 +96,10 @@ export function DatabaseManagement() {
   useModuleEvent('database-updated', loadDatabaseState);
 
   /**
-   * Show success message
-   */
-  const showSuccess = (message) => {
-    setStatus({ type: 'success', message });
-    setTimeout(() => setStatus({ type: '', message: '' }), 5000);
-  };
-
-  /**
-   * Show error message
-   */
-  const showError = (message) => {
-    setStatus({ type: 'error', message });
-  };
-
-  /**
    * Operation handlers
    */
   const handleRename = async () => {
-    const { oldName, newName } = renameForm;
+    const { oldName, newName } = renameForm.values;
     if (!oldName.trim() || !newName.trim()) {
       showError('Please enter both old and new names');
       return;
@@ -127,14 +114,14 @@ export function DatabaseManagement() {
       });
       showSuccess(result.message);
       setDatabaseState(result.new_state);
-      setRenameForm({ oldName: '', newName: '' });
+      renameForm.reset();
     } catch (err) {
       showError('Rename failed: ' + err.message);
     }
   };
 
   const handleMerge = async () => {
-    const { source1, source2, target, backend } = mergeForm;
+    const { source1, source2, target, backend } = mergeForm.values;
     if (!source1.trim() || !source2.trim()) {
       showError('Please enter two people to merge');
       return;
@@ -157,14 +144,14 @@ export function DatabaseManagement() {
       }
       showSuccess(msg);
       setDatabaseState(result.new_state);
-      setMergeForm({ source1: '', source2: '', target: '', backend: '' });
+      mergeForm.reset();
     } catch (err) {
       showError('Merge failed: ' + err.message);
     }
   };
 
   const handleDelete = async () => {
-    const { name } = deleteForm;
+    const { name } = deleteForm.values;
     if (!name.trim()) {
       showError('Please enter person name to delete');
       return;
@@ -176,14 +163,14 @@ export function DatabaseManagement() {
       const result = await api.post('/api/v1/management/delete-person', { name: name.trim() });
       showSuccess(result.message);
       setDatabaseState(result.new_state);
-      setDeleteForm({ name: '' });
+      deleteForm.reset();
     } catch (err) {
       showError('Delete failed: ' + err.message);
     }
   };
 
   const handleMoveToIgnore = async () => {
-    const { name, backend } = moveToIgnoreForm;
+    const { name, backend } = moveToIgnoreForm.values;
     if (!name.trim()) {
       showError('Please enter person name');
       return;
@@ -199,14 +186,14 @@ export function DatabaseManagement() {
       });
       showSuccess(result.message);
       setDatabaseState(result.new_state);
-      setMoveToIgnoreForm({ name: '', backend: '' });
+      moveToIgnoreForm.reset();
     } catch (err) {
       showError('Move to ignore failed: ' + err.message);
     }
   };
 
   const handleMoveFromIgnore = async () => {
-    const { count, target, backend } = moveFromIgnoreForm;
+    const { count, target, backend } = moveFromIgnoreForm.values;
     const countNum = parseInt(count, 10);
 
     if (isNaN(countNum) || !target.trim()) {
@@ -225,14 +212,14 @@ export function DatabaseManagement() {
       });
       showSuccess(result.message);
       setDatabaseState(result.new_state);
-      setMoveFromIgnoreForm({ count: '', target: '', backend: '' });
+      moveFromIgnoreForm.reset();
     } catch (err) {
       showError('Move from ignore failed: ' + err.message);
     }
   };
 
   const handleUndo = async () => {
-    const { pattern } = undoForm;
+    const { pattern } = undoForm.values;
     if (!pattern.trim()) {
       showError('Please enter filename or pattern');
       return;
@@ -248,7 +235,7 @@ export function DatabaseManagement() {
       }
       showSuccess(message);
       setDatabaseState(result.new_state);
-      setUndoForm({ pattern: '' });
+      undoForm.reset();
     } catch (err) {
       showError('Undo failed: ' + err.message);
     }
@@ -265,7 +252,7 @@ export function DatabaseManagement() {
   };
 
   const handlePurge = async () => {
-    const { name, count, backend } = purgeForm;
+    const { name, count, backend } = purgeForm.values;
     const countNum = parseInt(count, 10);
 
     if (!name.trim() || isNaN(countNum) || countNum < 1) {
@@ -284,7 +271,7 @@ export function DatabaseManagement() {
       });
       showSuccess(result.message);
       setDatabaseState(result.new_state);
-      setPurgeForm({ name: '', count: '', backend: '' });
+      purgeForm.reset();
     } catch (err) {
       showError('Purge failed: ' + err.message);
     }
@@ -362,14 +349,14 @@ export function DatabaseManagement() {
             <input
               list="people-list"
               placeholder="Current name"
-              value={renameForm.oldName}
-              onChange={(e) => setRenameForm(prev => ({ ...prev, oldName: e.target.value }))}
+              value={renameForm.values.oldName}
+              onChange={(e) => renameForm.setValue('oldName', e.target.value)}
             />
             <span>→</span>
             <input
               placeholder="New name"
-              value={renameForm.newName}
-              onChange={(e) => setRenameForm(prev => ({ ...prev, newName: e.target.value }))}
+              value={renameForm.values.newName}
+              onChange={(e) => renameForm.setValue('newName', e.target.value)}
             />
             <button className="btn-action" onClick={handleRename}>Rename</button>
           </div>
@@ -381,24 +368,24 @@ export function DatabaseManagement() {
             <input
               list="people-list"
               placeholder="First person"
-              value={mergeForm.source1}
-              onChange={(e) => setMergeForm(prev => ({ ...prev, source1: e.target.value }))}
+              value={mergeForm.values.source1}
+              onChange={(e) => mergeForm.setValue('source1', e.target.value)}
             />
             <input
               list="people-list"
               placeholder="Second person"
-              value={mergeForm.source2}
-              onChange={(e) => setMergeForm(prev => ({ ...prev, source2: e.target.value }))}
+              value={mergeForm.values.source2}
+              onChange={(e) => mergeForm.setValue('source2', e.target.value)}
             />
             <input
               placeholder="Result name (optional)"
-              value={mergeForm.target}
-              onChange={(e) => setMergeForm(prev => ({ ...prev, target: e.target.value }))}
+              value={mergeForm.values.target}
+              onChange={(e) => mergeForm.setValue('target', e.target.value)}
             />
             <div className="form-row">
               <BackendSelect
-                value={mergeForm.backend}
-                onChange={(v) => setMergeForm(prev => ({ ...prev, backend: v }))}
+                value={mergeForm.values.backend}
+                onChange={(v) => mergeForm.setValue('backend', v)}
                 backends={databaseState?.backends_in_use}
               />
               <button className="btn-action" onClick={handleMerge}>Merge</button>
@@ -412,8 +399,8 @@ export function DatabaseManagement() {
             <input
               list="people-list"
               placeholder="Person to delete"
-              value={deleteForm.name}
-              onChange={(e) => setDeleteForm({ name: e.target.value })}
+              value={deleteForm.values.name}
+              onChange={(e) => deleteForm.setValue('name', e.target.value)}
             />
             <button className="btn-danger" onClick={handleDelete}>Delete</button>
           </div>
@@ -425,12 +412,12 @@ export function DatabaseManagement() {
             <input
               list="people-list"
               placeholder="Person name"
-              value={moveToIgnoreForm.name}
-              onChange={(e) => setMoveToIgnoreForm(prev => ({ ...prev, name: e.target.value }))}
+              value={moveToIgnoreForm.values.name}
+              onChange={(e) => moveToIgnoreForm.setValue('name', e.target.value)}
             />
             <BackendSelect
-              value={moveToIgnoreForm.backend}
-              onChange={(v) => setMoveToIgnoreForm(prev => ({ ...prev, backend: v }))}
+              value={moveToIgnoreForm.values.backend}
+              onChange={(v) => moveToIgnoreForm.setValue('backend', v)}
               backends={databaseState?.backends_in_use}
             />
             <button className="btn-action" onClick={handleMoveToIgnore}>Move to Ignored</button>
@@ -445,20 +432,20 @@ export function DatabaseManagement() {
                 type="number"
                 placeholder="Count (-1 for all)"
                 min="-1"
-                value={moveFromIgnoreForm.count}
-                onChange={(e) => setMoveFromIgnoreForm(prev => ({ ...prev, count: e.target.value }))}
+                value={moveFromIgnoreForm.values.count}
+                onChange={(e) => moveFromIgnoreForm.setValue('count', e.target.value)}
               />
               <span>→</span>
               <input
                 placeholder="New person name"
-                value={moveFromIgnoreForm.target}
-                onChange={(e) => setMoveFromIgnoreForm(prev => ({ ...prev, target: e.target.value }))}
+                value={moveFromIgnoreForm.values.target}
+                onChange={(e) => moveFromIgnoreForm.setValue('target', e.target.value)}
               />
             </div>
             <div className="form-row">
               <BackendSelect
-                value={moveFromIgnoreForm.backend}
-                onChange={(v) => setMoveFromIgnoreForm(prev => ({ ...prev, backend: v }))}
+                value={moveFromIgnoreForm.values.backend}
+                onChange={(v) => moveFromIgnoreForm.setValue('backend', v)}
                 backends={databaseState?.backends_in_use}
               />
               <button className="btn-action" onClick={handleMoveFromIgnore}>Move</button>
@@ -471,8 +458,8 @@ export function DatabaseManagement() {
           <div className="form-column">
             <input
               placeholder="Filename or glob (e.g., 2024*.NEF)"
-              value={undoForm.pattern}
-              onChange={(e) => setUndoForm({ pattern: e.target.value })}
+              value={undoForm.values.pattern}
+              onChange={(e) => undoForm.setValue('pattern', e.target.value)}
             />
             <div className="button-row">
               <button className="btn-action" onClick={handleUndo}>Undo</button>
@@ -490,21 +477,21 @@ export function DatabaseManagement() {
               <input
                 list="people-list-with-ignore"
                 placeholder="Person or 'ignore'"
-                value={purgeForm.name}
-                onChange={(e) => setPurgeForm(prev => ({ ...prev, name: e.target.value }))}
+                value={purgeForm.values.name}
+                onChange={(e) => purgeForm.setValue('name', e.target.value)}
               />
               <input
                 type="number"
                 placeholder="Count"
                 min="1"
-                value={purgeForm.count}
-                onChange={(e) => setPurgeForm(prev => ({ ...prev, count: e.target.value }))}
+                value={purgeForm.values.count}
+                onChange={(e) => purgeForm.setValue('count', e.target.value)}
               />
             </div>
             <div className="form-row">
               <BackendSelect
-                value={purgeForm.backend}
-                onChange={(v) => setPurgeForm(prev => ({ ...prev, backend: v }))}
+                value={purgeForm.values.backend}
+                onChange={(v) => purgeForm.setValue('backend', v)}
                 backends={databaseState?.backends_in_use}
               />
               <button className="btn-danger" onClick={handlePurge}>Purge</button>

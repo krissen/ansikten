@@ -12,6 +12,7 @@
 
 import React, { useState, useCallback } from 'react';
 import { useBackend } from '../context/BackendContext.jsx';
+import { useOperationStatus } from '../hooks/useOperationStatus.js';
 import { debugError } from '../shared/debug.js';
 import './RefineFacesModule.css';
 
@@ -36,23 +37,9 @@ export function RefineFacesModule() {
 
   // State
   const [preview, setPreview] = useState(null);
-  const [isLoading, setIsLoading] = useState(false);
-  const [status, setStatus] = useState({ type: '', message: '' });
 
-  /**
-   * Show success message
-   */
-  const showSuccess = (message) => {
-    setStatus({ type: 'success', message });
-    setTimeout(() => setStatus({ type: '', message: '' }), 5000);
-  };
-
-  /**
-   * Show error message
-   */
-  const showError = (message) => {
-    setStatus({ type: 'error', message });
-  };
+  // Operation status (loading, success, error) - replaces manual isLoading/status/showSuccess/showError
+  const { isLoading, setIsLoading, status, showSuccess, showError, clearStatus } = useOperationStatus();
 
   /**
    * Fetch preview from API
@@ -60,7 +47,7 @@ export function RefineFacesModule() {
   const handlePreview = useCallback(async () => {
     setIsLoading(true);
     setPreview(null);
-    setStatus({ type: '', message: '' });
+    clearStatus();
 
     try {
       const params = new URLSearchParams();
