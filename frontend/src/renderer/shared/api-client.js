@@ -239,7 +239,9 @@ export class APIClient {
 
   /**
    * Disconnect WebSocket
-   * @param {boolean} allowReconnect - If false, prevents automatic reconnection
+   * @param {boolean} allowReconnect - Whether to allow automatic reconnection after disconnect.
+   *   - false (default): Disconnect permanently, no auto-reconnect
+   *   - true: Disconnect but allow auto-reconnect (e.g., for temporary network issues)
    */
   disconnectWebSocket(allowReconnect = false) {
     this._shouldReconnect = allowReconnect;
