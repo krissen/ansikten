@@ -33,17 +33,26 @@ export function ToastProvider({ children }) {
     }, actualDuration);
   }, []);
 
-  const value = { showToast, toasts };
+  const dismissToast = useCallback((id) => {
+    // Start exit animation
+    setToasts(prev => prev.map(t => t.id === id ? { ...t, exiting: true } : t));
+    // Remove after animation completes
+    setTimeout(() => {
+      setToasts(prev => prev.filter(t => t.id !== id));
+    }, 300);
+  }, []);
+
+  const value = { showToast, dismissToast, toasts };
 
   return (
     <ToastContext.Provider value={value}>
       {children}
-      <ToastContainer toasts={toasts} />
+      <ToastContainer toasts={toasts} onDismiss={dismissToast} />
     </ToastContext.Provider>
   );
 }
 
-function ToastContainer({ toasts }) {
+function ToastContainer({ toasts, onDismiss }) {
   return (
     <div className="global-toast-container">
       <StartupStatus />
@@ -51,6 +60,8 @@ function ToastContainer({ toasts }) {
         <div
           key={t.id}
           className={`global-toast ${t.type} ${t.exiting ? 'exiting' : ''}`}
+          onClick={() => onDismiss(t.id)}
+          title="Klicka för att stänga"
         >
           {t.message}
         </div>

@@ -56,7 +56,7 @@ Konsoliderad lista över planerade förbättringar, kända brister och teknisk s
 
 - [ ] Inga visuella indikatorer för tangentbordsgenvägar i UI
 - [ ] Saknas undo/redo för ansiktsbekräftelser
-- [ ] Toast-meddelanden kan inte klickas bort manuellt
+- [x] ~~Toast-meddelanden kan inte klickas bort manuellt~~ (klickbar dismiss med cursor-feedback)
 - [ ] Ingen progress-indikator för långsamma operationer
 
 ---
