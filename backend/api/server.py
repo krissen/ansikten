@@ -33,8 +33,13 @@ async def lifespan(app: FastAPI):
     logger.info(f"Server ready on http://127.0.0.1:{port}")
     
     def _load_database_sync():
-        """Sync function for thread pool - loads database and migrates dlib"""
+        """Sync function for thread pool - loads database, rotates logs, and migrates dlib"""
         from .services.management_service import get_management_service
+        from faceid_db import rotate_logs
+
+        # Rotate logs on startup to prevent unbounded growth
+        rotate_logs()
+
         svc = get_management_service()
         return len(svc.known_faces)
 
