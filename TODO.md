@@ -50,7 +50,7 @@ Konsoliderad lista över planerade förbättringar, kända brister och teknisk s
 - [ ] Ingen testsvit - enhets- och integrationstester saknas helt
 - [x] ~~Ingen deployment-guide~~ (skapad: docs/dev/release-guide.md, docs/user/installation.md)
 - [ ] Saknas felhantering vid nätverksavbrott mot backend
-- [ ] Preview-bilder cachas inte effektivt
+- [x] ~~Preview-bilder cachas inte effektivt~~ (disk-cache, frontend blob-cache, 30 min TTL)
 
 ### UI/UX
 
