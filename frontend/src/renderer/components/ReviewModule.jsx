@@ -476,6 +476,12 @@ export function ReviewModule() {
     setDetectedFaces(prev => {
       const updated = [...prev];
       updated.splice(insertIndex, 0, manualFace);
+
+      // Sync updated faces array to ImageViewer so indices stay aligned
+      setTimeout(() => {
+        emit('faces-detected', { faces: updated, imagePath: currentImagePath });
+      }, 0);
+
       return updated;
     });
 
