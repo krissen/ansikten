@@ -82,11 +82,18 @@ Konsoliderad lista över planerade förbättringar, kända brister och teknisk s
 - [x] ~~Backend och frontend har ingen gemensam typdefinition~~ (JSON Schema i shared/schemas/, genererat från Pydantic)
 - [ ] API-versioning saknas
 - [x] ~~Ingen health-check endpoint~~ (förbättrad: /health returnerar komponentstatus)
-- [ ] Loggning är inkonsekvent mellan backend/frontend
+- [x] ~~Loggning är inkonsekvent mellan backend/frontend~~ (konsoliderat: debug.js är enda loggningssystem, stöder fil-loggning via IPC)
 
 ---
 
 ## Slutfört (referens)
+
+### 2026-01-10: Loggning och arkitektur
+
+- [x] **Konsoliderad frontend-loggning** - Sammanfogade logger.js in i debug.js
+- [x] **Fil-loggning via IPC** - debug.js skickar loggar till main-process om aktiverat
+- [x] **Migrerade console.log-anrop** - Alla moduler använder nu debug/debugWarn/debugError
+- [x] Ta bort oanvänd logger.js
 
 ### 2026-01-10: Rename UX-förbättringar
 

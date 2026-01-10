@@ -14,6 +14,8 @@
  *   themeManager.followSystem();
  */
 
+import { debugWarn } from './shared/debug.js';
+
 class ThemeManager {
   constructor() {
     this.storageKey = 'theme-preference';
@@ -100,7 +102,7 @@ class ThemeManager {
    */
   setPreference(preference) {
     if (!['light', 'dark', 'system'].includes(preference)) {
-      console.warn(`Invalid theme preference: ${preference}`);
+      debugWarn('ThemeManager', `Invalid theme preference: ${preference}`);
       return;
     }
 
@@ -116,7 +118,7 @@ class ThemeManager {
    */
   previewPreference(preference) {
     if (!['light', 'dark', 'system'].includes(preference)) {
-      console.warn(`Invalid theme preference: ${preference}`);
+      debugWarn('ThemeManager', `Invalid theme preference: ${preference}`);
       return;
     }
 
@@ -182,7 +184,7 @@ class ThemeManager {
       // Note: overlay opacity is handled by ThemeEditor as a theme-level setting
       // It's stored with theme presets, not in user preferences
     } catch (err) {
-      console.warn('Failed to apply opacity preferences:', err);
+      debugWarn('ThemeManager', 'Failed to apply opacity preferences:', err);
     }
   }
 }

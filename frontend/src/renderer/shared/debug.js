@@ -3,6 +3,7 @@
  *
  * Categories can be enabled/disabled via preferences.
  * Error and warning levels are always shown.
+ * Optionally writes logs to file via IPC (requires debug.enabled && debug.logToFile).
  *
  * Usage:
  *   import { debug, debugWarn, debugError } from '../shared/debug.js';
@@ -51,6 +52,36 @@ let enabledCategories = { ...DEFAULT_CATEGORIES };
 // Log buffer for LogViewer to read historical logs
 const LOG_BUFFER_MAX = 500;
 const logBuffer = [];
+
+// IPC availability check
+const ipcAvailable = typeof window !== 'undefined' && window.bildvisareAPI;
+
+/**
+ * Check if file logging is enabled via preferences
+ * Lazy import to avoid circular dependency with preferences.js
+ */
+function isFileLoggingEnabled() {
+  try {
+    // Dynamic import to avoid circular dependency
+    const { preferences } = require('../workspace/preferences.js');
+    return preferences.get('debug.enabled') && preferences.get('debug.logToFile');
+  } catch {
+    return false;
+  }
+}
+
+/**
+ * Send log to main process for file writing
+ */
+function sendToFile(level, formattedMessage) {
+  if (ipcAvailable && isFileLoggingEnabled()) {
+    try {
+      window.bildvisareAPI.send('renderer-log', { level, message: formattedMessage });
+    } catch (err) {
+      // Silently fail - don't cause infinite loop
+    }
+  }
+}
 
 // Load from localStorage
 function loadCategories() {
@@ -133,14 +164,15 @@ export function resetCategories() {
 }
 
 /**
- * Add entry to log buffer
+ * Add entry to log buffer and optionally send to file
  */
 function addToBuffer(level, message, source = 'frontend') {
+  const timestamp = new Date().toISOString();
   const entry = {
     id: Date.now() + Math.random(),
     level,
     message,
-    timestamp: new Date().toISOString(),
+    timestamp,
     source
   };
   logBuffer.push(entry);
@@ -148,6 +180,10 @@ function addToBuffer(level, message, source = 'frontend') {
   if (logBuffer.length > LOG_BUFFER_MAX) {
     logBuffer.shift();
   }
+
+  // Send to file if enabled
+  const formattedMessage = `${timestamp} [${level.toUpperCase()}] ${message}`;
+  sendToFile(level, formattedMessage);
 }
 
 /**
