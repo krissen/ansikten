@@ -45,7 +45,7 @@ class ThumbnailCache {
     }
 
     // Fetch and cache
-    const url = `http://127.0.0.1:5001/api/face-thumbnail?` +
+    const url = `http://127.0.0.1:5001/api/v1/face-thumbnail?` +
       `image_path=${encodeURIComponent(imagePath)}` +
       `&x=${bbox.x || 0}&y=${bbox.y || 0}` +
       `&width=${bbox.width || 100}&height=${bbox.height || 100}` +
