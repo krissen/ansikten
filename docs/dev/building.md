@@ -1,6 +1,6 @@
-# Building Bildvisare
+# Building Hitta ansikten
 
-Guide for building distributable packages of Bildvisare.
+Guide for building distributable packages of Hitta ansikten.
 
 ---
 
@@ -36,7 +36,7 @@ brew install cmake
 
 ```bash
 sudo apt-get update
-sudo apt-get install -y cmake libdlib-dev build-essential
+sudo apt-get install -y cmake build-essential
 ```
 
 ### Windows
@@ -242,21 +242,21 @@ npm run build:mac
 
 Add project folder to Windows Defender exclusions.
 
-### face_recognition Installation
+### InsightFace Installation
 
-If `pip install face_recognition` fails:
+InsightFace is the face recognition backend. If installation fails:
 
 ```bash
 # macOS
 brew install cmake
-pip install dlib
-pip install face_recognition
+pip install onnxruntime insightface
 
 # Linux
-sudo apt-get install cmake libdlib-dev
-pip install dlib
-pip install face_recognition
+sudo apt-get install cmake
+pip install onnxruntime insightface
 ```
+
+> **Note:** dlib/face_recognition is deprecated since January 2026. Use InsightFace instead.
 
 ---
 
