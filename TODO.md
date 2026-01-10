@@ -20,14 +20,19 @@ Konsoliderad lista över planerade förbättringar, kända brister och teknisk s
 
 - [ ] **Backend distance-optimering** - Optimera distansberäkningar för bättre prestanda
 - [ ] **Duplicate cleanup tool** - Verktyg för att hitta och hantera duplicerade ansikten i databasen
-- [ ] **Tab maximization** - Möjlighet att maximera en tab tillfälligt
-- [ ] **Floating windows** - Stöd för fristående fönster för moduler
+- [ ] Utveckla smidigare stöd för terminal-interaktion med backend (synkat med frontend)
+- [ ] Rebrand till "Ansikten"
+  - [ ] Ersätt nuvarande "Hitta ansikten" och ännu äldre "Bildvisare"
+    - [ ] App
+    - [ ] Docs
+  - [ ] Repo-flytt
+  - [ ] Lokal mapp -flytt
 
 ### Lång sikt
 
 - [ ] **Plugin-system** - Utökningsbart system för tredjepartsmoduler
-- [ ] **Remote database sync** - Synkronisering av databas över nätverk
-- [ ] **Multi-user support** - Stöd för flera användare att arbeta samtidigt
+- [ ] **Tab maximization** - Möjlighet att maximera en tab tillfälligt
+- [ ] **Floating windows** - Stöd för fristående fönster för moduler
 
 ---
 
