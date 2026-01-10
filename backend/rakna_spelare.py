@@ -48,7 +48,10 @@ def get_exclusion_lists(args):
     if args.add_publik:
         config["publik"].extend([n.strip() for n in args.add_publik.split(",") if n.strip()])
 
-    return set(config["tranare"]), set(config["publik"])
+    # "Laget" is a group photo, not an individual
+    grupp = {"Laget"}
+
+    return set(config["tranare"]), set(config["publik"]), grupp
 
 
 class Colors:
@@ -122,41 +125,89 @@ def render_bar(value, baseline, width=20, ascii_mode=False):
     return f"[{bar}]"
 
 
-def render_spark(timestamps, start_dt, end_dt, width=12, ascii_mode=False):
+def render_spark(timestamps, start_dt, end_dt, width=12, ascii_mode=False, match_ranges=None):
     """
     Render temporal spark showing when images appear in the time span.
     Bins are proportional to total time span.
+
+    If match_ranges is provided (list of (match_start, match_end) datetimes),
+    each match is rendered with expanded width and gaps between matches
+    are shown as "--".
     """
-    if not timestamps or start_dt >= end_dt:
-        return "." * width
-
-    total_seconds = (end_dt - start_dt).total_seconds()
-    if total_seconds <= 0:
-        return "." * width
-
-    bins = [0] * width
-    for ts in timestamps:
-        pos = (ts - start_dt).total_seconds() / total_seconds
-        bin_idx = min(width - 1, max(0, int(pos * width)))
-        bins[bin_idx] += 1
-
     if ascii_mode:
         chars = ".:*#"
-        thresholds = [0, 1, 3, 5]
     else:
         chars = "·:*#"
-        thresholds = [0, 1, 3, 5]
+
+    def bin_to_char(count):
+        if count == 0:
+            return chars[0]
+        elif count < 3:
+            return chars[1]
+        elif count < 5:
+            return chars[2]
+        else:
+            return chars[3]
+
+    def render_single_span(ts_list, span_start, span_end, span_width):
+        """Render a single time span with given width."""
+        if not ts_list or span_width <= 0:
+            return chars[0] * span_width
+
+        span_seconds = (span_end - span_start).total_seconds()
+        if span_seconds <= 0:
+            return chars[0] * span_width
+
+        bins = [0] * span_width
+        for ts in ts_list:
+            pos = (ts - span_start).total_seconds() / span_seconds
+            bin_idx = min(span_width - 1, max(0, int(pos * span_width)))
+            bins[bin_idx] += 1
+
+        return "".join(bin_to_char(c) for c in bins)
+
+    if not timestamps or start_dt >= end_dt:
+        return chars[0] * width
+
+    if not match_ranges:
+        # Normal rendering - proportional to time
+        return render_single_span(timestamps, start_dt, end_dt, width)
+
+    # Expanded rendering: each match gets proportional width, gaps become "--"
+    num_matches = len(match_ranges)
+    num_gaps = num_matches - 1
+    gap_chars_total = num_gaps * 2  # "--" per gap
+
+    match_width_total = width - gap_chars_total
+    if match_width_total < num_matches:
+        match_width_total = num_matches  # At least 1 char per match
+
+    # Calculate total match duration for proportional allocation
+    total_match_duration = sum(
+        (m_end - m_start).total_seconds() for m_start, m_end in match_ranges
+    )
 
     spark = ""
-    for count in bins:
-        if count == 0:
-            spark += chars[0]
-        elif count < thresholds[2]:
-            spark += chars[1]
-        elif count < thresholds[3]:
-            spark += chars[2]
+    allocated = 0
+    for i, (m_start, m_end) in enumerate(match_ranges):
+        # Allocate width proportionally to match duration
+        match_duration = (m_end - m_start).total_seconds()
+        if i == num_matches - 1:
+            # Last match gets remaining width to avoid rounding issues
+            match_width = match_width_total - allocated
         else:
-            spark += chars[3]
+            match_width = max(1, round(match_width_total * match_duration / total_match_duration))
+            allocated += match_width
+
+        # Filter timestamps for this match
+        match_ts = [ts for ts in timestamps if m_start <= ts <= m_end]
+
+        # Render this match's spark
+        spark += render_single_span(match_ts, m_start, m_end, match_width)
+
+        # Add gap separator (except after last match)
+        if i < num_matches - 1:
+            spark += "--"
 
     return spark
 
@@ -192,13 +243,14 @@ def format_player_line(
     spark_width=12,
     bar_width=20,
     name_width=12,
+    match_ranges=None,
 ):
     pct = 100 * count / total_images if total_images > 0 else 0
     delta_n = count - baseline
     delta_pct = 100 * delta_n / baseline if baseline > 0 else 0
 
     bar = render_bar(count, baseline, bar_width, ascii_mode)
-    spark = render_spark(timestamps, start_dt, end_dt, spark_width, ascii_mode)
+    spark = render_spark(timestamps, start_dt, end_dt, spark_width, ascii_mode, match_ranges)
 
     sign = "+" if delta_n >= 0 else ""
     delta_n_str = f"({sign}{delta_n:.0f})".rjust(7)
@@ -232,20 +284,25 @@ def print_section(
     bar_width,
     tranare_set=None,
     publik_set=None,
+    grupp_set=None,
+    compact=False,
+    match_ranges=None,
 ):
     tranare_set = tranare_set or set()
     publik_set = publik_set or set()
-    excluded = tranare_set | publik_set
+    grupp_set = grupp_set or set()
+    excluded = tranare_set | publik_set | grupp_set
 
     players = {n: c for n, c in counter.items() if n not in excluded and c >= min_images}
     below_threshold = {n: c for n, c in counter.items() if n not in excluded and c < min_images}
     tranare = {n: c for n, c in counter.items() if n in tranare_set}
     publik = {n: c for n, c in counter.items() if n in publik_set}
+    grupp = {n: c for n, c in counter.items() if n in grupp_set}
 
     baseline_counts = list(players.values())
     baseline = compute_baseline(baseline_counts, baseline_method) if baseline_counts else 0
 
-    excluded_count = len(tranare) + len(publik) + len(below_threshold)
+    excluded_count = len(tranare) + len(publik) + len(grupp) + len(below_threshold)
     total_in_list = len(counter)
 
     print(f"\n{Colors.BOLD}{title}{Colors.RESET}" if use_color else f"\n{title}")
@@ -281,32 +338,43 @@ def print_section(
             spark_width,
             bar_width,
             name_width,
+            match_ranges,
         )
         print(line)
 
-    if tranare:
-        print()
-        label = f"--- Tränare ({len(tranare)} st) ---"
-        print(f"{Colors.CYAN}{label}{Colors.RESET}" if use_color else label)
-        for name, count in sorted(tranare.items(), key=lambda x: x[1], reverse=True):
-            pct = 100 * count / total_images if total_images > 0 else 0
-            print(f"  {name}: {count} ({pct:.1f}%)")
+    # In compact mode, skip extra sections (tränare, grupp, publik, below threshold)
+    if not compact:
+        if tranare:
+            print()
+            label = f"--- Tränare ({len(tranare)} st) ---"
+            print(f"{Colors.CYAN}{label}{Colors.RESET}" if use_color else label)
+            for name, count in sorted(tranare.items(), key=lambda x: x[1], reverse=True):
+                pct = 100 * count / total_images if total_images > 0 else 0
+                print(f"  {name}: {count} ({pct:.1f}%)")
 
-    if publik:
-        print()
-        label = f"--- Publik ({len(publik)} st) ---"
-        print(f"{Colors.MAGENTA}{label}{Colors.RESET}" if use_color else label)
-        for name, count in sorted(publik.items(), key=lambda x: x[1], reverse=True):
-            pct = 100 * count / total_images if total_images > 0 else 0
-            print(f"  {name}: {count} ({pct:.1f}%)")
+        if grupp:
+            print()
+            label = f"--- Gruppbilder ({len(grupp)} st) ---"
+            print(f"{Colors.DIM}{label}{Colors.RESET}" if use_color else label)
+            for name, count in sorted(grupp.items(), key=lambda x: x[1], reverse=True):
+                pct = 100 * count / total_images if total_images > 0 else 0
+                print(f"  {name}: {count} ({pct:.1f}%)")
 
-    if below_threshold:
-        print()
-        label = f"--- Under tröskeln (min-images={min_images}) ---"
-        print(f"{Colors.DIM}{label}{Colors.RESET}" if use_color else label)
-        for name, count in sorted(below_threshold.items(), key=lambda x: x[1], reverse=True):
-            pct = 100 * count / total_images if total_images > 0 else 0
-            print(f"  {name}: {count} ({pct:.1f}%)")
+        if publik:
+            print()
+            label = f"--- Publik ({len(publik)} st) ---"
+            print(f"{Colors.MAGENTA}{label}{Colors.RESET}" if use_color else label)
+            for name, count in sorted(publik.items(), key=lambda x: x[1], reverse=True):
+                pct = 100 * count / total_images if total_images > 0 else 0
+                print(f"  {name}: {count} ({pct:.1f}%)")
+
+        if below_threshold:
+            print()
+            label = f"--- Under tröskeln (min-images={min_images}) ---"
+            print(f"{Colors.DIM}{label}{Colors.RESET}" if use_color else label)
+            for name, count in sorted(below_threshold.items(), key=lambda x: x[1], reverse=True):
+                pct = 100 * count / total_images if total_images > 0 else 0
+                print(f"  {name}: {count} ({pct:.1f}%)")
 
 
 def main(args):
@@ -320,7 +388,7 @@ def main(args):
         Colors.disable()
         use_color = False
 
-    tranare_set, publik_set = get_exclusion_lists(args)
+    tranare_set, publik_set, grupp_set = get_exclusion_lists(args)
 
     files = []
     for pat in args.glob_patterns:
@@ -380,6 +448,13 @@ def main(args):
     duration_minutes = duration.total_seconds() / 60
     spark_width = max(8, min(20, int(duration_minutes / 3)))
 
+    # Calculate match ranges (start/end for each match) for spark visualization
+    match_ranges = []
+    for idx_list in matcher:
+        match_start = entries[idx_list[0]][0]
+        match_end = entries[idx_list[-1]][0]
+        match_ranges.append((match_start, match_end))
+
     print_section(
         f"=== Totalt ({global_start.strftime('%H:%M')} → {global_end.strftime('%H:%M')}, {duration_minutes:.0f} min) ===",
         total_counter,
@@ -395,6 +470,8 @@ def main(args):
         args.bar_width,
         tranare_set,
         publik_set,
+        grupp_set,
+        match_ranges=match_ranges if len(match_ranges) > 1 else None,
     )
 
     if args.per_match:
@@ -407,12 +484,6 @@ def main(args):
             match_spark_width = max(6, min(16, int(match_duration / 2)))
 
             match_images = len(idx_list)
-
-            coverage_info = ""
-            for name in c:
-                matches_present = sum(1 for pc in per_match_counters if name in pc)
-                coverage_info = f"  (täckning: {matches_present}/{len(matcher)} matcher)"
-                break
 
             print_section(
                 f"--- Match {match_idx} ({start_dt.strftime('%Y-%m-%d %H:%M')} → {end_dt.strftime('%H:%M')}, {match_duration:.0f} min) ---",
@@ -429,19 +500,10 @@ def main(args):
                 args.bar_width,
                 tranare_set,
                 publik_set,
+                grupp_set,
+                compact=True,  # Suppress tränare/grupp/publik in per-match output
             )
 
-            if len(matcher) > 1:
-                print(f"\n  Match-täckning per spelare:")
-                for name in sorted(c.keys()):
-                    matches_present = sum(1 for pc in per_match_counters if name in pc)
-                    missing = [
-                        f"M{i+1}"
-                        for i, pc in enumerate(per_match_counters)
-                        if name not in pc
-                    ]
-                    missing_str = f" saknas: {','.join(missing)}" if missing else ""
-                    print(f"    {name}: {matches_present}/{len(matcher)}{missing_str}")
             print()
 
 
