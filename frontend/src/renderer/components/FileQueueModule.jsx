@@ -260,11 +260,13 @@ export function FileQueueModule() {
   const emitQueueStatus = useCallback((currentIdx = currentIndex) => {
     const q = queueRef.current;
     const done = q.filter(item => item.status === 'completed').length;
+    // Remaining = total - done, but minimum 0 (avoid -1 when queue is empty)
+    const remaining = Math.max(0, q.length - done);
     emit('queue-status', {
       total: q.length,
       current: currentIdx,
       done: done,
-      remaining: q.length - done - 1
+      remaining: remaining
     });
   }, [emit, currentIndex]);
 
@@ -1459,7 +1461,7 @@ export function FileQueueModule() {
         total: currentQueue.length,
         current: nextIdx >= 0 ? nextIdx : currentIdx,
         done: newDone,
-        remaining: currentQueue.length - newDone - 1
+        remaining: Math.max(0, currentQueue.length - newDone)
       });
 
       // Show toast for review result

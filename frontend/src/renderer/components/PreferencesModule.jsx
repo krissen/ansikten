@@ -93,7 +93,7 @@ function SelectField({ id, label, hint, value, onChange, options }) {
 /**
  * Text input field
  */
-function TextField({ id, label, hint, value, onChange, placeholder }) {
+function TextField({ id, label, hint, value, onChange, placeholder, disabled }) {
   return (
     <div className="pref-field">
       <label>{label}</label>
@@ -102,6 +102,8 @@ function TextField({ id, label, hint, value, onChange, placeholder }) {
         value={value}
         onChange={(e) => onChange(e.target.value)}
         placeholder={placeholder}
+        disabled={disabled}
+        className="text-input"
       />
       {hint && <small>{hint}</small>}
     </div>
@@ -123,26 +125,6 @@ function NumberField({ id, label, hint, value, onChange, min, max, step = 1 }) {
         value={value}
         onChange={(e) => onChange(parseFloat(e.target.value))}
         className="number-input-standalone"
-      />
-      {hint && <small>{hint}</small>}
-    </div>
-  );
-}
-
-/**
- * Text input field
- */
-function TextField({ id, label, hint, value, onChange, placeholder, disabled }) {
-  return (
-    <div className="pref-field">
-      <label>{label}</label>
-      <input
-        type="text"
-        value={value}
-        onChange={(e) => onChange(e.target.value)}
-        placeholder={placeholder}
-        disabled={disabled}
-        className="text-input"
       />
       {hint && <small>{hint}</small>}
     </div>
