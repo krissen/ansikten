@@ -1,8 +1,10 @@
 #!/usr/bin/env python3
+import logging
 import sys
 
 import numpy as np
 
+from cli_config import init_logging
 from faceid_db import load_database, save_database
 
 # ======== JUSTERBARA KONSTANTER OCH STANDARDVÄRDEN =========
@@ -76,6 +78,8 @@ def shape_repair(known_faces, simulate=False):
 def main():
     import argparse
 
+    init_logging(replace_handlers=True)
+
     parser = argparse.ArgumentParser(
         description="Filtrera/repair ansikts-encodings. Default: stdavvikelse.",
         formatter_class=argparse.RawTextHelpFormatter,
@@ -129,6 +133,7 @@ def main():
         did_repair = shape_repair(known_faces, simulate=args.simulate)
         if did_repair and not args.simulate:
             save_database(known_faces, ignored_faces, hard_negatives, processed_files)
+            logging.info("[REPAIR] Databas uppdaterad efter shape-repair")
             print("Databas uppdaterad (shape-repair).")
         elif not did_repair:
             print("Inga inkonsekventa encodings hittades.")
@@ -164,6 +169,7 @@ def main():
                 n_in = np.count_nonzero(mask)
                 label = "STDAVVIKELSE"
         except Exception as ex:
+            logging.warning(f"[FILTER] {name}: kunde inte filtrera: {ex}")
             print(f"{name}: kunde inte filtrera (troligen inkonsekventa shapes): {ex}")
             continue
 
@@ -177,6 +183,7 @@ def main():
 
     if changed and not args.simulate:
         save_database(known_faces, ignored_faces, hard_negatives, processed_files)
+        logging.info("[FILTER] Databas uppdaterad efter filtrering")
         print("Databas uppdaterad.")
     elif not changed:
         print("Ingen filtrering utförd – inget förändrat.")

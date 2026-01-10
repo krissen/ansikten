@@ -7,12 +7,20 @@ Uses two-pass rename (via temp files) to avoid collisions.
 """
 
 import argparse
+import logging
 import os
 import subprocess
 import sys
 from collections import defaultdict
 from glob import glob
 from pathlib import Path
+
+# Simple logging setup for this standalone script
+logging.basicConfig(
+    level=logging.WARNING,
+    format="%(asctime)s %(levelname)s %(message)s",
+    datefmt="%Y-%m-%d %H:%M:%S"
+)
 
 
 def get_exif_data(files: list[Path]) -> list[tuple[str, int, Path]]:
@@ -30,6 +38,7 @@ def get_exif_data(files: list[Path]) -> list[tuple[str, int, Path]]:
     
     result = subprocess.run(cmd, capture_output=True, text=True)
     if result.returncode != 0 and result.stderr:
+        logging.warning(f"exiftool warning: {result.stderr.strip()}")
         print(f"exiftool warning: {result.stderr}", file=sys.stderr)
     
     entries = []
@@ -97,10 +106,12 @@ def execute_renames(renames: list[tuple[Path, Path, Path]], dry_run: bool = Fals
         try:
             src.rename(tmp)
         except OSError as e:
+            logging.error(f"Rename to temp failed: {src} -> {tmp}: {e}")
             print(f"misslyckades (till temp): {src} -> {tmp}: {e}", file=sys.stderr)
-    
+
     for src, dst, tmp in renames:
         if dst.exists():
+            logging.warning(f"Destination exists, skipping: {dst}")
             print(f"skip: finns redan -> {dst}", file=sys.stderr)
             if tmp.exists():
                 tmp.unlink()
@@ -108,6 +119,7 @@ def execute_renames(renames: list[tuple[Path, Path, Path]], dry_run: bool = Fals
         try:
             tmp.rename(dst)
         except OSError as e:
+            logging.error(f"Rename to final failed: {tmp} -> {dst}: {e}")
             print(f"misslyckades (till final): {tmp} -> {dst}: {e}", file=sys.stderr)
 
 

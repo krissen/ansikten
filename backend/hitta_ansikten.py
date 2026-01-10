@@ -756,7 +756,7 @@ def main_process_image_loop(image_path, known_faces, ignored_faces, hard_negativ
     try:
         shutil.copy(preview_path, ordinary_preview_path)
     except Exception as e:
-        print(f"[WARN] Kunde inte kopiera preview till {ordinary_preview_path}: {e}")
+        logging.warning(f"[PREVIEW] Kunde inte kopiera preview till {ordinary_preview_path}: {e}")
     show_temp_image(ordinary_preview_path, config, image_path)
 
     if face_encodings:
@@ -1069,6 +1069,7 @@ def rename_files(filelist, known_faces, processed_files, simulate=True, allow_re
             continue
         dest = str(Path(orig).parent / nytt)
         if Path(dest).exists() and Path(dest) != Path(orig):
+            logging.warning(f"[RENAME] Destination already exists: {dest}")
             print(f"⚠️  {dest} finns redan, hoppar över!")
             continue
         if simulate:
@@ -1504,6 +1505,7 @@ def main():
     import time
     time.sleep(0.1)  # Give workers a moment to start
     if preprocess_done.is_set() and preprocessed_queue.empty():
+        logging.warning("[PREPROCESS] Worker exited immediately - will fall back to main process")
         print(f"\n⚠️  VARNING: Worker-processen avslutades omedelbart!", file=sys.stderr)
         print(f"⚠️  Detta tyder på ett fel i worker-processen.", file=sys.stderr)
         print(f"⚠️  Preprocessing kommer att göras i main-processen istället (långsammare).\n", file=sys.stderr)
