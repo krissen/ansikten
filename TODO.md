@@ -40,15 +40,15 @@ Konsoliderad lista över planerade förbättringar, kända brister och teknisk s
 
 ### Dokumentation
 
-- [ ] ~~SESSION_SUMMARY.md refereras men finns inte~~ (fixad i doc-overhaul)
-- [ ] WebSocket var dokumenterad som "Future" men är implementerat
-- [ ] Saknas komplett lista över keyboard shortcuts i en fil
+- [x] ~~SESSION_SUMMARY.md refereras men finns inte~~ (fixad i doc-overhaul)
+- [x] ~~WebSocket var dokumenterad som "Future"~~ (verifierat: redan korrekt i api-reference.md)
+- [x] ~~Saknas komplett lista över keyboard shortcuts~~ (skapad: docs/user/keyboard-shortcuts.md)
 - [ ] Inkonsistent språk (svenska/engelska) i kodbas och docs
 
 ### Funktionalitet
 
 - [ ] Ingen testsvit - enhets- och integrationstester saknas helt
-- [ ] Ingen deployment-guide för att bygga och distribuera
+- [x] ~~Ingen deployment-guide~~ (skapad: docs/dev/release-guide.md, docs/user/installation.md)
 - [ ] Saknas felhantering vid nätverksavbrott mot backend
 - [ ] Preview-bilder cachas inte effektivt
 
