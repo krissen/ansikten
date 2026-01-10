@@ -1059,29 +1059,26 @@ function FaceCard({ face, index, isActive, imagePath, people, cardRef, inputRef,
                   e.stopPropagation();
                   return;
                 }
-                if (e.key === 'ArrowDown' && showSuggestions && filteredPeople.length > 0) {
+                // Arrow Down / Tab - select next suggestion (wraps)
+                if ((e.key === 'ArrowDown' || (e.key === 'Tab' && !e.shiftKey)) &&
+                    showSuggestions && filteredPeople.length > 0) {
                   e.preventDefault();
-                  const newIdx = Math.min(selectedSuggestion + 1, filteredPeople.length - 1);
+                  const newIdx = selectedSuggestion >= filteredPeople.length - 1
+                    ? 0
+                    : selectedSuggestion + 1;
                   setSelectedSuggestion(newIdx);
                   setInputValue(filteredPeople[newIdx]);
                   return;
                 }
-                if (e.key === 'ArrowUp' && showSuggestions && filteredPeople.length > 0) {
+                // Arrow Up / Shift+Tab - select previous suggestion (wraps)
+                if ((e.key === 'ArrowUp' || (e.key === 'Tab' && e.shiftKey)) &&
+                    showSuggestions && filteredPeople.length > 0) {
                   e.preventDefault();
-                  const newIdx = Math.max(selectedSuggestion - 1, -1);
+                  const newIdx = selectedSuggestion <= 0
+                    ? filteredPeople.length - 1
+                    : selectedSuggestion - 1;
                   setSelectedSuggestion(newIdx);
-                  setInputValue(newIdx >= 0 ? filteredPeople[newIdx] : typedValue);
-                  return;
-                }
-                if (e.key === 'Tab' && filteredPeople.length > 0) {
-                  e.preventDefault();
-                  const nameToUse = selectedSuggestion >= 0
-                    ? filteredPeople[selectedSuggestion]
-                    : filteredPeople[0];
-                  setInputValue(nameToUse);
-                  setTypedValue(nameToUse);
-                  setShowSuggestions(false);
-                  setSelectedSuggestion(-1);
+                  setInputValue(filteredPeople[newIdx]);
                   return;
                 }
               }}
