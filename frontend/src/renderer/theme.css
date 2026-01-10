@@ -65,6 +65,13 @@
   /* Component-specific */
   --toast-opacity: 0.75;
   --dropdown-selected-bg: var(--color-info-bg);
+
+  /* Progress indicators */
+  --progress-track-bg: #a08858;       /* Gold track */
+  --progress-fill: var(--accent-primary);
+  --progress-text: var(--text-primary);
+  --progress-height: 4px;
+  --progress-radius: 2px;
 }
 
 /* ===========================
@@ -127,6 +134,13 @@
   /* Component-specific */
   --toast-opacity: 0.75;
   --dropdown-selected-bg: #454545;  /* Neutral gray for contrast with sky blue text */
+
+  /* Progress indicators */
+  --progress-track-bg: #353535;       /* Dark gray track */
+  --progress-fill: var(--accent-primary);
+  --progress-text: var(--text-primary);
+  --progress-height: 4px;
+  --progress-radius: 2px;
 }
 
 /* ===========================
