@@ -120,7 +120,7 @@ export function RefineFacesModule() {
         dry_run: dryRun
       };
 
-      const result = await api.post('/api/refinement/apply', body);
+      const result = await api.post('/api/v1/refinement/apply', body);
 
       if (dryRun) {
         showSuccess(`Simulering: ${result.removed} encodings skulle tas bort`);
@@ -149,7 +149,7 @@ export function RefineFacesModule() {
         dry_run: dryRun
       };
 
-      const result = await api.post('/api/refinement/repair-shapes', body);
+      const result = await api.post('/api/v1/refinement/repair-shapes', body);
 
       if (result.total_removed === 0) {
         showSuccess('Inga inkonsistenta shapes hittades.');

@@ -6,9 +6,10 @@ REST and WebSocket API for the Hitta ansikten backend.
 
 ## Overview
 
-- **Base URL**: `http://127.0.0.1:5001/api`
+- **Base URL**: `http://127.0.0.1:5001/api/v1`
 - **WebSocket**: `ws://127.0.0.1:5001/ws/progress`
 - **Format**: JSON
+- **API Version**: v1
 
 ---
 

@@ -85,7 +85,7 @@ export function StartupStatus() {
 
     if (fetchedRef.current) return;
     fetchedRef.current = true;
-    api.get('/api/startup/status')
+    api.get('/api/v1/startup/status')
       .then(handleStatusUpdate)
       .catch(err => debugError('StartupStatus', 'Failed to fetch status', err));
   }, [isConnected, dismissed, api, handleStatusUpdate]);

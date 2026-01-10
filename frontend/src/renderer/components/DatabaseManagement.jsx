@@ -75,7 +75,7 @@ export function DatabaseManagement() {
   const loadDatabaseState = useCallback(async () => {
     try {
       setIsLoading(true);
-      const response = await api.get('/api/management/database-state');
+      const response = await api.get('/api/v1/management/database-state');
       setDatabaseState(response);
     } catch (err) {
       debugError('DatabaseMgmt', 'Failed to load:', err);
@@ -121,7 +121,7 @@ export function DatabaseManagement() {
     if (!confirm(`Rename '${oldName}' to '${newName}'?`)) return;
 
     try {
-      const result = await api.post('/api/management/rename-person', {
+      const result = await api.post('/api/v1/management/rename-person', {
         old_name: oldName.trim(),
         new_name: newName.trim()
       });
@@ -146,7 +146,7 @@ export function DatabaseManagement() {
     if (!confirm(`Merge '${source1}' and '${source2}' into '${targetName}'${backendDesc}?`)) return;
 
     try {
-      const result = await api.post('/api/management/merge-people', {
+      const result = await api.post('/api/v1/management/merge-people', {
         source_names: [source1.trim(), source2.trim()],
         target_name: targetName,
         backend_filter: backend || null
@@ -173,7 +173,7 @@ export function DatabaseManagement() {
     if (!confirm(`Delete '${name}'? This will permanently remove all their encodings.`)) return;
 
     try {
-      const result = await api.post('/api/management/delete-person', { name: name.trim() });
+      const result = await api.post('/api/v1/management/delete-person', { name: name.trim() });
       showSuccess(result.message);
       setDatabaseState(result.new_state);
       setDeleteForm({ name: '' });
@@ -193,7 +193,7 @@ export function DatabaseManagement() {
     if (!confirm(`Move '${name}' to ignored list${backendDesc}?`)) return;
 
     try {
-      const result = await api.post('/api/management/move-to-ignore', {
+      const result = await api.post('/api/v1/management/move-to-ignore', {
         name: name.trim(),
         backend_filter: backend || null
       });
@@ -218,7 +218,7 @@ export function DatabaseManagement() {
     if (!confirm(`Move ${countNum === -1 ? 'all' : countNum} encodings from ignored to '${target}'${backendDesc}?`)) return;
 
     try {
-      const result = await api.post('/api/management/move-from-ignore', {
+      const result = await api.post('/api/v1/management/move-from-ignore', {
         count: countNum,
         target_name: target.trim(),
         backend_filter: backend || null
@@ -241,7 +241,7 @@ export function DatabaseManagement() {
     if (!confirm(`Undo processing for files matching '${pattern}'?`)) return;
 
     try {
-      const result = await api.post('/api/management/undo-file', { filename_pattern: pattern.trim() });
+      const result = await api.post('/api/v1/management/undo-file', { filename_pattern: pattern.trim() });
       let message = result.message;
       if (result.files_undone?.length) {
         message += '\nFiles: ' + result.files_undone.join(', ');
@@ -256,7 +256,7 @@ export function DatabaseManagement() {
 
   const handleShowRecentFiles = async () => {
     try {
-      const files = await api.get('/api/management/recent-files', { n: 10 });
+      const files = await api.get('/api/v1/management/recent-files', { n: 10 });
       const fileList = files.map((f, i) => `${i + 1}. ${f.name}`).join('\n');
       alert(`Recent 10 processed files:\n\n${fileList}`);
     } catch (err) {
@@ -277,7 +277,7 @@ export function DatabaseManagement() {
     if (!confirm(`Remove last ${countNum} encodings from '${name}'${backendDesc}? This cannot be undone.`)) return;
 
     try {
-      const result = await api.post('/api/management/purge-encodings', {
+      const result = await api.post('/api/v1/management/purge-encodings', {
         name: name.trim(),
         count: countNum,
         backend_filter: backend || null

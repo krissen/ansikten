@@ -92,7 +92,7 @@ export function ImageViewer() {
 
       try {
         // Call preprocessing API - handles cache check and conversion in one call
-        const result = await apiClient.post('/api/preprocessing/nef', { file_path: filepath });
+        const result = await apiClient.post('/api/v1/preprocessing/nef', { file_path: filepath });
 
         if (result.status === 'cached') {
           debug('ImageViewer', 'Using cached JPG:', result.nef_jpg_path);

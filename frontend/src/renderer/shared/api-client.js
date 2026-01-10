@@ -44,7 +44,7 @@ export class APIClient {
 
   /**
    * HTTP GET request
-   * @param {string} path - API path (e.g., '/api/status/image.jpg')
+   * @param {string} path - API path (e.g., '/api/v1/status/image.jpg')
    * @param {object} params - Query parameters
    * @returns {Promise<any>}
    */
@@ -77,7 +77,7 @@ export class APIClient {
 
   /**
    * HTTP POST request
-   * @param {string} path - API path (e.g., '/api/detect-faces')
+   * @param {string} path - API path (e.g., '/api/v1/detect-faces')
    * @param {object} body - Request body
    * @returns {Promise<any>}
    */
@@ -264,7 +264,7 @@ export class APIClient {
    * @returns {Promise<object>}
    */
   async detectFaces(imagePath, forceReprocess = false) {
-    return await this.post('/api/detect-faces', {
+    return await this.post('/api/v1/detect-faces', {
       image_path: imagePath,
       force_reprocess: forceReprocess
     });
@@ -278,7 +278,7 @@ export class APIClient {
    * @returns {Promise<object>}
    */
   async confirmIdentity(faceId, personName, imagePath) {
-    return await this.post('/api/confirm-identity', {
+    return await this.post('/api/v1/confirm-identity', {
       face_id: faceId,
       person_name: personName,
       image_path: imagePath
@@ -292,7 +292,7 @@ export class APIClient {
    * @returns {Promise<object>}
    */
   async ignoreFace(faceId, imagePath) {
-    return await this.post('/api/ignore-face', {
+    return await this.post('/api/v1/ignore-face', {
       face_id: faceId,
       image_path: imagePath
     });
@@ -314,7 +314,7 @@ export class APIClient {
    * @returns {Promise<Array>}
    */
   async getPeople() {
-    return await this.get('/api/database/people');
+    return await this.get('/api/v1/database/people');
   }
 
   /**
@@ -322,7 +322,7 @@ export class APIClient {
    * @returns {Promise<Array<string>>}
    */
   async getPeopleNames() {
-    return await this.get('/api/database/people/names');
+    return await this.get('/api/v1/database/people/names');
   }
 
   // ============================================================================
@@ -334,7 +334,7 @@ export class APIClient {
    * @returns {Promise<object>}
    */
   async getCacheStatus() {
-    return await this.get('/api/preprocessing/cache/status');
+    return await this.get('/api/v1/preprocessing/cache/status');
   }
 
   /**
@@ -343,7 +343,7 @@ export class APIClient {
    * @returns {Promise<object>}
    */
   async updateCacheSettings(settings) {
-    return await this.post('/api/preprocessing/cache/settings', settings);
+    return await this.post('/api/v1/preprocessing/cache/settings', settings);
   }
 
   /**
@@ -351,7 +351,7 @@ export class APIClient {
    * @returns {Promise<object>}
    */
   async clearCache() {
-    const url = new URL('/api/preprocessing/cache', this.baseUrl);
+    const url = new URL('/api/v1/preprocessing/cache', this.baseUrl);
     const response = await fetch(url.toString(), { method: 'DELETE' });
     if (!response.ok) {
       throw new Error(`HTTP ${response.status}: ${response.statusText}`);
@@ -365,7 +365,7 @@ export class APIClient {
    * @returns {Promise<object>}
    */
   async batchDeleteCache(fileHashes) {
-    return await this.post('/api/preprocessing/cache/batch-delete', { file_hashes: fileHashes });
+    return await this.post('/api/v1/preprocessing/cache/batch-delete', { file_hashes: fileHashes });
   }
 
   /**
@@ -374,7 +374,7 @@ export class APIClient {
    * @returns {Promise<object>}
    */
   async setPriorityCacheHashes(fileHashes) {
-    return await this.post('/api/preprocessing/cache/priority', { file_hashes: fileHashes });
+    return await this.post('/api/v1/preprocessing/cache/priority', { file_hashes: fileHashes });
   }
 
   /**
@@ -383,7 +383,7 @@ export class APIClient {
    * @returns {Promise<object>}
    */
   async computeFileHash(filePath) {
-    return await this.post('/api/preprocessing/hash', { file_path: filePath });
+    return await this.post('/api/v1/preprocessing/hash', { file_path: filePath });
   }
 
   /**
@@ -392,7 +392,7 @@ export class APIClient {
    * @returns {Promise<object>}
    */
   async checkCache(fileHash) {
-    return await this.post('/api/preprocessing/check', { file_hash: fileHash });
+    return await this.post('/api/v1/preprocessing/check', { file_hash: fileHash });
   }
 
   /**
@@ -402,7 +402,7 @@ export class APIClient {
    * @returns {Promise<object>}
    */
   async preprocessFile(filePath, steps = null) {
-    return await this.post('/api/preprocessing/all', {
+    return await this.post('/api/v1/preprocessing/all', {
       file_path: filePath,
       steps: steps
     });

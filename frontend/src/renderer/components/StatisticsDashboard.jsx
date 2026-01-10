@@ -59,7 +59,7 @@ export function StatisticsDashboard() {
    */
   const fetchStatistics = useCallback(async () => {
     try {
-      const data = await api.get('/api/statistics/summary');
+      const data = await api.get('/api/v1/statistics/summary');
 
       setAttemptStats(data.attempt_stats || []);
       setTopFaces(data.top_faces || []);
