@@ -46,6 +46,9 @@ DEFAULT_RENAME_CONFIG = {
     # File handling
     "allowAlreadyRenamed": False,
     "includeIgnoredFaces": False,
+    # Sidecar files
+    "renameSidecars": True,
+    "sidecarExtensions": ["xmp"],
 }
 
 
@@ -222,6 +225,50 @@ SUPPORTED_EXTENSIONS = [
 
 # Build regex pattern for extensions (case-insensitive matching done via re.IGNORECASE)
 _EXT_PATTERN = "|".join(re.escape(ext) for ext in SUPPORTED_EXTENSIONS)
+
+
+# ============================================================================
+# Sidecar file handling
+# ============================================================================
+
+def find_sidecar_files(file_path: Path, extensions: List[str]) -> List[Path]:
+    """
+    Find sidecar files for a given image file.
+
+    Searches case-insensitively for files with matching stem and specified extensions.
+
+    Args:
+        file_path: Path to the main image file
+        extensions: List of extensions to look for (without dot), e.g. ["xmp", "dng"]
+
+    Returns:
+        List of Path objects for found sidecar files
+    """
+    sidecars = []
+    stem = file_path.stem
+    parent = file_path.parent
+
+    if not parent.exists():
+        return sidecars
+
+    # Normalize extensions to lowercase for comparison
+    ext_lower = {ext.lower() for ext in extensions}
+
+    try:
+        for candidate in parent.iterdir():
+            if not candidate.is_file():
+                continue
+            # Check if stem matches and extension is in our list (case insensitive)
+            if candidate.stem == stem:
+                candidate_ext = candidate.suffix.lstrip('.').lower()
+                if candidate_ext in ext_lower:
+                    sidecars.append(candidate)
+    except PermissionError:
+        logger.warning(f"[Sidecar] Permission denied reading directory: {parent}")
+    except Exception as e:
+        logger.warning(f"[Sidecar] Error scanning for sidecars: {e}")
+
+    return sidecars
 
 
 # ============================================================================
@@ -722,8 +769,15 @@ class RenameService:
         # Resolve first name collisions using config
         name_map = resolve_fornamn_dubletter(all_persons, effective_config)
 
+        # Get sidecar config
+        rename_sidecars = effective_config.get("renameSidecars", True)
+        sidecar_extensions = effective_config.get("sidecarExtensions", ["xmp"])
+
         # Build preview items (start with security-rejected ones)
         items = list(security_rejected)
+        # Add empty sidecars to security-rejected items
+        for item in items:
+            item["sidecars"] = []
         for file_path in validated_paths:
             path = Path(file_path)
             fname = path.name
@@ -736,7 +790,8 @@ class RenameService:
                     "new_name": None,
                     "persons": [],
                     "status": "file_not_found",
-                    "conflict_with": None
+                    "conflict_with": None,
+                    "sidecars": []
                 })
                 continue
 
@@ -748,7 +803,8 @@ class RenameService:
                     "new_name": None,
                     "persons": [],
                     "status": "already_renamed",
-                    "conflict_with": None
+                    "conflict_with": None,
+                    "sidecars": []
                 })
                 continue
 
@@ -761,7 +817,8 @@ class RenameService:
                     "new_name": None,
                     "persons": [],
                     "status": "no_persons",
-                    "conflict_with": None
+                    "conflict_with": None,
+                    "sidecars": []
                 })
                 continue
 
@@ -774,7 +831,8 @@ class RenameService:
                     "new_name": None,
                     "persons": persons,
                     "status": "build_failed",
-                    "conflict_with": None
+                    "conflict_with": None,
+                    "sidecars": []
                 })
                 continue
 
@@ -787,9 +845,15 @@ class RenameService:
                     "new_name": new_name,
                     "persons": persons,
                     "status": "conflict",
-                    "conflict_with": str(new_path)
+                    "conflict_with": str(new_path),
+                    "sidecars": []
                 })
                 continue
+
+            # Find sidecar files if enabled
+            sidecars = []
+            if rename_sidecars and sidecar_extensions:
+                sidecars = [str(s) for s in find_sidecar_files(path, sidecar_extensions)]
 
             # All good
             items.append({
@@ -798,7 +862,8 @@ class RenameService:
                 "new_name": new_name,
                 "persons": persons,
                 "status": "ok",
-                "conflict_with": None
+                "conflict_with": None,
+                "sidecars": sidecars
             })
 
         return {
@@ -845,10 +910,25 @@ class RenameService:
             new_path = old_path.parent / item["new_name"]
 
             try:
+                # Rename sidecar files first (from preview)
+                sidecars_renamed = []
+                for sidecar_path_str in item.get("sidecars", []):
+                    sidecar_path = Path(sidecar_path_str)
+                    if sidecar_path.exists():
+                        new_sidecar = sidecar_path.parent / f"{new_path.stem}{sidecar_path.suffix}"
+                        os.rename(sidecar_path, new_sidecar)
+                        sidecars_renamed.append({
+                            "original": str(sidecar_path),
+                            "new": str(new_sidecar)
+                        })
+                        logger.info(f"[RenameService] Renamed sidecar: {sidecar_path.name} -> {new_sidecar.name}")
+
+                # Rename main file
                 os.rename(old_path, new_path)
                 renamed.append({
                     "original": str(old_path),
-                    "new": str(new_path)
+                    "new": str(new_path),
+                    "sidecars": sidecars_renamed
                 })
                 logger.info(f"[RenameService] Renamed: {old_path.name} -> {new_path.name}")
             except Exception as e:

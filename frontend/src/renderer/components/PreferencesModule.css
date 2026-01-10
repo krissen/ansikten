@@ -73,6 +73,12 @@
   border-color: var(--accent-primary);
 }
 
+.pref-field input:disabled,
+.pref-field select:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
 .pref-field small {
   display: block;
   margin-top: var(--space-xs);

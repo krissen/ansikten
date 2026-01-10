@@ -130,6 +130,26 @@ function NumberField({ id, label, hint, value, onChange, min, max, step = 1 }) {
 }
 
 /**
+ * Text input field
+ */
+function TextField({ id, label, hint, value, onChange, placeholder, disabled }) {
+  return (
+    <div className="pref-field">
+      <label>{label}</label>
+      <input
+        type="text"
+        value={value}
+        onChange={(e) => onChange(e.target.value)}
+        placeholder={placeholder}
+        disabled={disabled}
+        className="text-input"
+      />
+      {hint && <small>{hint}</small>}
+    </div>
+  );
+}
+
+/**
  * Section header
  */
 function SectionHeader({ title }) {
@@ -541,6 +561,25 @@ export function PreferencesModule({ api }) {
         hint="Convert special characters (e.g. e, o) for safer filenames"
         checked={prefs.rename?.removeDiacritics ?? true}
         onChange={(v) => updatePref('rename.removeDiacritics', v)}
+      />
+
+      <SectionHeader title="Sidecar Files" />
+      <CheckboxField
+        label="Rename sidecar files"
+        hint="Also rename associated files (XMP, etc) when renaming images"
+        checked={prefs.rename?.renameSidecars ?? true}
+        onChange={(v) => updatePref('rename.renameSidecars', v)}
+      />
+      <TextField
+        label="Sidecar extensions"
+        hint="Comma-separated list (case insensitive matching)"
+        value={(prefs.rename?.sidecarExtensions ?? ['xmp']).join(', ')}
+        onChange={(v) => {
+          const exts = v.split(',').map(e => e.trim().toLowerCase()).filter(e => e);
+          updatePref('rename.sidecarExtensions', exts);
+        }}
+        placeholder="xmp, dng"
+        disabled={!(prefs.rename?.renameSidecars ?? true)}
       />
     </>
   );

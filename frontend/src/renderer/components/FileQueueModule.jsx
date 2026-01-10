@@ -54,6 +54,9 @@ const getRenameConfig = () => {
       if (rename.removeDiacritics !== undefined) config.removeDiacritics = rename.removeDiacritics;
       if (rename.includeIgnoredFaces !== undefined) config.includeIgnoredFaces = rename.includeIgnoredFaces;
       if (rename.allowAlreadyRenamed !== undefined) config.allowAlreadyRenamed = rename.allowAlreadyRenamed;
+      // Sidecar settings
+      if (rename.renameSidecars !== undefined) config.renameSidecars = rename.renameSidecars;
+      if (rename.sidecarExtensions !== undefined) config.sidecarExtensions = rename.sidecarExtensions;
       return Object.keys(config).length > 0 ? config : null;
     }
   } catch (e) {
