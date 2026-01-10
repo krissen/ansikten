@@ -80,13 +80,12 @@ export function StatisticsDashboard() {
     }
   }, [api, getLogsFromBuffer]);
 
-  // Use auto-refresh hook
-  useAutoRefresh(fetchStatistics, refreshRate, autoRefresh);
-
-  // Initial fetch
-  useEffect(() => {
-    fetchStatistics();
-  }, [fetchStatistics]);
+  // Use auto-refresh hook (handles initial fetch via refreshOnMount)
+  useAutoRefresh(fetchStatistics, {
+    interval: refreshRate,
+    initialEnabled: autoRefresh,
+    refreshOnMount: true
+  });
 
   // Listen for preference changes
   useEffect(() => {
