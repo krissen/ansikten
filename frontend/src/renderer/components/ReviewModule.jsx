@@ -113,7 +113,7 @@ export function ReviewModule() {
    */
   const loadPeopleNames = useCallback(async () => {
     try {
-      const response = await api.get('/api/database/people/names');
+      const response = await api.get('/api/v1/database/people/names');
       setPeople(response || []);
     } catch (err) {
       debugError('ReviewModule', 'Failed to load people names:', err);
@@ -139,7 +139,7 @@ export function ReviewModule() {
     setPendingIgnores([]);
 
     try {
-      const result = await api.post('/api/detect-faces', { image_path: imagePath, force: false });
+      const result = await api.post('/api/v1/detect-faces', { image_path: imagePath, force: false });
 
       const faces = result.faces || [];
       setDetectedFaces(faces);
@@ -389,7 +389,7 @@ export function ReviewModule() {
    */
   const markReviewComplete = useCallback(async (imagePath, reviewedFaces, fileHash = null) => {
     try {
-      await api.post('/api/mark-review-complete', {
+      await api.post('/api/v1/mark-review-complete', {
         image_path: imagePath,
         reviewed_faces: reviewedFaces.map(f => ({
           face_index: f.faceIndex,
@@ -420,12 +420,12 @@ export function ReviewModule() {
     try {
       // Save confirmations
       for (const confirmation of pendingConfirmations) {
-        await api.post('/api/confirm-identity', confirmation);
+        await api.post('/api/v1/confirm-identity', confirmation);
       }
 
       // Save ignores
       for (const ignore of pendingIgnores) {
-        await api.post('/api/ignore-face', ignore);
+        await api.post('/api/v1/ignore-face', ignore);
       }
 
       setPendingConfirmations([]);

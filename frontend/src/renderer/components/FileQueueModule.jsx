@@ -234,7 +234,7 @@ export function FileQueueModule() {
   const loadProcessedFiles = useCallback(async () => {
     debug('FileQueue', '>>> loadProcessedFiles starting...');
     try {
-      const response = await api.get('/api/management/recent-files?n=100000');
+      const response = await api.get('/api/v1/management/recent-files?n=100000');
       if (response && Array.isArray(response)) {
         const fileNames = new Set(response.map(f => f.name));
         const fileHashes = new Set(response.map(f => f.hash).filter(Boolean));
@@ -305,7 +305,7 @@ export function FileQueueModule() {
     
     const filepaths = itemsNeedingStats.map(item => item.filePath);
     debug('FileQueue', 'Fetching stats via hash for', filepaths.length, 'files');
-    api.post('/api/statistics/file-stats', { filepaths })
+    api.post('/api/v1/statistics/file-stats', { filepaths })
       .then(stats => {
         debug('FileQueue', 'Got stats for', Object.keys(stats).length, 'files');
         setPreprocessingStatus(prev => {
@@ -722,7 +722,7 @@ export function FileQueueModule() {
 
       // Check cache status
       try {
-        const cacheStatus = await api.get('/api/preprocessing/cache/status');
+        const cacheStatus = await api.get('/api/v1/preprocessing/cache/status');
         if (cacheStatus && cacheStatus.usage_percent > 80) {
           queueToast(
             `⚠️ Cache ${Math.round(cacheStatus.usage_percent)}% full (${Math.round(cacheStatus.total_size_mb)}/${cacheStatus.max_size_mb} MB)`,
@@ -876,7 +876,7 @@ export function FileQueueModule() {
     // Fetch face stats for already-processed files that weren't preprocessed
     if (alreadyProcessedFiles.length > 0 && api) {
       const filepaths = alreadyProcessedFiles.map(item => item.filePath);
-      api.post('/api/statistics/file-stats', { filepaths })
+      api.post('/api/v1/statistics/file-stats', { filepaths })
         .then(stats => {
           debug('FileQueue', 'Got file stats for', Object.keys(stats).length, 'files');
           setPreprocessingStatus(prev => {
@@ -1077,7 +1077,7 @@ export function FileQueueModule() {
     if (fixModeRef.current && item.isAlreadyProcessed) {
       try {
         debug('FileQueue', 'Undoing file for fix mode:', item.fileName);
-        await api.post('/api/management/undo-file', {
+        await api.post('/api/v1/management/undo-file', {
           filename_pattern: item.fileName
         });
         await loadProcessedFiles();
@@ -1115,7 +1115,7 @@ export function FileQueueModule() {
 
     try {
       // 1. Undo the file in backend (remove from processed_files.jsonl)
-      await api.post('/api/management/undo-file', {
+      await api.post('/api/v1/management/undo-file', {
         filename_pattern: item.fileName
       });
 
@@ -1253,7 +1253,7 @@ export function FileQueueModule() {
     const renameConfig = getRenameConfig();
 
     try {
-      const result = await api.post('/api/files/rename-preview', {
+      const result = await api.post('/api/v1/files/rename-preview', {
         file_paths: eligiblePaths,
         config: renameConfig
       });
@@ -1344,7 +1344,7 @@ export function FileQueueModule() {
     const renameConfig = getRenameConfig();
 
     try {
-      const result = await api.post('/api/files/rename', {
+      const result = await api.post('/api/v1/files/rename', {
         file_paths: eligiblePaths,
         config: renameConfig
       });
