@@ -62,6 +62,10 @@ export class PreferencesManager {
         autoRemoveMissing: true,
         insertMode: 'alphabetical'  // 'bottom' | 'alphabetical' - how new files are inserted
       },
+      rename: {
+        renameSidecars: true,       // Also rename associated sidecar files (XMP, etc)
+        sidecarExtensions: ['xmp']  // Extensions to look for (case insensitive)
+      },
       preprocessing: {
         enabled: true,              // Master switch for background preprocessing
         steps: {
