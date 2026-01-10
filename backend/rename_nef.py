@@ -1,0 +1,156 @@
+#!/usr/bin/env python3
+"""Rename NEF files based on EXIF CreateDate.
+
+Output format: YYMMDD_HHMMSS.NEF
+Files with identical timestamps get suffixes: -00, -01, etc.
+Uses two-pass rename (via temp files) to avoid collisions.
+"""
+
+import argparse
+import os
+import subprocess
+import sys
+from collections import defaultdict
+from glob import glob
+from pathlib import Path
+
+
+def get_exif_data(files: list[Path]) -> list[tuple[str, int, Path]]:
+    if not files:
+        return []
+    
+    cmd = [
+        "exiftool", "-q", "-q", "-m",
+        "-if", "defined $CreateDate",
+        "-d", "%y%m%d_%H%M%S",
+        "-p", "$CreateDate|${SubSecTimeOriginal;$_||=0}|$FilePath",
+        "--",
+        *[str(f) for f in files]
+    ]
+    
+    result = subprocess.run(cmd, capture_output=True, text=True)
+    if result.returncode != 0 and result.stderr:
+        print(f"exiftool warning: {result.stderr}", file=sys.stderr)
+    
+    entries = []
+    for line in result.stdout.strip().split("\n"):
+        if not line or "|" not in line:
+            continue
+        parts = line.split("|", 2)
+        if len(parts) != 3:
+            continue
+        timestamp, subsec_str, filepath = parts
+        try:
+            subsec = int(subsec_str) if subsec_str else 0
+        except ValueError:
+            subsec = 0
+        entries.append((timestamp, subsec, Path(filepath)))
+    
+    entries.sort(key=lambda x: (x[0], x[1], str(x[2])))
+    return entries
+
+
+def compute_renames(entries: list[tuple[str, int, Path]]) -> list[tuple[Path, Path, Path]]:
+    ts_counts: dict[str, int] = defaultdict(int)
+    for ts, _, _ in entries:
+        ts_counts[ts] += 1
+    
+    ts_digits = {ts: max(1, len(str(count - 1))) for ts, count in ts_counts.items()}
+    ts_seen: dict[str, int] = defaultdict(int)
+    
+    renames = []
+    stamp = f"{os.getpid()}.{hash(str(entries)) % 10000}"
+    
+    for i, (ts, _, src) in enumerate(entries):
+        ext = src.suffix or ".NEF"
+        
+        if ts_counts[ts] == 1:
+            dst_base = ts
+        else:
+            idx = ts_seen[ts]
+            ts_seen[ts] += 1
+            idx_str = str(idx).zfill(ts_digits[ts])
+            dst_base = f"{ts}-{idx_str}"
+        
+        dst = src.parent / f"{dst_base}{ext}"
+        tmp = src.parent / f".rename_tmp_{stamp}_{i}{ext}"
+        
+        if src.name == dst.name:
+            continue
+        
+        renames.append((src, dst, tmp))
+    
+    return renames
+
+
+def execute_renames(renames: list[tuple[Path, Path, Path]], dry_run: bool = False) -> None:
+    if not renames:
+        print("Inga filer att döpa om.")
+        return
+    
+    if dry_run:
+        for src, dst, _ in renames:
+            print(f"(dry) {src.name} -> {dst.name}")
+        return
+    
+    for src, dst, tmp in renames:
+        try:
+            src.rename(tmp)
+        except OSError as e:
+            print(f"misslyckades (till temp): {src} -> {tmp}: {e}", file=sys.stderr)
+    
+    for src, dst, tmp in renames:
+        if dst.exists():
+            print(f"skip: finns redan -> {dst}", file=sys.stderr)
+            if tmp.exists():
+                tmp.unlink()
+            continue
+        try:
+            tmp.rename(dst)
+        except OSError as e:
+            print(f"misslyckades (till final): {tmp} -> {dst}: {e}", file=sys.stderr)
+
+
+def main() -> int:
+    parser = argparse.ArgumentParser(
+        description="Döp om NEF-filer baserat på EXIF CreateDate (YYMMDD_HHMMSS)"
+    )
+    parser.add_argument(
+        "-n", "--dry-run",
+        action="store_true",
+        help="Visa vad som skulle göras utan att utföra"
+    )
+    parser.add_argument(
+        "files",
+        nargs="*",
+        default=["*.NEF"],
+        help="Filer eller glob-mönster (default: *.NEF)"
+    )
+    args = parser.parse_args()
+    
+    files = []
+    for pattern in args.files:
+        p = Path(pattern)
+        if p.is_file():
+            files.append(p)
+        else:
+            files.extend(Path(f) for f in glob(pattern) if Path(f).is_file())
+    
+    if not files:
+        print(f"Inga filer matchar: {args.pattern}")
+        return 0
+    
+    entries = get_exif_data(files)
+    
+    if not entries:
+        print(f"Inga filer med CreateDate i: {args.pattern}")
+        return 0
+    
+    renames = compute_renames(entries)
+    execute_renames(renames, dry_run=args.dry_run)
+    
+    return 0
+
+
+if __name__ == "__main__":
+    sys.exit(main())
