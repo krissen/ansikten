@@ -1,0 +1,38 @@
+{
+  "properties": {
+    "cache_dir": {
+      "title": "Cache Dir",
+      "type": "string"
+    },
+    "total_entries": {
+      "title": "Total Entries",
+      "type": "integer"
+    },
+    "total_size_bytes": {
+      "title": "Total Size Bytes",
+      "type": "integer"
+    },
+    "total_size_mb": {
+      "title": "Total Size Mb",
+      "type": "number"
+    },
+    "max_size_mb": {
+      "title": "Max Size Mb",
+      "type": "number"
+    },
+    "usage_percent": {
+      "title": "Usage Percent",
+      "type": "number"
+    }
+  },
+  "required": [
+    "cache_dir",
+    "total_entries",
+    "total_size_bytes",
+    "total_size_mb",
+    "max_size_mb",
+    "usage_percent"
+  ],
+  "title": "CacheStatusResponse",
+  "type": "object"
+}

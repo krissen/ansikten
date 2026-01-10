@@ -1,0 +1,35 @@
+{
+  "properties": {
+    "face_id": {
+      "title": "Face Id",
+      "type": "string"
+    },
+    "person_name": {
+      "title": "Person Name",
+      "type": "string"
+    },
+    "image_path": {
+      "title": "Image Path",
+      "type": "string"
+    },
+    "suggested_name": {
+      "anyOf": [
+        {
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Suggested Name"
+    }
+  },
+  "required": [
+    "face_id",
+    "person_name",
+    "image_path"
+  ],
+  "title": "ConfirmIdentityRequest",
+  "type": "object"
+}

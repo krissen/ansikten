@@ -1,0 +1,23 @@
+{
+  "properties": {
+    "status": {
+      "title": "Status",
+      "type": "string"
+    },
+    "person_name": {
+      "title": "Person Name",
+      "type": "string"
+    },
+    "encodings_count": {
+      "title": "Encodings Count",
+      "type": "integer"
+    }
+  },
+  "required": [
+    "status",
+    "person_name",
+    "encodings_count"
+  ],
+  "title": "ConfirmIdentityResponse",
+  "type": "object"
+}

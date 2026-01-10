@@ -1,0 +1,13 @@
+{
+  "properties": {
+    "name": {
+      "title": "Name",
+      "type": "string"
+    }
+  },
+  "required": [
+    "name"
+  ],
+  "title": "DeletePersonRequest",
+  "type": "object"
+}

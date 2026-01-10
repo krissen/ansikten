@@ -1,0 +1,18 @@
+{
+  "properties": {
+    "image_path": {
+      "title": "Image Path",
+      "type": "string"
+    },
+    "force_reprocess": {
+      "default": false,
+      "title": "Force Reprocess",
+      "type": "boolean"
+    }
+  },
+  "required": [
+    "image_path"
+  ],
+  "title": "DetectionRequest",
+  "type": "object"
+}

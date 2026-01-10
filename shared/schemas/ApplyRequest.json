@@ -1,0 +1,57 @@
+{
+  "description": "Request to apply filtering.",
+  "properties": {
+    "mode": {
+      "default": "std",
+      "title": "Mode",
+      "type": "string"
+    },
+    "persons": {
+      "anyOf": [
+        {
+          "items": {
+            "type": "string"
+          },
+          "type": "array"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Persons"
+    },
+    "std_threshold": {
+      "default": 2.0,
+      "title": "Std Threshold",
+      "type": "number"
+    },
+    "cluster_dist": {
+      "default": 0.35,
+      "title": "Cluster Dist",
+      "type": "number"
+    },
+    "cluster_min": {
+      "default": 6,
+      "title": "Cluster Min",
+      "type": "integer"
+    },
+    "mahalanobis_threshold": {
+      "default": 3.0,
+      "title": "Mahalanobis Threshold",
+      "type": "number"
+    },
+    "min_encodings": {
+      "default": 8,
+      "title": "Min Encodings",
+      "type": "integer"
+    },
+    "dry_run": {
+      "default": false,
+      "title": "Dry Run",
+      "type": "boolean"
+    }
+  },
+  "title": "ApplyRequest",
+  "type": "object"
+}

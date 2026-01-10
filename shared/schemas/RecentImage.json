@@ -1,0 +1,32 @@
+{
+  "description": "Recently processed image with detected people",
+  "properties": {
+    "filename": {
+      "title": "Filename",
+      "type": "string"
+    },
+    "timestamp": {
+      "title": "Timestamp",
+      "type": "string"
+    },
+    "person_names": {
+      "items": {
+        "type": "string"
+      },
+      "title": "Person Names",
+      "type": "array"
+    },
+    "source": {
+      "default": "cli",
+      "title": "Source",
+      "type": "string"
+    }
+  },
+  "required": [
+    "filename",
+    "timestamp",
+    "person_names"
+  ],
+  "title": "RecentImage",
+  "type": "object"
+}

@@ -1,0 +1,31 @@
+{
+  "properties": {
+    "name": {
+      "title": "Name",
+      "type": "string"
+    },
+    "encoding_count": {
+      "title": "Encoding Count",
+      "type": "integer"
+    },
+    "encodings_by_backend": {
+      "anyOf": [
+        {
+          "additionalProperties": true,
+          "type": "object"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Encodings By Backend"
+    }
+  },
+  "required": [
+    "name",
+    "encoding_count"
+  ],
+  "title": "PersonEntry",
+  "type": "object"
+}

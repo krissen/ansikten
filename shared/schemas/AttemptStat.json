@@ -1,0 +1,61 @@
+{
+  "description": "Statistics for a specific detection attempt configuration",
+  "properties": {
+    "backend": {
+      "title": "Backend",
+      "type": "string"
+    },
+    "upsample": {
+      "anyOf": [
+        {
+          "type": "integer"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "title": "Upsample"
+    },
+    "scale_label": {
+      "title": "Scale Label",
+      "type": "string"
+    },
+    "scale_px": {
+      "title": "Scale Px",
+      "type": "integer"
+    },
+    "used_count": {
+      "title": "Used Count",
+      "type": "integer"
+    },
+    "total_count": {
+      "title": "Total Count",
+      "type": "integer"
+    },
+    "hit_rate": {
+      "title": "Hit Rate",
+      "type": "number"
+    },
+    "avg_faces": {
+      "title": "Avg Faces",
+      "type": "number"
+    },
+    "avg_time": {
+      "title": "Avg Time",
+      "type": "number"
+    }
+  },
+  "required": [
+    "backend",
+    "upsample",
+    "scale_label",
+    "scale_px",
+    "used_count",
+    "total_count",
+    "hit_rate",
+    "avg_faces",
+    "avg_time"
+  ],
+  "title": "AttemptStat",
+  "type": "object"
+}
