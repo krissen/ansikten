@@ -342,6 +342,35 @@ export function ReviewModule() {
   }, [detectedFaces, emit]);
 
   /**
+   * Accept all suggestions - confirm/ignore all unconfirmed faces using their top suggestion
+   */
+  const acceptAllSuggestions = useCallback(() => {
+    let accepted = 0;
+    let ignored = 0;
+    let skipped = 0;
+
+    detectedFaces.forEach((face, index) => {
+      if (face.is_confirmed) return;
+
+      const firstAlt = face.match_alternatives?.[0];
+      if (!firstAlt) {
+        skipped++;
+        return;
+      }
+
+      if (firstAlt.is_ignored || firstAlt.name === 'ign') {
+        doIgnoreFace(index);
+        ignored++;
+      } else {
+        doConfirmFace(index, firstAlt.name);
+        accepted++;
+      }
+    });
+
+    setStatus(`Accepted ${accepted}, ignored ${ignored}${skipped > 0 ? `, skipped ${skipped}` : ''}`);
+  }, [detectedFaces, doConfirmFace, doIgnoreFace]);
+
+  /**
    * Build reviewedFaces array for rename functionality
    */
   const buildReviewedFaces = useCallback(() => {
@@ -644,6 +673,13 @@ export function ReviewModule() {
         return;
       }
 
+      // Shift+Cmd+A to accept all suggestions
+      if ((e.key === 'a' || e.key === 'A') && e.shiftKey && e.metaKey) {
+        e.preventDefault();
+        acceptAllSuggestions();
+        return;
+      }
+
       // A to confirm
       if ((e.key === 'a' || e.key === 'A') && !isInput) {
         e.preventDefault();
@@ -713,7 +749,7 @@ export function ReviewModule() {
 
     document.addEventListener('keydown', handleKeyboard);
     return () => document.removeEventListener('keydown', handleKeyboard);
-  }, [currentFaceIndex, detectedFaces, navigateToFace, confirmFace, ignoreFace, discardChanges, skipImage, addManualFace]);
+  }, [currentFaceIndex, detectedFaces, navigateToFace, confirmFace, ignoreFace, discardChanges, skipImage, addManualFace, acceptAllSuggestions]);
 
   useModuleEvent('image-loaded', useCallback(({ imagePath, skipAutoDetect }) => {
     if (skipAutoDetect) {
