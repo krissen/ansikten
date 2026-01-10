@@ -66,7 +66,9 @@ function isFileLoggingEnabled() {
     // Dynamic import to avoid circular dependency
     const { preferences } = require('../workspace/preferences.js');
     return preferences.get('debug.enabled') && preferences.get('debug.logToFile');
-  } catch {
+  } catch (err) {
+    // Use console directly to avoid circular dependency with our debug functions
+    console.warn('[Debug] Failed to check file logging preference:', err.message);
     return false;
   }
 }
