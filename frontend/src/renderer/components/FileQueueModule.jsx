@@ -488,6 +488,13 @@ export function FileQueueModule() {
     const handleFileDeleted = (filePath) => {
       debug('FileQueue', 'File deleted from disk:', filePath);
 
+      // During rename, ignore file-deleted events entirely
+      // (rename triggers delete events for old paths - we handle path updates in handleRename)
+      if (renameInProgressRef.current) {
+        debug('FileQueue', 'Ignoring file-deleted during rename:', filePath.split('/').pop());
+        return;
+      }
+
       const ppStatus = preprocessingStatusRef.current[filePath];
       const removedHash = preprocessingManager.current?.removeFile(filePath);
       const hash = removedHash || ppStatus?.hash;
@@ -506,13 +513,7 @@ export function FileQueueModule() {
 
       const fileName = filePath.split('/').pop();
       setQueue(prev => prev.filter(item => item.filePath !== filePath));
-
-      // Only show toast if not renaming (rename moves files, triggering delete events)
-      if (renameInProgressRef.current) {
-        debug('FileQueue', 'File removed during rename (no toast):', fileName);
-      } else {
-        showToast(`Removed deleted file: ${fileName}`, 'info', 3000);
-      }
+      showToast(`Removed deleted file: ${fileName}`, 'info', 3000);
     };
 
     const unsubscribe = window.bildvisareAPI?.onFileDeleted(handleFileDeleted);
@@ -673,7 +674,7 @@ export function FileQueueModule() {
   const connectionStateRef = useRef({ prev: null, hasEverConnected: false });
   useEffect(() => {
     const state = connectionStateRef.current;
-    
+
     if (state.prev === null) {
       state.prev = isConnected;
       if (isConnected) state.hasEverConnected = true;
@@ -687,7 +688,12 @@ export function FileQueueModule() {
         }
         state.hasEverConnected = true;
       } else {
-        showToast('🔴 Backend disconnected', 'error', 4000);
+        // Ignore disconnect during rename (WebSocket briefly disconnects during file operations)
+        if (renameInProgressRef.current) {
+          debug('FileQueue', 'Backend disconnected during rename - ignoring');
+        } else {
+          showToast('🔴 Backend disconnected', 'error', 4000);
+        }
       }
       state.prev = isConnected;
     }
@@ -1238,6 +1244,11 @@ export function FileQueueModule() {
       return;
     }
 
+    // Show loading indicator for large batches
+    if (eligiblePaths.length > 5) {
+      showToast(`Generating name suggestions for ${eligiblePaths.length} files...`, 'info', 2000);
+    }
+
     // Get rename config from preferences
     const renameConfig = getRenameConfig();
 
@@ -1262,7 +1273,7 @@ export function FileQueueModule() {
       debugError('FileQueue', 'Failed to fetch rename preview:', err);
       setPreviewData({});
     }
-  }, [api]);
+  }, [api, showToast]);
 
   // Handle preview toggle
   const handlePreviewToggle = useCallback(async (e) => {
@@ -1325,6 +1336,9 @@ export function FileQueueModule() {
     }
 
     setRenameInProgress(true);
+
+    // Show progress toast
+    showToast(`Renaming ${eligiblePaths.length} file(s)...`, 'info', null);
 
     // Get rename config from preferences
     const renameConfig = getRenameConfig();
