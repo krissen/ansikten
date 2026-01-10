@@ -71,6 +71,10 @@ jobs:
         working-directory: frontend
         run: npm ci
 
+      - name: Set version from tag
+        working-directory: frontend
+        run: npm pkg set version=${GITHUB_REF_NAME#v}
+
       - name: Build Electron app
         working-directory: frontend
         run: npm run build:workspace && npx electron-builder --mac
@@ -139,6 +143,11 @@ jobs:
       - name: Install Node dependencies
         working-directory: frontend
         run: npm ci
+
+      - name: Set version from tag
+        working-directory: frontend
+        run: npm pkg set version=${GITHUB_REF_NAME#v}
+        shell: bash
 
       - name: Build Electron app
         working-directory: frontend
@@ -212,6 +221,10 @@ jobs:
       - name: Install Node dependencies
         working-directory: frontend
         run: npm ci
+
+      - name: Set version from tag
+        working-directory: frontend
+        run: npm pkg set version=${GITHUB_REF_NAME#v}
 
       - name: Build Electron app
         working-directory: frontend
