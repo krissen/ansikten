@@ -1263,13 +1263,14 @@ export function FileQueueModule() {
         config: renameConfig
       });
 
-      // Build lookup: path -> { newName, status, persons }
+      // Build lookup: path -> { newName, status, persons, sidecars }
       const lookup = {};
       for (const item of result.items) {
         lookup[item.original_path] = {
           newName: item.new_name,
           status: item.status,
-          persons: item.persons || []
+          persons: item.persons || [],
+          sidecars: item.sidecars || []
         };
       }
       setPreviewData(lookup);
@@ -1280,6 +1281,9 @@ export function FileQueueModule() {
     }
   }, [api, showToast]);
 
+  // Ref to prevent double fetch on initial toggle
+  const initialPreviewFetchedRef = useRef(false);
+
   // Handle preview toggle
   const handlePreviewToggle = useCallback(async (e) => {
     const show = e.target.checked;
@@ -1287,13 +1291,14 @@ export function FileQueueModule() {
 
     // Always fetch fresh preview when toggling on to avoid stale data
     if (show) {
+      // Mark as fetched to prevent useEffect from also triggering fetch
+      initialPreviewFetchedRef.current = true;
       await fetchRenamePreview();
     }
   }, [fetchRenamePreview]);
 
   // Fetch preview on startup if showPreviewNames was restored as true
   // Wait for preprocessing to complete so backend has the data
-  const initialPreviewFetchedRef = useRef(false);
   useEffect(() => {
     // Only run once, when showPreviewNames is on and we have eligible files
     if (initialPreviewFetchedRef.current) return;
@@ -1997,6 +2002,10 @@ function FileQueueItem({ item, index, isActive, isSelected, onClick, onDoubleCli
   const confirmedNames = previewInfo?.persons || item.reviewedFaces?.map(f => f.personName).filter(Boolean) || ppPersons || [];
   const confirmedCount = confirmedNames.length;
 
+  // Sidecars from rename preview
+  const sidecars = previewInfo?.sidecars || [];
+  const hasSidecars = sidecars.length > 0;
+
   return (
     <div
       ref={itemRef}
@@ -2021,6 +2030,14 @@ function FileQueueItem({ item, index, isActive, isSelected, onClick, onDoubleCli
       <div className="file-name-area">
         <span className="file-name">
           {truncateFilename(item.fileName)}
+          {hasSidecars && shouldShowPreview && (
+            <span className="sidecar-indicator" title={sidecars.map(s => s.split('/').pop()).join(', ')}>
+              {/* Show extension badges for each sidecar */}
+              {[...new Set(sidecars.map(s => s.split('.').pop().toLowerCase()))].map(ext => (
+                <span key={ext} className="sidecar-badge">{ext}</span>
+              ))}
+            </span>
+          )}
         </span>
         {/* Inline preview of new name (only if name would actually change) */}
         {shouldShowPreview && nameWouldChange && (
@@ -2103,6 +2120,12 @@ function FileQueueItem({ item, index, isActive, isSelected, onClick, onDoubleCli
             <div className="tooltip-row tooltip-newname">
               <span className="tooltip-label">New name:</span>
               <span className="tooltip-value">{newName}</span>
+            </div>
+          )}
+          {shouldShowPreview && hasSidecars && (
+            <div className="tooltip-row tooltip-sidecars">
+              <span className="tooltip-label">Sidecars ({sidecars.length}):</span>
+              <span className="tooltip-value">{sidecars.map(s => s.split('/').pop()).join(', ')}</span>
             </div>
           )}
           {shouldShowPreview && !newName && previewStatus && (
