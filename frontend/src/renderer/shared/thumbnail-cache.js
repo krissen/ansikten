@@ -58,6 +58,9 @@ class ThumbnailCache {
       }
 
       const blob = await response.blob();
+      if (blob.size === 0) {
+        throw new Error('Empty thumbnail response');
+      }
       const blobUrl = URL.createObjectURL(blob);
 
       // Enforce size limit before adding

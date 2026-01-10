@@ -41,6 +41,7 @@ const DEFAULT_CATEGORIES = {
   // Preprocessing - disabled by default (enable for debugging)
   'Preprocessing': false,
   'Cache': false,
+  'ThumbnailCache': false,  // Enable for debugging thumbnail issues
 };
 
 // Storage key
