@@ -8,9 +8,17 @@ Konsoliderad lista över planerade förbättringar, kända brister och teknisk s
 
 ## Roadmap
 
+### Nu
+
+- [ ] UX-förbättring vid rename:
+  - [ ] Vid många filer finns det en fördröjning mellan att användaren bockar i "visa nya namn" och att något synbarligen händer. Namnen uppdateras först när alla namnförslag är klara. Förslag: uppdatera vyn-per fil. Då ser användaren vad som pågår. Alternativ B, ifall tidigarenämnda inte är möjligt: visa en status-toast om vad som pågår, med en rubrik eller något samt progress indikator.
+  - [ ] Vid många filer, efter att användaren tryckt på rename: inget händer trots att den jobbar. Förslag: visa status-toast som visa vad som pågår, med en progress-indikator.
+  - [ ] Vid rename, i slutskedet någonstans, kommer alltid toasten "backend disconnected". Varför då? Handlar det på något sätt om att filer försvinner? Eller att den får mycket att göra/verkar låst, och därför ser ut att disconnecta?
+  - [ ] Vid rename, tidigare syntes filkön med de nya namnen efter rename. Nu blir det istället clearat. I praktiken: filkön töms efter rename. Så ska det inte vara; vi bör istället ha filerna laddade (med rätt status) och visa de nya filnamnen.
+  - [ ] I /Users/krisniem/.local/share/faceid finns en hitta_ansikten.log med info om vad som hänt. Hitta aktuell info (ifrån idag t ex, och kolla vad som hänt)
+
 ### Kort sikt
 
-- [ ] **N-tangent för reprocess** - Reprocess aktuellt ansikte med högre upplösning i ReviewModule
 - [ ] **Drag-and-drop polish** - Förbättra DnD-upplevelsen i FileQueueModule
 
 ### Mellan sikt
@@ -81,6 +89,7 @@ Konsoliderad lista över planerade förbättringar, kända brister och teknisk s
 ## Slutfört (referens)
 
 ### 2026-01-09: dlib deprecated & RefineFaces förbättringar
+
 - [x] **dlib backend avvecklat** - InsightFace är nu det enda stödda backend
 - [x] Automatisk borttagning av dlib-encodings vid serverstart
 - [x] RefineFacesModule: Mahalanobis outlier-detektion
@@ -90,6 +99,7 @@ Konsoliderad lista över planerade förbättringar, kända brister och teknisk s
 - [x] Deprecation warning i face_backends.py om dlib konfigureras
 
 ### 2026-01-05: UX-förbättringar och rakna_spelare
+
 - [x] ReviewModule autocomplete: portal-positionering, pil-förval, bättre highlight
 - [x] View > Show Review Progress menyval (Shift+I)
 - [x] DatabaseManagement: fuzzy-sök för namnlistan
@@ -97,6 +107,7 @@ Konsoliderad lista över planerade förbättringar, kända brister och teknisk s
 - [x] rakna_spelare.py: bar, spark, färg, tränare/publik-config, Δ%-sortering
 
 ### 2026-01-02: Styling och tema-system
+
 - [x] `theme.css` med CSS-variabler (light/dark mode)
 - [x] `theme-manager.js` för tema-byte (light/dark/system)
 - [x] Alla CSS-filer migrerade till CSS-variabler
@@ -106,6 +117,7 @@ Konsoliderad lista över planerade förbättringar, kända brister och teknisk s
 - [x] Fix `--text-inverse` kontrastproblem
 
 ### 2026-01-01: Database Management
+
 - [x] Komplett paritet med `hantera_ansikten.py`
 - [x] Rename/Merge/Delete person
 - [x] Move to/from ignored
@@ -113,12 +125,14 @@ Konsoliderad lista över planerade förbättringar, kända brister och teknisk s
 - [x] Purge encodings
 
 ### 2025-12: Match Alternatives
+
 - [x] Backend returnerar top-N matchningsalternativ
 - [x] Siffertangenter 1-N väljer alternativ
 - [x] Ignore-matchningar i alternativlistan
 - [x] Konfigurerbart antal alternativ
 
 ### 2025-12: File Queue
+
 - [x] FileQueueModule med status-indikatorer
 - [x] Auto-advance efter review
 - [x] Fix-mode för re-review
@@ -130,18 +144,23 @@ Konsoliderad lista över planerade förbättringar, kända brister och teknisk s
 ## Anteckningar
 
 ### DEPRECATED: dlib backend
+
 dlib-backend är borttaget. InsightFace är det enda stödda backend.
+
 - Alla befintliga dlib-encodings raderas automatiskt vid serverstart
 - Legacy-scriptet (hitta_ansikten.py) tvingar insightface om dlib konfigureras
 - Encoding-shape är alltid (512,) för InsightFace
 
 ### Projektnamnbyte
+
 Projektet heter **Hitta ansikten**. "Bildvisare" var ett tidigare namn som inte längre används.
 
 ### Prioritering
+
 - **P1** - Blockerar arbetsflöde
 - **P2** - Förbättrar produktivitet
 - **P3** - Nice-to-have
 
 ### Kontribuera
+
 Se [docs/dev/contributing.md](docs/dev/contributing.md) för hur du bidrar.
