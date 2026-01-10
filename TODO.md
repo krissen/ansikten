@@ -65,7 +65,7 @@ Konsoliderad lista över planerade förbättringar, kända brister och teknisk s
 
 ### Backend
 
-- [ ] `hitta_ansikten.py` är 2000+ rader - bör brytas upp
+- [x] ~~`hitta_ansikten.py` är 2000+ rader - bör brytas upp~~ (uppdelad: cli_config.py, cli_image.py, cli_matching.py)
 - [ ] Ingen typ-annotation i äldre Python-kod
 - [ ] Inkonsekvent error-handling (print vs logging)
 - [x] ~~Preprocessing-cache kan växa obegränsat~~ (1GB limit med LRU, loggrotation vid startup)
@@ -87,6 +87,13 @@ Konsoliderad lista över planerade förbättringar, kända brister och teknisk s
 ---
 
 ## Slutfört (referens)
+
+### 2026-01-10: Moduluppdelning och refaktorering
+
+- [x] **hitta_ansikten.py uppdelad** - Extraherade moduler (2614 → 1669 rader, 36% reduktion)
+  - cli_config.py (287 rader): konstanter, config, logging, attempt settings
+  - cli_image.py (319 rader): RAW-läsning, preview-bilder, bildvisare
+  - cli_matching.py (454 rader): tröskelvärden, matchning, labels
 
 ### 2026-01-10: Loggning och arkitektur
 
