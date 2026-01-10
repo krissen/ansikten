@@ -72,7 +72,7 @@ Konsoliderad lista över planerade förbättringar, kända brister och teknisk s
 
 ### Frontend
 
-- [ ] Vissa moduler har duplicerad state-hantering
+- [x] ~~Vissa moduler har duplicerad state-hantering~~ (nya hooks: useOperationStatus, useFormState)
 - [x] ~~WebSocket-reconnect~~ (förbättrad: max-cap 30s, jitter ±20%, disconnect-flag)
 - [ ] Bundle-storlek (~450kb) kan minskas med tree-shaking
 - [x] ~~`useEffect` utan cleanup~~ (verifierat: alla hooks har korrekt cleanup)
@@ -94,6 +94,10 @@ Konsoliderad lista över planerade förbättringar, kända brister och teknisk s
   - cli_config.py (287 rader): konstanter, config, logging, attempt settings
   - cli_image.py (319 rader): RAW-läsning, preview-bilder, bildvisare
   - cli_matching.py (454 rader): tröskelvärden, matchning, labels
+- [x] **Frontend state-konsolidering** - Nya återanvändbara hooks
+  - useOperationStatus: isLoading/status/showSuccess/showError mönster
+  - useFormState: Formulärstate med reset och isDirty
+  - Refaktorerade: DatabaseManagement (-26 rader), RefineFacesModule
 
 ### 2026-01-10: Loggning och arkitektur
 
