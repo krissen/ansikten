@@ -79,7 +79,7 @@ Konsoliderad lista över planerade förbättringar, kända brister och teknisk s
 
 ### Arkitektur
 
-- [ ] Backend och frontend har ingen gemensam typdefinition
+- [x] ~~Backend och frontend har ingen gemensam typdefinition~~ (JSON Schema i shared/schemas/, genererat från Pydantic)
 - [ ] API-versioning saknas
 - [x] ~~Ingen health-check endpoint~~ (förbättrad: /health returnerar komponentstatus)
 - [ ] Loggning är inkonsekvent mellan backend/frontend

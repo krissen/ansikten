@@ -1,0 +1,28 @@
+{
+  "properties": {
+    "name": {
+      "title": "Name",
+      "type": "string"
+    },
+    "distance": {
+      "title": "Distance",
+      "type": "number"
+    },
+    "confidence": {
+      "title": "Confidence",
+      "type": "integer"
+    },
+    "is_ignored": {
+      "default": false,
+      "title": "Is Ignored",
+      "type": "boolean"
+    }
+  },
+  "required": [
+    "name",
+    "distance",
+    "confidence"
+  ],
+  "title": "MatchAlternative",
+  "type": "object"
+}

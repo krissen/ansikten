@@ -1,0 +1,19 @@
+{
+  "description": "Request to rename person",
+  "properties": {
+    "old_name": {
+      "title": "Old Name",
+      "type": "string"
+    },
+    "new_name": {
+      "title": "New Name",
+      "type": "string"
+    }
+  },
+  "required": [
+    "old_name",
+    "new_name"
+  ],
+  "title": "RenamePersonRequest",
+  "type": "object"
+}

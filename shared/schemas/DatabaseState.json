@@ -1,0 +1,92 @@
+{
+  "$defs": {
+    "PersonEntry": {
+      "properties": {
+        "name": {
+          "title": "Name",
+          "type": "string"
+        },
+        "encoding_count": {
+          "title": "Encoding Count",
+          "type": "integer"
+        },
+        "encodings_by_backend": {
+          "anyOf": [
+            {
+              "additionalProperties": true,
+              "type": "object"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Encodings By Backend"
+        }
+      },
+      "required": [
+        "name",
+        "encoding_count"
+      ],
+      "title": "PersonEntry",
+      "type": "object"
+    }
+  },
+  "properties": {
+    "people": {
+      "items": {
+        "$ref": "#/$defs/PersonEntry"
+      },
+      "title": "People",
+      "type": "array"
+    },
+    "ignored_count": {
+      "title": "Ignored Count",
+      "type": "integer"
+    },
+    "ignored_by_backend": {
+      "anyOf": [
+        {
+          "additionalProperties": true,
+          "type": "object"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Ignored By Backend"
+    },
+    "hard_negatives_count": {
+      "title": "Hard Negatives Count",
+      "type": "integer"
+    },
+    "processed_files_count": {
+      "title": "Processed Files Count",
+      "type": "integer"
+    },
+    "backends_in_use": {
+      "anyOf": [
+        {
+          "items": {
+            "type": "string"
+          },
+          "type": "array"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Backends In Use"
+    }
+  },
+  "required": [
+    "people",
+    "ignored_count",
+    "hard_negatives_count",
+    "processed_files_count"
+  ],
+  "title": "DatabaseState",
+  "type": "object"
+}
