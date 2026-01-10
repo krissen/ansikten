@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { useBackend } from '../context/BackendContext.jsx';
 import { apiClient } from '../shared/api-client.js';
+import { debugError } from '../shared/debug.js';
 import { Icon } from './Icon.jsx';
 import './StartupStatus.css';
 
@@ -86,7 +87,7 @@ export function StartupStatus() {
     fetchedRef.current = true;
     api.get('/api/startup/status')
       .then(handleStatusUpdate)
-      .catch(err => console.error('StartupStatus: Failed to fetch status', err));
+      .catch(err => debugError('StartupStatus', 'Failed to fetch status', err));
   }, [isConnected, dismissed, api, handleStatusUpdate]);
 
   if (dismissed) return null;

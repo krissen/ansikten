@@ -11,7 +11,7 @@
 
 import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { useWebSocket } from '../hooks/useWebSocket.js';
-import { getLogBuffer, clearLogBuffer } from '../shared/debug.js';
+import { getLogBuffer, clearLogBuffer, debug } from '../shared/debug.js';
 import './LogViewer.css';
 
 /**
@@ -107,7 +107,7 @@ export function LogViewer() {
       }
     }, 100);
 
-    console.log('[LogViewer] Initialized - polling debug buffer');
+    debug('LogViewer', 'Initialized - polling debug buffer');
 
     return () => {
       clearInterval(pollInterval);

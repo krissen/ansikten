@@ -8,8 +8,7 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { preferences } from '../workspace/preferences.js';
 import { themeManager } from '../theme-manager.js';
-import { getCategories, setCategories, resetCategories } from '../shared/debug.js';
-import { debug } from '../shared/debug.js';
+import { getCategories, setCategories, resetCategories, debug, debugError } from '../shared/debug.js';
 import './PreferencesModule.css';
 
 // Define preference sections
@@ -225,7 +224,7 @@ export function PreferencesModule({ api }) {
         const status = await apiClient.getCacheStatus();
         setCacheStatus(status);
       } catch (err) {
-        console.error('Failed to clear cache:', err);
+        debugError('Preferences', 'Failed to clear cache:', err);
       }
     }
   }, []);

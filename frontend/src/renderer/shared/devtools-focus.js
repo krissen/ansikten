@@ -5,6 +5,8 @@
  * from interfering with console input.
  */
 
+import { debugError } from './debug.js';
+
 class DevToolsFocusManager {
   constructor() {
     this.isDevToolsOpen = false;  // Track if DevTools is OPEN (not just focused)
@@ -48,7 +50,7 @@ class DevToolsFocusManager {
       try {
         listener(this.isDevToolsOpen);
       } catch (err) {
-        console.error('[DevToolsFocus] Listener error:', err);
+        debugError('DevToolsFocus', 'Listener error:', err);
       }
     });
   }

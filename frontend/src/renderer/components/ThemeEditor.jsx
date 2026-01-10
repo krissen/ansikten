@@ -11,7 +11,7 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { themeManager } from '../theme-manager.js';
 import { preferences } from '../workspace/preferences.js';
-import { debug } from '../shared/debug.js';
+import { debug, debugWarn, debugError } from '../shared/debug.js';
 import './ThemeEditor.css';
 
 // Storage keys
@@ -240,7 +240,7 @@ export function ThemeEditor({ api }) {
         setCustomPresets(JSON.parse(saved));
       }
     } catch (err) {
-      console.warn('Failed to load custom presets:', err);
+      debugWarn('ThemeEditor', 'Failed to load custom presets:', err);
     }
   }, []);
 
@@ -251,7 +251,7 @@ export function ThemeEditor({ api }) {
         setPresetBindings(JSON.parse(saved));
       }
     } catch (err) {
-      console.warn('Failed to load preset bindings:', err);
+      debugWarn('ThemeEditor', 'Failed to load preset bindings:', err);
     }
   }, []);
 
@@ -360,7 +360,7 @@ export function ThemeEditor({ api }) {
           }
           debug('ThemeEditor', 'Imported presets');
         } catch (err) {
-          console.error('Failed to import presets:', err);
+          debugError('ThemeEditor', 'Failed to import presets:', err);
         }
       };
       reader.readAsText(file);
