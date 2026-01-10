@@ -68,7 +68,7 @@ Backend auto-starts on `http://127.0.0.1:5001`
 - **Face recognition** against known person database
 - **Interactive review** - confirm, reject, or manually name faces
 - **Automatic file renaming** based on detected people
-- **Pluggable backends** - InsightFace (primary) or dlib (legacy)
+- **InsightFace** face recognition (512-dim embeddings, cosine distance)
 - **Modular workspace** - GIMP-like dockable panel UI
 - **Real-time updates** via WebSocket
 
@@ -105,7 +105,7 @@ All persistent data in `~/.local/share/faceid/`:
 
 **Backend:**
 - Python 3.9+
-- InsightFace / face_recognition (dlib)
+- InsightFace (ONNX Runtime)
 - FastAPI, WebSocket, rawpy
 
 **Frontend:**
@@ -117,4 +117,4 @@ All persistent data in `~/.local/share/faceid/`:
 
 ## License
 
-MIT
+GPL-3.0
