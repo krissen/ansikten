@@ -75,7 +75,7 @@ Konsoliderad lista över planerade förbättringar, kända brister och teknisk s
 - [ ] Vissa moduler har duplicerad state-hantering
 - [ ] WebSocket-reconnect-logik kan förbättras
 - [ ] Bundle-storlek (~450kb) kan minskas med tree-shaking
-- [ ] Flera `useEffect` utan cleanup-funktioner
+- [x] ~~`useEffect` utan cleanup~~ (verifierat: alla hooks har korrekt cleanup)
 
 ### Arkitektur
 
