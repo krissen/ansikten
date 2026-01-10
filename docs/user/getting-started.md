@@ -2,9 +2,11 @@
 
 Guide för att installera och köra Hitta ansikten.
 
+> **Tips:** Letar du efter färdigbyggda installerare? Se [Installation](installation.md) för nedladdning av `.dmg`, `.exe` eller `.deb`.
+
 ---
 
-## Systemkrav
+## Systemkrav (utveckling)
 
 ### Backend (Python)
 - Python 3.9+
@@ -101,5 +103,7 @@ All data sparas i `~/.local/share/faceid/`:
 
 ## Nästa steg
 
+- [Installation](installation.md) - Ladda ner färdigbyggd app
 - [CLI-referens](cli-reference.md) - Alla kommandon
 - [Workspace-guide](workspace-guide.md) - Använda gränssnittet
+- [Tangentbordsgenvägar](keyboard-shortcuts.md) - Alla genvägar
