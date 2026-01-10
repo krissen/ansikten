@@ -21,8 +21,8 @@
     "dist": "npm run build"
   },
   "keywords": [],
-  "author": "krissen",
-  "license": "ISC",
+  "author": "Kristian Niemi <kristian.niemi@gmail.com>",
+  "license": "GPL-3.0",
   "repository": {
     "type": "git",
     "url": "https://github.com/krissen/hitta_ansikten.git"
