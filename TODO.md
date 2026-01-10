@@ -73,7 +73,7 @@ Konsoliderad lista över planerade förbättringar, kända brister och teknisk s
 ### Frontend
 
 - [ ] Vissa moduler har duplicerad state-hantering
-- [ ] WebSocket-reconnect-logik kan förbättras
+- [x] ~~WebSocket-reconnect~~ (förbättrad: max-cap 30s, jitter ±20%, disconnect-flag)
 - [ ] Bundle-storlek (~450kb) kan minskas med tree-shaking
 - [x] ~~`useEffect` utan cleanup~~ (verifierat: alla hooks har korrekt cleanup)
 
