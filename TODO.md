@@ -67,7 +67,7 @@ Konsoliderad lista över planerade förbättringar, kända brister och teknisk s
 
 - [x] ~~`hitta_ansikten.py` är 2000+ rader - bör brytas upp~~ (uppdelad: cli_config.py, cli_image.py, cli_matching.py)
 - [ ] Ingen typ-annotation i äldre Python-kod
-- [ ] Inkonsekvent error-handling (print vs logging)
+- [x] ~~Inkonsekvent error-handling (print vs logging)~~ (alla CLI-verktyg använder nu logging + print för dubbel feedback)
 - [x] ~~Preprocessing-cache kan växa obegränsat~~ (1GB limit med LRU, loggrotation vid startup)
 
 ### Frontend
@@ -106,6 +106,7 @@ Konsoliderad lista över planerade förbättringar, kända brister och teknisk s
 - [x] **Migrerade console.log-anrop** - Alla moduler använder nu debug/debugWarn/debugError
 - [x] Ta bort oanvänd logger.js
 - [x] **API-versioning** - Alla endpoints nu under /api/v1/, förbereder för framtida versioner
+- [x] **Konsekvent error-handling i CLI** - Alla CLI-verktyg (hitta_ansikten, forfina_ansikten, rename_nef) använder nu logging + print för dubbel feedback (loggfil + CLI)
 
 ### 2026-01-10: Rename UX-förbättringar
 
