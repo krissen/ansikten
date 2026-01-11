@@ -27,6 +27,14 @@
         "new": {
           "title": "New",
           "type": "string"
+        },
+        "sidecars": {
+          "default": [],
+          "items": {
+            "$ref": "#/$defs/SidecarRenameResult"
+          },
+          "title": "Sidecars",
+          "type": "array"
         }
       },
       "required": [
@@ -34,6 +42,24 @@
         "new"
       ],
       "title": "RenameResult",
+      "type": "object"
+    },
+    "SidecarRenameResult": {
+      "properties": {
+        "original": {
+          "title": "Original",
+          "type": "string"
+        },
+        "new": {
+          "title": "New",
+          "type": "string"
+        }
+      },
+      "required": [
+        "original",
+        "new"
+      ],
+      "title": "SidecarRenameResult",
       "type": "object"
     },
     "SkippedFile": {

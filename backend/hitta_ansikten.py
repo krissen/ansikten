@@ -361,8 +361,15 @@ def user_review_encodings(
 
         # Centraliserad logik
         label_txt, case = get_face_match_status(
-            i, best_name, best_name_dist, name_confidence,
-            best_ignore, best_ignore_dist, ignore_confidence, config
+            i,
+            best_name,
+            best_name_dist,
+            name_confidence,
+            best_ignore,
+            best_ignore_dist,
+            ignore_confidence,
+            config,
+            backend
         )
 
         # Bestäm vilka actions som är relevanta för detta case

@@ -21,7 +21,11 @@ import { isFileEligible as isFileEligiblePure, findNextEligibleIndex } from './f
 import { formatNamesToFit, measureTextWidth } from '../shared/nameFormatter.js';
 import './FileQueueModule.css';
 
-// Read preference directly from localStorage to avoid circular dependency
+/**
+ * Read auto-load preference from localStorage.
+ * Avoids a preferences import to prevent circular dependency.
+ * @returns {boolean}
+ */
 const getAutoLoadPreference = () => {
   try {
     const stored = localStorage.getItem('bildvisare-preferences');
@@ -35,7 +39,10 @@ const getAutoLoadPreference = () => {
   return true; // Default to enabled
 };
 
-// Get rename configuration from preferences
+/**
+ * Read rename configuration from preferences, omitting defaults.
+ * @returns {object|null}
+ */
 const getRenameConfig = () => {
   try {
     const stored = localStorage.getItem('bildvisare-preferences');
@@ -66,7 +73,11 @@ const getRenameConfig = () => {
   return null;
 };
 
-// Get preprocessing notification preference
+/**
+ * Read preprocessing notification preference by key.
+ * @param {string} key
+ * @returns {boolean}
+ */
 const getNotificationPreference = (key) => {
   try {
     const stored = localStorage.getItem('bildvisare-preferences');
@@ -86,7 +97,10 @@ const getNotificationPreference = (key) => {
   return false;
 };
 
-// Get preprocessing config including rolling window settings
+/**
+ * Read preprocessing config including rolling window settings.
+ * @returns {object}
+ */
 const getPreprocessingConfig = () => {
   try {
     const stored = localStorage.getItem('bildvisare-preferences');
@@ -106,7 +120,10 @@ const getPreprocessingConfig = () => {
   return {};
 };
 
-// Get rename confirmation preference
+/**
+ * Read rename confirmation preference.
+ * @returns {boolean}
+ */
 const getRequireRenameConfirmation = () => {
   try {
     const stored = localStorage.getItem('bildvisare-preferences');
@@ -118,7 +135,10 @@ const getRequireRenameConfirmation = () => {
   return true;
 };
 
-// Get auto-remove missing files preference
+/**
+ * Read auto-remove missing files preference.
+ * @returns {boolean}
+ */
 const getAutoRemoveMissingPreference = () => {
   try {
     const stored = localStorage.getItem('bildvisare-preferences');
@@ -130,7 +150,10 @@ const getAutoRemoveMissingPreference = () => {
   return true;
 };
 
-// Get toast duration multiplier from preferences (1.0 = normal, 2.0 = double)
+/**
+ * Read toast duration multiplier from preferences.
+ * @returns {number}
+ */
 const getToastDurationMultiplier = () => {
   try {
     const stored = localStorage.getItem('bildvisare-preferences');
@@ -142,7 +165,10 @@ const getToastDurationMultiplier = () => {
   return 1.0;
 };
 
-// Get insert mode preference: 'bottom' or 'alphabetical'
+/**
+ * Read insert mode preference ("bottom" or "alphabetical").
+ * @returns {string}
+ */
 const getInsertModePreference = () => {
   try {
     const stored = localStorage.getItem('bildvisare-preferences');
@@ -154,12 +180,20 @@ const getInsertModePreference = () => {
   return 'alphabetical';
 };
 
-// Natural sort comparator for filenames (handles numbers correctly)
+/**
+ * Compare filenames using numeric-aware collation.
+ * @param {object} a
+ * @param {object} b
+ * @returns {number}
+ */
 const naturalSortCompare = (a, b) => {
   return a.fileName.localeCompare(b.fileName, undefined, { numeric: true, sensitivity: 'base' });
 };
 
-// Generate simple unique ID
+/**
+ * Generate a short random ID for list items.
+ * @returns {string}
+ */
 const generateId = () => Math.random().toString(36).substring(2, 9);
 
 // Supported file extensions for drag-and-drop

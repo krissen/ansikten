@@ -43,11 +43,11 @@ class DetectedFace(BaseModel):
     confidence: float
     person_name: Optional[str] = None
     is_confirmed: bool = False
-    # New fields for ignore-awareness and match alternatives
-    match_case: Optional[str] = None  # name|ign|uncertain_name|uncertain_ign|unknown
+    match_case: Optional[str] = None
     ignore_distance: Optional[float] = None
     ignore_confidence: Optional[int] = None
     match_alternatives: Optional[List[MatchAlternative]] = None
+    encoding_hash: Optional[str] = None
 
 class DetectionResult(BaseModel):
     image_path: str
@@ -85,6 +85,7 @@ class ReloadDatabaseResponse(BaseModel):
 class ReviewedFace(BaseModel):
     face_index: int
     face_id: str
+    encoding_hash: Optional[str] = None
     person_name: Optional[str] = None
     is_ignored: bool = False
 
@@ -151,12 +152,14 @@ async def detect_faces(request: DetectionRequest):
                     match_alternatives=[
                         MatchAlternative(**alt)
                         for alt in face.get("match_alternatives", [])
-                    ] if face.get("match_alternatives") else None
+                    ] if face.get("match_alternatives") else None,
+                    encoding_hash=face.get("encoding_hash")
                 )
                 for face in result["faces"]
             ],
             processing_time_ms=result["processing_time_ms"],
-            cached=result.get("cached", False)
+            cached=result.get("cached", False),
+            file_hash=result.get("file_hash")
         )
     except FileNotFoundError as e:
         logger.error(f"[Detection] File not found: {e}")

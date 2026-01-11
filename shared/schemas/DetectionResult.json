@@ -108,6 +108,18 @@
           ],
           "default": null,
           "title": "Match Alternatives"
+        },
+        "encoding_hash": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Encoding Hash"
         }
       },
       "required": [

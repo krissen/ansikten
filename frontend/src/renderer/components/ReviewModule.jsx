@@ -139,7 +139,7 @@ export function ReviewModule() {
     setPendingIgnores([]);
 
     try {
-      const result = await api.post('/api/v1/detect-faces', { image_path: imagePath, force: false });
+      const result = await api.post('/api/v1/detect-faces', { image_path: imagePath, force_reprocess: false });
 
       const faces = result.faces || [];
       setDetectedFaces(faces);
@@ -358,27 +358,76 @@ export function ReviewModule() {
     let accepted = 0;
     let ignored = 0;
     let skipped = 0;
+    const confirmations = [];
+    const ignores = [];
 
-    detectedFaces.forEach((face, index) => {
-      if (face.is_confirmed) return;
+    const updatedFaces = detectedFaces.map((face) => {
+      if (face.is_confirmed) return face;
 
       const firstAlt = face.match_alternatives?.[0];
       if (!firstAlt) {
         skipped++;
-        return;
+        return face;
       }
 
       if (firstAlt.is_ignored || firstAlt.name === 'ign') {
-        doIgnoreFace(index);
         ignored++;
-      } else {
-        doConfirmFace(index, firstAlt.name);
-        accepted++;
+        if (face.face_id) {
+          ignores.push({ face_id: face.face_id, image_path: currentImagePath });
+        }
+        return { ...face, is_confirmed: true, is_rejected: true, person_name: '(ignored)' };
       }
+
+      const trimmedName = firstAlt.name?.trim() || firstAlt.name;
+      accepted++;
+
+      if (face.face_id) {
+        const suggestedName = face.person_name || null;
+        confirmations.push({
+          face_id: face.face_id,
+          person_name: trimmedName,
+          image_path: currentImagePath,
+          suggested_name: suggestedName && suggestedName.toLowerCase() !== trimmedName.toLowerCase()
+            ? suggestedName
+            : null
+        });
+      }
+
+      return { ...face, is_confirmed: true, is_rejected: false, person_name: trimmedName };
     });
 
+    if (confirmations.length > 0 || ignores.length > 0) {
+      setDetectedFaces(updatedFaces);
+      emit('faces-detected', { faces: updatedFaces, imagePath: currentImagePath });
+
+      setPendingConfirmations((prev) => {
+        if (confirmations.length === 0) return prev;
+        const next = [...prev];
+        confirmations.forEach((confirmation) => {
+          const existingIndex = next.findIndex(item => item.face_id === confirmation.face_id);
+          if (existingIndex >= 0) {
+            next[existingIndex] = { ...next[existingIndex], person_name: confirmation.person_name, suggested_name: confirmation.suggested_name };
+          } else {
+            next.push(confirmation);
+          }
+        });
+        return next;
+      });
+
+      setPendingIgnores((prev) => {
+        if (ignores.length === 0) return prev;
+        const next = [...prev];
+        ignores.forEach((ignoreEntry) => {
+          if (!next.some(item => item.face_id === ignoreEntry.face_id)) {
+            next.push(ignoreEntry);
+          }
+        });
+        return next;
+      });
+    }
+
     setStatus(`Accepted ${accepted}, ignored ${ignored}${skipped > 0 ? `, skipped ${skipped}` : ''}`);
-  }, [detectedFaces, doConfirmFace, doIgnoreFace]);
+  }, [detectedFaces, currentImagePath, emit]);
 
   /**
    * Build reviewedFaces array for rename functionality

@@ -53,3 +53,55 @@ class ImageStatus:
     faces_detected: int
     timestamp: float
     error_message: Optional[str] = None
+
+
+@dataclass
+class MatchAlternative:
+    """Alternative match candidate for a face."""
+    name: str
+    distance: float
+    confidence: int
+    is_ignored: bool = False
+
+
+@dataclass
+class DetectedFaceResult:
+    """Detected face entry returned by the detection API."""
+    face_id: str
+    bounding_box: BoundingBox
+    confidence: float
+    person_name: Optional[str] = None
+    is_confirmed: bool = False
+    match_case: Optional[str] = None
+    ignore_distance: Optional[float] = None
+    ignore_confidence: Optional[int] = None
+    match_alternatives: Optional[List[MatchAlternative]] = None
+    encoding_hash: Optional[str] = None
+
+
+@dataclass
+class DetectionResult:
+    """Detection response payload for an image."""
+    image_path: str
+    faces: List[DetectedFaceResult]
+    processing_time_ms: float
+    cached: bool = False
+    file_hash: Optional[str] = None
+
+
+@dataclass
+class ReviewedFace:
+    """Reviewed face payload for mark-review-complete."""
+    face_index: int
+    face_id: str
+    encoding_hash: Optional[str] = None
+    person_name: Optional[str] = None
+    is_ignored: bool = False
+
+
+@dataclass
+class MarkReviewCompleteRequest:
+    """Request payload for marking a review complete."""
+    image_path: str
+    reviewed_faces: List[ReviewedFace]
+    file_hash: Optional[str] = None
