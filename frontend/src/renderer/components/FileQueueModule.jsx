@@ -1366,21 +1366,24 @@ export function FileQueueModule() {
 
   // Handle rename action
   const handleRename = useCallback(async () => {
-    // Include both completed files AND already-processed files (when not in fix-mode)
     const currentFixMode = fixModeRef.current;
+    const hasSelection = selectedFiles.size > 0;
+
     const eligiblePaths = queue
-      .filter(q => q.status === 'completed' || (!currentFixMode && q.isAlreadyProcessed))
+      .filter(q => {
+        const isEligible = q.status === 'completed' || (!currentFixMode && q.isAlreadyProcessed);
+        return hasSelection ? (isEligible && selectedFiles.has(q.id)) : isEligible;
+      })
       .map(q => q.filePath);
 
     if (eligiblePaths.length === 0) return;
 
-    // Check if confirmation is required
     const requireConfirmation = getRequireRenameConfirmation();
 
     if (requireConfirmation) {
-      // Show confirmation dialog
+      const selectionNote = hasSelection ? ' (selected)' : '';
       const confirmed = window.confirm(
-        `Rename ${eligiblePaths.length} file(s)?\n\n` +
+        `Rename ${eligiblePaths.length} file(s)${selectionNote}?\n\n` +
         `This will rename files based on detected faces.\n` +
         `Check Preferences for rename format settings.`
       );
@@ -1469,7 +1472,7 @@ export function FileQueueModule() {
     } finally {
       setRenameInProgress(false);
     }
-  }, [queue, api, showPreviewNames, fetchRenamePreview, showToast]);
+  }, [queue, api, showPreviewNames, fetchRenamePreview, showToast, selectedFiles]);
 
   // Listen for review-complete event
   useModuleEvent('review-complete', useCallback(({ imagePath, success, reviewedFaces }) => {
@@ -1959,16 +1962,23 @@ export function FileQueueModule() {
             </div>
           )}
           <div className="file-queue-controls">
-            {completedCount > 0 && (
-              <button
-                className="btn-secondary"
-                onClick={handleRename}
-                disabled={renameInProgress}
-                title="Rename files based on detected faces"
-              >
-                {renameInProgress ? 'Renaming...' : `Rename (${completedCount})`}
-              </button>
-            )}
+            {(() => {
+              const hasSelection = selectedFiles.size > 0;
+              const renameCount = hasSelection
+                ? queue.filter(q => selectedFiles.has(q.id) && (q.status === 'completed' || (!fixMode && q.isAlreadyProcessed))).length
+                : completedCount;
+              const renameLabel = hasSelection ? `Rename (${renameCount} selected)` : `Rename (${renameCount})`;
+              return renameCount > 0 && (
+                <button
+                  className="btn-secondary"
+                  onClick={handleRename}
+                  disabled={renameInProgress}
+                  title={hasSelection ? "Rename selected files" : "Rename files based on detected faces"}
+                >
+                  {renameInProgress ? 'Renaming...' : renameLabel}
+                </button>
+              );
+            })()}
             {currentIndex >= 0 ? (
               <button className="btn-secondary" onClick={skipCurrent}>
                 Skip <Icon name="skip-next" size={12} />
