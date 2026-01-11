@@ -149,7 +149,7 @@ def init_logging(
     try:
         logging.getLogger("matplotlib.font_manager").setLevel(logging.WARNING)
     except Exception:
-        pass
+        pass  # matplotlib may not be available; ignore silently
     logger.setLevel(level)
 
     if replace_handlers:
@@ -177,7 +177,7 @@ def load_config() -> dict[str, Any]:
             with open(CONFIG_PATH, "r") as f:
                 return {**DEFAULT_CONFIG, **json.load(f)}
         except Exception:
-            pass
+            pass  # Invalid JSON or read error; fall through to create default
     with open(CONFIG_PATH, "w") as f:
         json.dump(DEFAULT_CONFIG, f, indent=2)
     return DEFAULT_CONFIG

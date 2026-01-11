@@ -37,20 +37,19 @@ from face_backends import create_backend, FaceBackend
 from cli_config import (
     # Constants
     TEMP_DIR, ORDINARY_PREVIEW_PATH, MAX_ATTEMPTS, MAX_QUEUE, CACHE_DIR,
-    RESERVED_COMMANDS, FACE_BOX_OVERLAP_BUFFER, MAX_WORKER_WAIT_TIME,
+    RESERVED_COMMANDS, MAX_WORKER_WAIT_TIME,
     QUEUE_GET_TIMEOUT, WORKER_JOIN_TIMEOUT, WORKER_TERMINATE_TIMEOUT,
     # Config
-    DEFAULT_CONFIG, init_logging, load_config,
-    get_attempt_setting_defs, get_attempt_settings, get_max_possible_attempts,
+    init_logging, load_config,
+    get_attempt_settings, get_max_possible_attempts,
     get_settings_signature, archive_stats_if_needed, hash_encoding
 )
 from cli_image import (
-    load_and_resize_raw, create_labeled_image, box_overlaps_with_buffer,
-    robust_word_wrap, export_and_show_original, show_temp_image
+    load_and_resize_raw, create_labeled_image,
+    export_and_show_original, show_temp_image
 )
 from cli_matching import (
-    _get_backend_thresholds, validate_encoding_dimension, filter_database_by_backend,
-    best_matches_filtered, best_matches, get_face_match_status, get_match_label,
+    best_matches, get_face_match_status,
     label_preview_for_encodings
 )
 
