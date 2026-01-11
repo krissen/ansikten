@@ -1,4 +1,4 @@
-# Build and release Bildvisare for all platforms
+# Build and release Ansikten for all platforms
 # Triggers on version tags (v1.0.0, v1.2.3, etc.)
 #
 # Build process:
@@ -41,15 +41,15 @@ jobs:
       - name: Build backend with PyInstaller
         working-directory: backend
         run: |
-          pyinstaller bildvisare-backend.spec
+          pyinstaller ansikten-backend.spec
           ls -la dist/
-          ls -la dist/bildvisare-backend/
+          ls -la dist/ansikten-backend/
 
       - name: Prepare backend for Electron
         run: |
           mkdir -p frontend/resources/backend
-          cp -r backend/dist/bildvisare-backend/* frontend/resources/backend/
-          chmod +x frontend/resources/backend/bildvisare-backend
+          cp -r backend/dist/ansikten-backend/* frontend/resources/backend/
+          chmod +x frontend/resources/backend/ansikten-backend
 
       - name: Setup Node.js
         uses: actions/setup-node@v4
@@ -113,15 +113,14 @@ jobs:
       - name: Build backend with PyInstaller
         working-directory: backend
         run: |
-          pyinstaller bildvisare-backend.spec
+          pyinstaller ansikten-backend.spec
           dir dist
-          dir dist\bildvisare-backend
+          dir dist\ansikten-backend
 
       - name: Prepare backend for Electron
         run: |
           mkdir -p frontend/resources/backend
-          # PyInstaller onedir mode creates a directory - copy contents
-          cp -r backend/dist/bildvisare-backend/* frontend/resources/backend/
+          cp -r backend/dist/ansikten-backend/* frontend/resources/backend/
         shell: bash
 
       - name: Setup Node.js
@@ -191,16 +190,15 @@ jobs:
       - name: Build backend with PyInstaller
         working-directory: backend
         run: |
-          pyinstaller bildvisare-backend.spec
+          pyinstaller ansikten-backend.spec
           ls -la dist/
-          ls -la dist/bildvisare-backend/
+          ls -la dist/ansikten-backend/
 
       - name: Prepare backend for Electron
         run: |
           mkdir -p frontend/resources/backend
-          # PyInstaller onedir mode creates a directory - copy contents
-          cp -r backend/dist/bildvisare-backend/* frontend/resources/backend/
-          chmod +x frontend/resources/backend/bildvisare-backend
+          cp -r backend/dist/ansikten-backend/* frontend/resources/backend/
+          chmod +x frontend/resources/backend/ansikten-backend
 
       - name: Setup Node.js
         uses: actions/setup-node@v4
