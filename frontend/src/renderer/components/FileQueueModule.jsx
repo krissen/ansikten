@@ -18,6 +18,7 @@ import { apiClient } from '../shared/api-client.js';
 import { getPreprocessingManager, PreprocessingStatus } from '../services/preprocessing/index.js';
 import { Icon } from './Icon.jsx';
 import { isFileEligible as isFileEligiblePure, findNextEligibleIndex } from './fileQueueEligibility.js';
+import { formatNamesToFit, measureTextWidth } from '../shared/nameFormatter.js';
 import './FileQueueModule.css';
 
 // Read preference directly from localStorage to avoid circular dependency
@@ -1883,7 +1884,9 @@ export function FileQueueModule() {
 function FileQueueItem({ item, index, isActive, isSelected, onClick, onDoubleClick, onToggleSelect, onRemove, onForceReprocess, fixMode, preprocessingStatus, showPreview, previewInfo }) {
   const [showTooltip, setShowTooltip] = useState(false);
   const [tooltipPos, setTooltipPos] = useState({ x: 0, y: 0 });
+  const [namesDisplay, setNamesDisplay] = useState('');
   const itemRef = useRef(null);
+  const nameAreaRef = useRef(null);
   const tooltipTimerRef = useRef(null);
 
   const handleMouseEnter = (e) => {
@@ -1907,6 +1910,68 @@ function FileQueueItem({ item, index, isActive, isSelected, onClick, onDoubleCli
       if (tooltipTimerRef.current) clearTimeout(tooltipTimerRef.current);
     };
   }, []);
+
+  // Calculate confirmed names display based on available width
+  // Dependencies: confirmedNames, shouldShowPreview, item.fileName are calculated later in component
+  // but useEffect runs after render so they're available via closure
+  const truncateFilenameForMeasure = useCallback((name, maxLen = 25) => {
+    const chars = [...name];
+    if (chars.length <= maxLen) return name;
+    const lastDotIndex = name.lastIndexOf('.');
+    const hasExt = lastDotIndex !== -1;
+    const ext = hasExt ? name.slice(lastDotIndex) : '';
+    const base = hasExt ? name.slice(0, lastDotIndex) : name;
+    const baseChars = [...base];
+    const extLen = [...ext].length;
+    const availableForBase = Math.max(0, maxLen - 3 - extLen);
+    const truncatedBase = baseChars.slice(0, availableForBase).join('');
+    return truncatedBase + '...' + ext;
+  }, []);
+
+  // Compute these early so useEffect can use them
+  const ppPersonsEarly = preprocessingStatus?.persons;
+  const confirmedNamesEarly = previewInfo?.persons || item.reviewedFaces?.map(f => f.personName).filter(Boolean) || ppPersonsEarly || [];
+  const shouldShowPreviewEarly = showPreview && (item.status === 'completed' || item.isAlreadyProcessed) && previewInfo;
+
+  useEffect(() => {
+    // Only show names when NOT showing preview and we have names
+    if (shouldShowPreviewEarly || !confirmedNamesEarly.length) {
+      setNamesDisplay('');
+      return;
+    }
+
+    if (!nameAreaRef.current) return;
+
+    const calculateNames = () => {
+      const container = nameAreaRef.current;
+      if (!container) return;
+
+      const style = getComputedStyle(container);
+      const font = `${style.fontSize} ${style.fontFamily}`;
+
+      // Measure filename width
+      const fileNameText = truncateFilenameForMeasure(item.fileName);
+      const fileNameWidth = measureTextWidth(fileNameText, font);
+
+      // Available space: container width - filename - padding (40px for gaps and margins)
+      const availableWidth = container.offsetWidth - fileNameWidth - 40;
+
+      if (availableWidth > 30) {
+        const result = formatNamesToFit(confirmedNamesEarly, availableWidth, font);
+        setNamesDisplay(result.text);
+      } else {
+        setNamesDisplay('');
+      }
+    };
+
+    calculateNames();
+
+    const observer = new ResizeObserver(calculateNames);
+    observer.observe(nameAreaRef.current);
+
+    return () => observer.disconnect();
+  }, [confirmedNamesEarly, shouldShowPreviewEarly, item.fileName, truncateFilenameForMeasure]);
+
   const getStatusIcon = () => {
     switch (item.status) {
       case 'completed':
@@ -2027,7 +2092,7 @@ function FileQueueItem({ item, index, isActive, isSelected, onClick, onDoubleCli
       />
       {getStatusIcon()}
       {/* Wrapper for file name + preview to maintain consistent right-column alignment */}
-      <div className="file-name-area">
+      <div className="file-name-area" ref={nameAreaRef}>
         <span className="file-name">
           {truncateFilename(item.fileName)}
           {hasSidecars && shouldShowPreview && (
@@ -2039,6 +2104,12 @@ function FileQueueItem({ item, index, isActive, isSelected, onClick, onDoubleCli
             </span>
           )}
         </span>
+        {/* Confirmed names display (when not showing preview) */}
+        {!shouldShowPreview && namesDisplay && (
+          <span className="confirmed-names" title={confirmedNames.join(', ')}>
+            {namesDisplay}
+          </span>
+        )}
         {/* Inline preview of new name (only if name would actually change) */}
         {shouldShowPreview && nameWouldChange && (
           <span className="inline-preview">
