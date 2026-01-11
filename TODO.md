@@ -69,7 +69,7 @@ Konsoliderad lista över planerade förbättringar, kända brister och teknisk s
 ### Backend
 
 - [x] ~~`hitta_ansikten.py` är 2000+ rader - bör brytas upp~~ (uppdelad: cli_config.py, cli_image.py, cli_matching.py)
-- [ ] Ingen typ-annotation i äldre Python-kod
+- [x] ~~Ingen typ-annotation i äldre Python-kod~~ (alla 18 backend-filer har nu moderna Python 3.10+ typ-annotationer)
 - [x] ~~Inkonsekvent error-handling (print vs logging)~~ (alla CLI-verktyg använder nu logging + print för dubbel feedback)
 - [x] ~~Preprocessing-cache kan växa obegränsat~~ (1GB limit med LRU, loggrotation vid startup)
 
@@ -101,6 +101,15 @@ Konsoliderad lista över planerade förbättringar, kända brister och teknisk s
   - useOperationStatus: isLoading/status/showSuccess/showError mönster
   - useFormState: Formulärstate med reset och isDirty
   - Refaktorerade: DatabaseManagement (-26 rader), RefineFacesModule
+
+### 2026-01-11: Typ-annotationer i backend
+
+- [x] **Alla 18 Python-filer annoterade** - Moderna Python 3.10+ typ-annotationer
+  - ~120 funktioner fick typ-annotationer (parametrar + return types)
+  - Använder `list[str]` istället för `List[str]`, `X | None` istället för `Optional[X]`
+  - TYPE_CHECKING-importer för att undvika cirkulära beroenden
+  - Redan typade: rename_nef.py, filer2mappar.py (inga ändringar behövdes)
+  - Flest ändringar: hitta_ansikten.py (31), analysera_ansikten.py (15), hantera_ansikten.py (15), rakna_spelare.py (14)
 
 ### 2026-01-10: Loggning och arkitektur
 
