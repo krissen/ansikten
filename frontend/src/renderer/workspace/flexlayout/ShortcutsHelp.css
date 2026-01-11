@@ -95,6 +95,13 @@
   background: var(--bg-hover);
   border-radius: var(--radius-lg);
   padding: var(--space-md) var(--space-md);
+  border: 2px solid transparent;
+  transition: border-color 0.15s ease, background 0.15s ease;
+}
+
+.shortcuts-section.active-module {
+  background: var(--color-info-bg);
+  border-color: var(--color-info);
 }
 
 .shortcuts-section h3 {
@@ -128,7 +135,12 @@
   box-shadow: var(--shadow-sm);
 }
 
-.shortcut-row span {
+.shortcut-row .key-sep {
+  color: var(--text-tertiary);
+  padding: 0 2px;
+}
+
+.shortcut-row .shortcut-desc {
   flex: 1;
   color: var(--text-secondary);
 }
