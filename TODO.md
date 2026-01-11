@@ -10,10 +10,11 @@ Konsoliderad lista över planerade förbättringar, kända brister och teknisk s
 
 ### Nu
 
-*(Inga pågående prioriterade uppgifter)*
+- [ ] File-list-modulen. Då nya namn inte visas, finns det mycket outnyttjat utrymme, mellan filnamnet och blixtikonen. Vi ska fylla det med namn, på de som vi har info om bekräftade namn av. Vi ska anpassa vad som skrivs beroende på utrymme. Ska finnas lite lagom padding, alltid, dels mellan filnamnet; dels mellan det som är till högerst (blixt-ikon eller ansikts-antal). Ifall vi har mycket utrymme och t ex bara ett eller ett fåtal namn, kan vi skriva ut hela namnet på ansiktet i bilden, t ex "Arvid Wallentinsson, Elis Niemi". Ifall det inte ryms, tar vi bort efternamnet och (på liknande sätt som vid rename) ifall förnamnet är unikt; ifall förnamnet inte är unikt skriver vi ut initial för efternamnet så det blir unikt för de samlade namnen i setet, "Arvid W., Elis"; ifall det inte ryms skriver vi "ArvidW, Elis"; ifall det inte ryms för alla tar vi bort mellanslaget efter kommatecknet; ifall det inte ryms skriver vi ut initialer "AW, EN" osv.; lägg till bokstäver efter efternamnet så det blir unikt för setet, t ex "AW, ENi" osv. Omständligt, så du behöver göra en /plan för detta! Men du borde också ha stor hjälp av rename-biblioteket, som redan gör liknande grejer. När "Show new names" är TRUE så visas inte namnen på ansikten; det byts då ut mot info om nya filnamnet!
 
 ### Kort sikt
 
+- [ ] Temat för ljust läge. Knappar (t ex clear done, clear all, rename etc. i fil-modulen), de syns fint när de inte är markerade. Men vid hover över borde förväntat utseende vara att de "markeras mera"/highlightas. Istället får de typ samma färg som modul-bakgrund. Det vill säga, de "blandar in sig" i bakgrunden istället för att utmärka sig mer än de andra knapparna. Justera ljusa temat. Beakta var knappar finns; vad som kan finnas i deras bakgrunder. Systematik behövs, alltså!
 - [ ] **Drag-and-drop polish** - Förbättra DnD-upplevelsen i FileQueueModule
 
 ### Mellan sikt
