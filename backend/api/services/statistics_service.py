@@ -228,10 +228,10 @@ class StatisticsService:
             labels_per_attempt = entry.get("labels_per_attempt")
             attempts = entry.get("attempts", [])
 
-            # Determine source - check if this is an Ansikten API entry
             source = "cli"
             if used is not None and attempts and used < len(attempts):
                 att = attempts[used]
+                # "bildvisare" kept for backward compatibility with legacy data
                 if att.get("source") in ("ansikten", "bildvisare") or att.get("resolution") == "api":
                     source = "ansikten"
 
