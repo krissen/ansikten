@@ -445,6 +445,37 @@
   color: var(--accent-secondary-hover);
 }
 
+/* Confirmed names display - fills remaining space between filename and right columns */
+.confirmed-names {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  color: var(--text-secondary);
+  font-size: var(--font-sm);
+  text-align: right;
+  padding: 0 var(--space-xs);
+}
+
+/* When we have confirmed names, limit filename width */
+.file-name-area:has(.confirmed-names) .file-name {
+  flex-shrink: 1;
+  max-width: 60%;
+}
+
+/* Subtle visual separator between filename and names */
+.confirmed-names::before {
+  content: '';
+  display: inline-block;
+  width: 1px;
+  height: 0.8em;
+  background: var(--border-subtle);
+  margin-right: var(--space-xs);
+  vertical-align: middle;
+  opacity: 0.5;
+}
+
 /* Inline preview of new name */
 .inline-preview {
   flex-shrink: 1;
