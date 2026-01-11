@@ -15,6 +15,9 @@ Usage:
 import argparse
 import sys
 from pathlib import Path
+from typing import Any
+
+import numpy as np
 
 # Add current directory to path
 sys.path.insert(0, str(Path(__file__).parent))
@@ -22,18 +25,17 @@ sys.path.insert(0, str(Path(__file__).parent))
 from faceid_db import load_database, save_database
 
 
-def is_insightface(entry) -> bool:
+def is_insightface(entry: dict[str, Any] | np.ndarray) -> bool:
     """Check if entry is an InsightFace encoding."""
     if isinstance(entry, dict):
         return entry.get("backend") == "insightface"
     # Legacy numpy array without metadata - check shape
-    import numpy as np
     if isinstance(entry, np.ndarray):
         return entry.shape == (512,)  # InsightFace is 512-dim, dlib is 128-dim
     return False
 
 
-def count_by_backend(entries):
+def count_by_backend(entries: dict[str, list[Any]] | list[Any]) -> tuple[int, int]:
     """Count entries by backend type."""
     if isinstance(entries, dict):
         # Dict of name -> list
@@ -46,7 +48,7 @@ def count_by_backend(entries):
     return dlib, insightface
 
 
-def main():
+def main() -> None:
     parser = argparse.ArgumentParser(description="Remove dlib encodings from database")
     parser.add_argument("--dry-run", action="store_true", help="Preview without saving")
     args = parser.parse_args()

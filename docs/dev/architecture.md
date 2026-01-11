@@ -19,13 +19,13 @@ hitta_ansikten/
 
 - **CLI Tool**: Terminal-based batch processing (`hitta_ansikten.py`)
 - **FastAPI Server**: REST API + WebSocket for frontend integration
-- **Face Recognition**: Pluggable backends (InsightFace, dlib)
+- **Face Recognition**: InsightFace (ONNX Runtime)
 
 ### Frontend
 
 - **Electron App**: Cross-platform desktop application
 - **FlexLayout**: GIMP-like modular workspace with dockable panels
-- **Modules**: Image Viewer, Face Review, Statistics, Database Management
+- **Modules**: Image Viewer, Face Review, Statistics, Database Management, Refine Faces
 
 ---
 
@@ -76,21 +76,15 @@ The backend tries multiple resolutions for face detection:
 2. **Midsample** (4500px) - Balance of speed and accuracy
 3. **Fullres** (8000px) - Maximum accuracy for difficult faces
 
-### Face Recognition Backends
+### Face Recognition Backend
 
-| Backend | Encoding | Distance | Threshold | Notes |
-|---------|----------|----------|-----------|-------|
-| **InsightFace** | 512-dim | Cosine | ~0.4 | Primary, faster, more accurate |
-| **dlib** | 128-dim | Euclidean | ~0.54 | Legacy support |
+InsightFace is the only supported backend:
 
-Backend selection in `config.json`:
-```json
-{
-  "backend": {
-    "type": "insightface"
-  }
-}
-```
+| Backend | Encoding | Distance | Threshold |
+|---------|----------|----------|-----------|
+| **InsightFace** | 512-dim | Cosine | ~0.4 |
+
+> **Note:** dlib was deprecated in January 2026. Existing dlib encodings are automatically removed at server startup.
 
 ---
 
@@ -248,11 +242,10 @@ Stored in localStorage:
 - Avoids reprocessing renamed files
 - Hash stored in `processed_files.jsonl`
 
-### Backend Filtering
+### Encoding Compatibility
 
-- Encodings only compared against same backend type
-- dlib encodings never compared to InsightFace encodings
-- Enables gradual migration between backends
+- All encodings use InsightFace (512-dim vectors)
+- Legacy dlib encodings are automatically purged at startup
 
 ### Preprocessing Cache
 

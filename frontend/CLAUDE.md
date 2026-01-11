@@ -29,9 +29,10 @@ frontend/
 │   └── renderer/
 │       ├── workspace-flex.html
 │       ├── workspace/
-│       │   └── flexlayout/    # React components
-│       ├── modules/           # UI modules (vanilla JS)
-│       └── components/        # Shared React components
+│       │   └── flexlayout/    # FlexLayout workspace
+│       ├── components/        # React module components
+│       ├── context/           # React context providers
+│       └── shared/            # Shared utilities (api-client, etc.)
 └── scripts/
     └── build-workspace.js     # esbuild bundler
 ```
@@ -40,17 +41,20 @@ frontend/
 
 ## Modules
 
-| Module | Location | Description |
-|--------|----------|-------------|
-| ImageViewer | `modules/image-viewer/` | Canvas rendering, zoom/pan |
-| ReviewModule | `modules/review-module/` | Face review UI |
-| FileQueueModule | `modules/file-queue/` | File management |
-| LogViewer | `modules/log-viewer/` | Frontend + backend logs |
-| OriginalView | `modules/original-view/` | NEF comparison |
-| StatisticsDashboard | `modules/statistics-dashboard/` | Stats display |
-| DatabaseManagement | `modules/database-management/` | DB admin |
-| PreferencesModule | `components/PreferencesModule.jsx` | Settings |
-| ThemeEditor | `components/ThemeEditor.jsx` | Theme customization |
+All modules are React components in `src/renderer/components/`:
+
+| Module | File | Description |
+|--------|------|-------------|
+| ImageViewer | `ImageViewer.jsx` | Canvas rendering, zoom/pan |
+| ReviewModule | `ReviewModule.jsx` | Face review UI, keyboard nav |
+| FileQueueModule | `FileQueueModule.jsx` | File queue, preprocessing, rename |
+| RefineFacesModule | `RefineFacesModule.jsx` | Outlier detection, centroid refinement |
+| DatabaseManagement | `DatabaseManagement.jsx` | Rename/merge/delete persons |
+| StatisticsDashboard | `StatisticsDashboard.jsx` | Processing statistics |
+| LogViewer | `LogViewer.jsx` | Frontend + backend logs |
+| OriginalView | `OriginalView.jsx` | NEF comparison view |
+| PreferencesModule | `PreferencesModule.jsx` | Settings and preferences |
+| ThemeEditor | `ThemeEditor.jsx` | Theme customization |
 
 ---
 

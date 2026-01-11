@@ -87,7 +87,7 @@ export function OriginalView() {
       debug('OriginalView', `Loading original: ${nefPath}`);
 
       // Use preprocessing API (with caching)
-      const result = await api.post('/api/preprocessing/nef', { file_path: nefPath });
+      const result = await api.post('/api/v1/preprocessing/nef', { file_path: nefPath });
 
       if (result.status === 'error') {
         throw new Error(result.error || 'NEF conversion failed');

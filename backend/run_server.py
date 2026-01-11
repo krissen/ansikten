@@ -8,7 +8,7 @@ This script properly initializes the package context before running the server.
 import sys
 import os
 
-def main():
+def main() -> None:
     # Ensure we can find our modules
     if getattr(sys, 'frozen', False):
         # Running as PyInstaller bundle

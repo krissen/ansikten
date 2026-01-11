@@ -1,0 +1,89 @@
+{
+  "$defs": {
+    "RenamePreviewItem": {
+      "properties": {
+        "original_path": {
+          "title": "Original Path",
+          "type": "string"
+        },
+        "original_name": {
+          "title": "Original Name",
+          "type": "string"
+        },
+        "new_name": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "New Name"
+        },
+        "persons": {
+          "items": {
+            "type": "string"
+          },
+          "title": "Persons",
+          "type": "array"
+        },
+        "status": {
+          "title": "Status",
+          "type": "string"
+        },
+        "conflict_with": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Conflict With"
+        },
+        "sidecars": {
+          "default": [],
+          "items": {
+            "type": "string"
+          },
+          "title": "Sidecars",
+          "type": "array"
+        }
+      },
+      "required": [
+        "original_path",
+        "original_name",
+        "persons",
+        "status"
+      ],
+      "title": "RenamePreviewItem",
+      "type": "object"
+    }
+  },
+  "properties": {
+    "items": {
+      "items": {
+        "$ref": "#/$defs/RenamePreviewItem"
+      },
+      "title": "Items",
+      "type": "array"
+    },
+    "name_map": {
+      "additionalProperties": {
+        "type": "string"
+      },
+      "title": "Name Map",
+      "type": "object"
+    }
+  },
+  "required": [
+    "items",
+    "name_map"
+  ],
+  "title": "RenamePreviewResponse",
+  "type": "object"
+}

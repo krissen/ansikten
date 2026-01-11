@@ -1,0 +1,33 @@
+{
+  "properties": {
+    "source_names": {
+      "items": {
+        "type": "string"
+      },
+      "title": "Source Names",
+      "type": "array"
+    },
+    "target_name": {
+      "title": "Target Name",
+      "type": "string"
+    },
+    "backend_filter": {
+      "anyOf": [
+        {
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Backend Filter"
+    }
+  },
+  "required": [
+    "source_names",
+    "target_name"
+  ],
+  "title": "MergePeopleRequest",
+  "type": "object"
+}

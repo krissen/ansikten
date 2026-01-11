@@ -1,8 +1,10 @@
 #!/usr/bin/env python3
+import logging
 import sys
 
 import numpy as np
 
+from cli_config import init_logging
 from faceid_db import load_database, save_database
 
 # ======== JUSTERBARA KONSTANTER OCH STANDARDVÄRDEN =========
@@ -14,7 +16,9 @@ REPAIR_ON_START = False  # Kör alltid shape-repair först?
 
 
 # ================= FILTRERINGSFUNKTIONER ===================
-def std_outlier_filter(encs, std_thr=STD_THRESHOLD):
+def std_outlier_filter(
+    encs: list[np.ndarray], std_thr: float = STD_THRESHOLD
+) -> tuple[np.ndarray, np.ndarray]:
     """Returnerar mask (True=behåll), samt distanser från centroid."""
     arr = np.stack(encs)
     centroid = np.mean(arr, axis=0)
@@ -25,7 +29,11 @@ def std_outlier_filter(encs, std_thr=STD_THRESHOLD):
     return mask, dists
 
 
-def cluster_filter(encs, cluster_dist=CLUSTER_DIST, cluster_min=CLUSTER_MIN):
+def cluster_filter(
+    encs: list[np.ndarray],
+    cluster_dist: float = CLUSTER_DIST,
+    cluster_min: int = CLUSTER_MIN,
+) -> tuple[np.ndarray, np.ndarray]:
     """Behåll största tätkluster (alla inom cluster_dist från centroid)."""
     arr = np.stack(encs)
     centroid = np.mean(arr, axis=0)
@@ -38,7 +46,9 @@ def cluster_filter(encs, cluster_dist=CLUSTER_DIST, cluster_min=CLUSTER_MIN):
         return np.ones_like(inlier_mask, dtype=bool), dists
 
 
-def shape_repair(known_faces, simulate=False):
+def shape_repair(
+    known_faces: dict[str, list[dict | np.ndarray]], simulate: bool = False
+) -> bool:
     changed = False
     print("--- Shape-reparation ---")
     for name, entries in list(known_faces.items()):
@@ -73,8 +83,10 @@ def shape_repair(known_faces, simulate=False):
 
 
 # =========================== HUVUDFUNKTION ============================
-def main():
+def main() -> None:
     import argparse
+
+    init_logging(replace_handlers=True)
 
     parser = argparse.ArgumentParser(
         description="Filtrera/repair ansikts-encodings. Default: stdavvikelse.",
@@ -129,6 +141,7 @@ def main():
         did_repair = shape_repair(known_faces, simulate=args.simulate)
         if did_repair and not args.simulate:
             save_database(known_faces, ignored_faces, hard_negatives, processed_files)
+            logging.info("[REPAIR] Databas uppdaterad efter shape-repair")
             print("Databas uppdaterad (shape-repair).")
         elif not did_repair:
             print("Inga inkonsekventa encodings hittades.")
@@ -164,6 +177,7 @@ def main():
                 n_in = np.count_nonzero(mask)
                 label = "STDAVVIKELSE"
         except Exception as ex:
+            logging.warning(f"[FILTER] {name}: kunde inte filtrera: {ex}")
             print(f"{name}: kunde inte filtrera (troligen inkonsekventa shapes): {ex}")
             continue
 
@@ -177,6 +191,7 @@ def main():
 
     if changed and not args.simulate:
         save_database(known_faces, ignored_faces, hard_negatives, processed_files)
+        logging.info("[FILTER] Databas uppdaterad efter filtrering")
         print("Databas uppdaterad.")
     elif not changed:
         print("Ingen filtrering utförd – inget förändrat.")

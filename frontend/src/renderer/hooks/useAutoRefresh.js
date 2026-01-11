@@ -33,16 +33,33 @@ export function useAutoRefresh(refreshFn, options = {}) {
   const [isRefreshing, setIsRefreshing] = useState(false);
   const intervalRef = useRef(null);
   const refreshFnRef = useRef(refreshFn);
+  const isRefreshingRef = useRef(false);
+  const lastRefreshTimeRef = useRef(0);
+  const mountedRef = useRef(false);
+  const initialRefreshDoneRef = useRef(false);
+
+  // Minimum time between refreshes (debounce)
+  const MIN_REFRESH_INTERVAL = 1000;
 
   // Keep refreshFn ref updated
   useEffect(() => {
     refreshFnRef.current = refreshFn;
   }, [refreshFn]);
 
-  // Manual refresh function
+  // Manual refresh function (stable - doesn't change on isRefreshing)
   const refresh = useCallback(async () => {
-    if (isRefreshing) return;
+    // Guard against concurrent refreshes
+    if (isRefreshingRef.current) return;
 
+    // Debounce: don't refresh if we just refreshed
+    const now = Date.now();
+    if (now - lastRefreshTimeRef.current < MIN_REFRESH_INTERVAL) {
+      debug('AutoRefresh', 'Debounced refresh (too soon)');
+      return;
+    }
+
+    isRefreshingRef.current = true;
+    lastRefreshTimeRef.current = now;
     setIsRefreshing(true);
     try {
       await refreshFnRef.current();
@@ -50,33 +67,49 @@ export function useAutoRefresh(refreshFn, options = {}) {
     } catch (err) {
       debugError('Backend', 'Refresh failed:', err);
     } finally {
+      isRefreshingRef.current = false;
       setIsRefreshing(false);
     }
-  }, [isRefreshing]);
+  }, []); // No dependencies - uses refs
 
-  // Initial refresh on mount
+  // Initial refresh on mount (runs only once)
   useEffect(() => {
-    if (refreshOnMount) {
+    if (mountedRef.current) return; // Already mounted
+    mountedRef.current = true;
+
+    if (refreshOnMount && !initialRefreshDoneRef.current) {
+      initialRefreshDoneRef.current = true;
       refresh();
     }
-  }, []); // Only on mount
+  }, []); // Empty deps - truly only on mount
 
   // Auto-refresh interval
   useEffect(() => {
+    debug('AutoRefresh', `Interval effect running: isEnabled=${isEnabled}, interval=${interval}`);
+
     if (!isEnabled) {
       if (intervalRef.current) {
+        debug('AutoRefresh', 'Clearing interval (disabled)');
         clearInterval(intervalRef.current);
         intervalRef.current = null;
       }
       return;
     }
 
+    // Clear any existing interval before creating new one
+    if (intervalRef.current) {
+      debug('AutoRefresh', 'Clearing existing interval before creating new');
+      clearInterval(intervalRef.current);
+    }
+
+    debug('AutoRefresh', `Creating interval with ${interval}ms`);
     intervalRef.current = setInterval(() => {
       refresh();
     }, interval);
 
     return () => {
       if (intervalRef.current) {
+        debug('AutoRefresh', 'Cleanup: clearing interval');
         clearInterval(intervalRef.current);
         intervalRef.current = null;
       }

@@ -1,0 +1,119 @@
+{
+  "$defs": {
+    "ErrorFile": {
+      "properties": {
+        "path": {
+          "title": "Path",
+          "type": "string"
+        },
+        "error": {
+          "title": "Error",
+          "type": "string"
+        }
+      },
+      "required": [
+        "path",
+        "error"
+      ],
+      "title": "ErrorFile",
+      "type": "object"
+    },
+    "RenameResult": {
+      "properties": {
+        "original": {
+          "title": "Original",
+          "type": "string"
+        },
+        "new": {
+          "title": "New",
+          "type": "string"
+        },
+        "sidecars": {
+          "default": [],
+          "items": {
+            "$ref": "#/$defs/SidecarRenameResult"
+          },
+          "title": "Sidecars",
+          "type": "array"
+        }
+      },
+      "required": [
+        "original",
+        "new"
+      ],
+      "title": "RenameResult",
+      "type": "object"
+    },
+    "SidecarRenameResult": {
+      "properties": {
+        "original": {
+          "title": "Original",
+          "type": "string"
+        },
+        "new": {
+          "title": "New",
+          "type": "string"
+        }
+      },
+      "required": [
+        "original",
+        "new"
+      ],
+      "title": "SidecarRenameResult",
+      "type": "object"
+    },
+    "SkippedFile": {
+      "properties": {
+        "path": {
+          "title": "Path",
+          "type": "string"
+        },
+        "reason": {
+          "title": "Reason",
+          "type": "string"
+        }
+      },
+      "required": [
+        "path",
+        "reason"
+      ],
+      "title": "SkippedFile",
+      "type": "object"
+    }
+  },
+  "properties": {
+    "renamed": {
+      "items": {
+        "$ref": "#/$defs/RenameResult"
+      },
+      "title": "Renamed",
+      "type": "array"
+    },
+    "skipped": {
+      "items": {
+        "$ref": "#/$defs/SkippedFile"
+      },
+      "title": "Skipped",
+      "type": "array"
+    },
+    "errors": {
+      "items": {
+        "$ref": "#/$defs/ErrorFile"
+      },
+      "title": "Errors",
+      "type": "array"
+    },
+    "db_entries_updated": {
+      "default": 0,
+      "title": "Db Entries Updated",
+      "type": "integer"
+    }
+  },
+  "required": [
+    "renamed",
+    "skipped",
+    "errors"
+  ],
+  "title": "RenameExecuteResponse",
+  "type": "object"
+}

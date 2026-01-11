@@ -1,0 +1,187 @@
+{
+  "$defs": {
+    "DatabaseState": {
+      "properties": {
+        "people": {
+          "items": {
+            "$ref": "#/$defs/PersonEntry"
+          },
+          "title": "People",
+          "type": "array"
+        },
+        "ignored_count": {
+          "title": "Ignored Count",
+          "type": "integer"
+        },
+        "ignored_by_backend": {
+          "anyOf": [
+            {
+              "additionalProperties": true,
+              "type": "object"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Ignored By Backend"
+        },
+        "hard_negatives_count": {
+          "title": "Hard Negatives Count",
+          "type": "integer"
+        },
+        "processed_files_count": {
+          "title": "Processed Files Count",
+          "type": "integer"
+        },
+        "backends_in_use": {
+          "anyOf": [
+            {
+              "items": {
+                "type": "string"
+              },
+              "type": "array"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Backends In Use"
+        }
+      },
+      "required": [
+        "people",
+        "ignored_count",
+        "hard_negatives_count",
+        "processed_files_count"
+      ],
+      "title": "DatabaseState",
+      "type": "object"
+    },
+    "PersonEntry": {
+      "properties": {
+        "name": {
+          "title": "Name",
+          "type": "string"
+        },
+        "encoding_count": {
+          "title": "Encoding Count",
+          "type": "integer"
+        },
+        "encodings_by_backend": {
+          "anyOf": [
+            {
+              "additionalProperties": true,
+              "type": "object"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Encodings By Backend"
+        }
+      },
+      "required": [
+        "name",
+        "encoding_count"
+      ],
+      "title": "PersonEntry",
+      "type": "object"
+    }
+  },
+  "properties": {
+    "status": {
+      "title": "Status",
+      "type": "string"
+    },
+    "message": {
+      "title": "Message",
+      "type": "string"
+    },
+    "warning": {
+      "anyOf": [
+        {
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Warning"
+    },
+    "encodings_by_backend": {
+      "anyOf": [
+        {
+          "additionalProperties": true,
+          "type": "object"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Encodings By Backend"
+    },
+    "moved_by_backend": {
+      "anyOf": [
+        {
+          "additionalProperties": true,
+          "type": "object"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Moved By Backend"
+    },
+    "purged_by_backend": {
+      "anyOf": [
+        {
+          "additionalProperties": true,
+          "type": "object"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Purged By Backend"
+    },
+    "new_state": {
+      "anyOf": [
+        {
+          "$ref": "#/$defs/DatabaseState"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null
+    },
+    "files_undone": {
+      "anyOf": [
+        {
+          "items": {
+            "type": "string"
+          },
+          "type": "array"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Files Undone"
+    }
+  },
+  "required": [
+    "status",
+    "message"
+  ],
+  "title": "OperationResponse",
+  "type": "object"
+}

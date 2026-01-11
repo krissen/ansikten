@@ -1,0 +1,47 @@
+{
+  "properties": {
+    "face_index": {
+      "title": "Face Index",
+      "type": "integer"
+    },
+    "face_id": {
+      "title": "Face Id",
+      "type": "string"
+    },
+    "encoding_hash": {
+      "anyOf": [
+        {
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Encoding Hash"
+    },
+    "person_name": {
+      "anyOf": [
+        {
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Person Name"
+    },
+    "is_ignored": {
+      "default": false,
+      "title": "Is Ignored",
+      "type": "boolean"
+    }
+  },
+  "required": [
+    "face_index",
+    "face_id"
+  ],
+  "title": "ReviewedFace",
+  "type": "object"
+}

@@ -10,7 +10,7 @@
 
 import React, { createContext, useContext, useRef, useCallback, useMemo } from 'react';
 import { apiClient } from '../shared/api-client.js';
-import { debug } from '../shared/debug.js';
+import { debug, debugError } from '../shared/debug.js';
 
 // Create the context with a default value of null
 export const ModuleAPIContext = createContext(null);
@@ -47,7 +47,7 @@ export function ModuleAPIProvider({ children }) {
       try {
         handler(data);
       } catch (err) {
-        console.error(`[ModuleAPI] Error in handler for "${eventName}":`, err);
+        debugError('ModuleAPI', `Error in handler for "${eventName}":`, err);
       }
     });
   }, []);

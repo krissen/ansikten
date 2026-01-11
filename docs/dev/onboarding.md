@@ -10,8 +10,7 @@ Guide for new developers getting started with Hitta ansikten.
 
 - **Backend**: Python FastAPI server + CLI for batch processing
 - **Frontend**: Electron workspace with FlexLayout for image review
-- **Primary backend**: InsightFace (faster, more accurate)
-- **Legacy support**: dlib (for backward compatibility)
+- **Face recognition**: InsightFace (ONNX Runtime)
 
 ---
 
@@ -131,14 +130,15 @@ npx electron .
 3. **Recognition**: Compare encodings to identify people
 4. **Distance**: Similarity measure (lower = more similar)
 
-### Backends
+### Backend
 
-| Backend | Encoding | Distance | Threshold | Status |
-|---------|----------|----------|-----------|--------|
-| InsightFace | 512-dim | Cosine | ~0.4 | Primary |
-| dlib | 128-dim | Euclidean | ~0.54 | Legacy |
+InsightFace is the only supported backend:
 
-**Always develop against InsightFace** unless working on legacy compatibility.
+| Backend | Encoding | Distance | Threshold |
+|---------|----------|----------|-----------|
+| InsightFace | 512-dim | Cosine | ~0.4 |
+
+> **Note:** dlib was deprecated in January 2026. Any existing dlib encodings are automatically removed at server startup.
 
 ### Data Flow
 

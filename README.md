@@ -47,15 +47,19 @@ Backend auto-starts on `http://127.0.0.1:5001`
 
 ### For Users
 
-- [Getting Started](docs/user/getting-started.md) - Installation and first run
+- [Installation](docs/user/installation.md) - Download prebuilt packages
+- [Getting Started](docs/user/getting-started.md) - Development setup
 - [CLI Reference](docs/user/cli-reference.md) - Command line usage
-- [Workspace Guide](docs/user/workspace-guide.md) - GUI usage and shortcuts
+- [Workspace Guide](docs/user/workspace-guide.md) - GUI usage
+- [Keyboard Shortcuts](docs/user/keyboard-shortcuts.md) - All shortcuts
 
 ### For Developers
 
 - [Architecture](docs/dev/architecture.md) - System overview
 - [API Reference](docs/dev/api-reference.md) - REST and WebSocket API
 - [Database](docs/dev/database.md) - Data files and formats
+- [Release Guide](docs/dev/release-guide.md) - Publishing releases
+- [Building](docs/dev/building.md) - Build from source
 - [Theming](docs/dev/theming.md) - CSS variable system
 - [Contributing](docs/dev/contributing.md) - Git workflow and code style
 - [Onboarding](docs/dev/onboarding.md) - New developer guide
@@ -68,7 +72,7 @@ Backend auto-starts on `http://127.0.0.1:5001`
 - **Face recognition** against known person database
 - **Interactive review** - confirm, reject, or manually name faces
 - **Automatic file renaming** based on detected people
-- **Pluggable backends** - InsightFace (primary) or dlib (legacy)
+- **InsightFace** face recognition (512-dim embeddings, cosine distance)
 - **Modular workspace** - GIMP-like dockable panel UI
 - **Real-time updates** via WebSocket
 
@@ -105,7 +109,7 @@ All persistent data in `~/.local/share/faceid/`:
 
 **Backend:**
 - Python 3.9+
-- InsightFace / face_recognition (dlib)
+- InsightFace (ONNX Runtime)
 - FastAPI, WebSocket, rawpy
 
 **Frontend:**
@@ -117,4 +121,4 @@ All persistent data in `~/.local/share/faceid/`:
 
 ## License
 
-MIT
+GPL-3.0

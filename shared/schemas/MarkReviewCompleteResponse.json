@@ -1,0 +1,23 @@
+{
+  "properties": {
+    "status": {
+      "title": "Status",
+      "type": "string"
+    },
+    "message": {
+      "title": "Message",
+      "type": "string"
+    },
+    "labels_count": {
+      "title": "Labels Count",
+      "type": "integer"
+    }
+  },
+  "required": [
+    "status",
+    "message",
+    "labels_count"
+  ],
+  "title": "MarkReviewCompleteResponse",
+  "type": "object"
+}

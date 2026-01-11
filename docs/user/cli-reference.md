@@ -180,6 +180,62 @@ Migrera äldre encodings till nytt format med filhashar.
 python update_encodings_with_filehash.py 2024*.NEF
 ```
 
+### rensa_dlib.py
+
+Ta bort alla dlib-encodings från databasen. dlib är deprecated.
+
+```bash
+# Förhandsgranska
+./rensa_dlib.py --dry-run
+
+# Utför borttagning
+./rensa_dlib.py
+```
+
+### filer2mappar.py
+
+Flytta filer till undermappar baserat på datum (YYMMDD).
+
+```bash
+# Flytta NEF-filer till datummappar
+./filer2mappar.py *.NEF
+
+# Förhandsgranska
+./filer2mappar.py --dry-run *.NEF
+
+# Använd EXIF-datum istället för filnamn
+./filer2mappar.py --exif-date *.NEF
+
+# Filtrera på datum
+./filer2mappar.py --from 260101 --to 260131 *.NEF
+```
+
+| Flagga | Beskrivning |
+|--------|-------------|
+| `-n, --dry-run` | Visa vad som skulle göras |
+| `-v, --verbose` | Visa varje flytt |
+| `--exif-date` | Använd EXIF CreateDate |
+| `--file-date` | Använd filens modifieringsdatum |
+| `--before DATUM` | Före datum (exklusivt) |
+| `--after DATUM` | Efter datum (exklusivt) |
+| `--from DATUM` | Från och med datum |
+| `--to DATUM` | Till och med datum |
+| `--no-sidecars` | Flytta inte .xmp automatiskt |
+
+### rename_nef.py
+
+Döp om NEF-filer baserat på EXIF CreateDate.
+
+```bash
+# Döp om filer till YYMMDD_HHMMSS.NEF
+./rename_nef.py *.NEF
+
+# Förhandsgranska
+./rename_nef.py --dry-run *.NEF
+```
+
+Filer med samma tidsstämpel får suffix: `-00`, `-01`, etc.
+
 ---
 
 ## Konfiguration
@@ -189,9 +245,9 @@ Inställningar i `~/.local/share/faceid/config.json`:
 ```json
 {
   "detection_model": "hog",
-  "match_threshold": 0.54,
+  "match_threshold": 0.4,
   "backend": {
-    "type": "dlib"
+    "type": "insightface"
   }
 }
 ```
@@ -201,10 +257,12 @@ Inställningar i `~/.local/share/faceid/config.json`:
 | Nyckel | Standard | Beskrivning |
 |--------|----------|-------------|
 | `detection_model` | `"hog"` | `"hog"` (snabb) eller `"cnn"` (noggrann) |
-| `match_threshold` | `0.54` | Tröskel för matchning (lägre = striktare) |
-| `backend.type` | `"dlib"` | `"dlib"` eller `"insightface"` |
+| `match_threshold` | `0.4` | Tröskel för matchning (lägre = striktare) |
+| `backend.type` | `"insightface"` | InsightFace (512-dim, cosine distance) |
 | `auto_ignore` | `false` | Auto-ignorera omatchade ansikten |
 | `image_viewer_app` | `"Bildvisare"` | Extern app för förhandsvisning |
+
+> **Not:** dlib-backend är deprecated sedan januari 2026. Om du har äldre dlib-encodings, använd `rensa_dlib.py` eller RefineFaces-modulen i GUI:t för att ta bort dem.
 
 ---
 

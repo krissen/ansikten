@@ -1,0 +1,29 @@
+{
+  "description": "Quick stats for UI display",
+  "properties": {
+    "unique_persons": {
+      "title": "Unique Persons",
+      "type": "integer"
+    },
+    "total_encodings": {
+      "title": "Total Encodings",
+      "type": "integer"
+    },
+    "ignored_count": {
+      "title": "Ignored Count",
+      "type": "integer"
+    },
+    "processed_files_count": {
+      "title": "Processed Files Count",
+      "type": "integer"
+    }
+  },
+  "required": [
+    "unique_persons",
+    "total_encodings",
+    "ignored_count",
+    "processed_files_count"
+  ],
+  "title": "StatsResponse",
+  "type": "object"
+}

@@ -8,8 +8,7 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { preferences } from '../workspace/preferences.js';
 import { themeManager } from '../theme-manager.js';
-import { getCategories, setCategories, resetCategories } from '../shared/debug.js';
-import { debug } from '../shared/debug.js';
+import { getCategories, setCategories, resetCategories, debug, debugError } from '../shared/debug.js';
 import './PreferencesModule.css';
 
 // Define preference sections
@@ -94,7 +93,7 @@ function SelectField({ id, label, hint, value, onChange, options }) {
 /**
  * Text input field
  */
-function TextField({ id, label, hint, value, onChange, placeholder }) {
+function TextField({ id, label, hint, value, onChange, placeholder, disabled }) {
   return (
     <div className="pref-field">
       <label>{label}</label>
@@ -103,6 +102,8 @@ function TextField({ id, label, hint, value, onChange, placeholder }) {
         value={value}
         onChange={(e) => onChange(e.target.value)}
         placeholder={placeholder}
+        disabled={disabled}
+        className="text-input"
       />
       {hint && <small>{hint}</small>}
     </div>
@@ -225,7 +226,7 @@ export function PreferencesModule({ api }) {
         const status = await apiClient.getCacheStatus();
         setCacheStatus(status);
       } catch (err) {
-        console.error('Failed to clear cache:', err);
+        debugError('Preferences', 'Failed to clear cache:', err);
       }
     }
   }, []);
@@ -542,6 +543,25 @@ export function PreferencesModule({ api }) {
         hint="Convert special characters (e.g. e, o) for safer filenames"
         checked={prefs.rename?.removeDiacritics ?? true}
         onChange={(v) => updatePref('rename.removeDiacritics', v)}
+      />
+
+      <SectionHeader title="Sidecar Files" />
+      <CheckboxField
+        label="Rename sidecar files"
+        hint="Also rename associated files (XMP, etc) when renaming images"
+        checked={prefs.rename?.renameSidecars ?? true}
+        onChange={(v) => updatePref('rename.renameSidecars', v)}
+      />
+      <TextField
+        label="Sidecar extensions"
+        hint="Comma-separated list (case insensitive matching)"
+        value={(prefs.rename?.sidecarExtensions ?? ['xmp']).join(', ')}
+        onChange={(v) => {
+          const exts = v.split(',').map(e => e.trim().toLowerCase()).filter(e => e);
+          updatePref('rename.sidecarExtensions', exts);
+        }}
+        placeholder="xmp, dng"
+        disabled={!(prefs.rename?.renameSidecars ?? true)}
       />
     </>
   );

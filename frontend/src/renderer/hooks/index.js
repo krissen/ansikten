@@ -15,3 +15,5 @@ export {
   useIPC
 } from './useModuleEvent.js';
 export { useCapabilities } from './useCapabilities.js';
+export { useOperationStatus, useAsyncOperation } from './useOperationStatus.js';
+export { useFormState, useMultipleForms } from './useFormState.js';

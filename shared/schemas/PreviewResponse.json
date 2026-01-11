@@ -1,0 +1,129 @@
+{
+  "$defs": {
+    "DistanceStats": {
+      "description": "Statistics for distances in a preview.",
+      "properties": {
+        "min_dist": {
+          "title": "Min Dist",
+          "type": "number"
+        },
+        "max_dist": {
+          "title": "Max Dist",
+          "type": "number"
+        },
+        "mean_dist": {
+          "title": "Mean Dist",
+          "type": "number"
+        },
+        "std_dist": {
+          "title": "Std Dist",
+          "type": "number"
+        }
+      },
+      "required": [
+        "min_dist",
+        "max_dist",
+        "mean_dist",
+        "std_dist"
+      ],
+      "title": "DistanceStats",
+      "type": "object"
+    },
+    "PreviewEntry": {
+      "description": "Preview result for one person.",
+      "properties": {
+        "person": {
+          "title": "Person",
+          "type": "string"
+        },
+        "total": {
+          "title": "Total",
+          "type": "integer"
+        },
+        "keep": {
+          "title": "Keep",
+          "type": "integer"
+        },
+        "remove": {
+          "title": "Remove",
+          "type": "integer"
+        },
+        "remove_indices": {
+          "items": {
+            "type": "integer"
+          },
+          "title": "Remove Indices",
+          "type": "array"
+        },
+        "reason": {
+          "title": "Reason",
+          "type": "string"
+        },
+        "stats": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/DistanceStats"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        }
+      },
+      "required": [
+        "person",
+        "total",
+        "keep",
+        "remove",
+        "remove_indices",
+        "reason"
+      ],
+      "title": "PreviewEntry",
+      "type": "object"
+    },
+    "PreviewSummary": {
+      "description": "Summary of preview results.",
+      "properties": {
+        "total_people": {
+          "title": "Total People",
+          "type": "integer"
+        },
+        "affected_people": {
+          "title": "Affected People",
+          "type": "integer"
+        },
+        "total_remove": {
+          "title": "Total Remove",
+          "type": "integer"
+        }
+      },
+      "required": [
+        "total_people",
+        "affected_people",
+        "total_remove"
+      ],
+      "title": "PreviewSummary",
+      "type": "object"
+    }
+  },
+  "description": "Response for preview endpoint.",
+  "properties": {
+    "preview": {
+      "items": {
+        "$ref": "#/$defs/PreviewEntry"
+      },
+      "title": "Preview",
+      "type": "array"
+    },
+    "summary": {
+      "$ref": "#/$defs/PreviewSummary"
+    }
+  },
+  "required": [
+    "preview",
+    "summary"
+  ],
+  "title": "PreviewResponse",
+  "type": "object"
+}

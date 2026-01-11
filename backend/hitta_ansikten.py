@@ -25,394 +25,39 @@ import time
 import unicodedata
 from datetime import datetime
 from pathlib import Path
+from types import FrameType
+from typing import Callable, Iterator
 
 import numpy as np
-import rawpy
-from PIL import Image, ImageDraw, ImageFont
 
 from faceid_db import (ARCHIVE_DIR, ATTEMPT_SETTINGS_SIG, BASE_DIR,
                        CONFIG_PATH, LOGGING_PATH, SUPPORTED_EXT, get_file_hash,
                        load_attempt_log, load_database, save_database, safe_pickle_load)
 from face_backends import create_backend, FaceBackend
+from cli_config import (
+    # Constants
+    TEMP_DIR, ORDINARY_PREVIEW_PATH, MAX_ATTEMPTS, MAX_QUEUE, CACHE_DIR,
+    RESERVED_COMMANDS, MAX_WORKER_WAIT_TIME,
+    QUEUE_GET_TIMEOUT, WORKER_JOIN_TIMEOUT, WORKER_TERMINATE_TIMEOUT,
+    # Config
+    init_logging, load_config,
+    get_attempt_settings, get_max_possible_attempts,
+    get_settings_signature, archive_stats_if_needed, hash_encoding
+)
+from cli_image import (
+    load_and_resize_raw, create_labeled_image,
+    export_and_show_original, show_temp_image
+)
+from cli_matching import (
+    best_matches, get_face_match_status,
+    label_preview_for_encodings
+)
 
-
-def init_logging(level=logging.INFO, logfile=LOGGING_PATH, replace_handlers=False):
-    """
-    Initialize logging for hitta_ansikten.
-    
-    Args:
-        level: Logging level
-        logfile: Path to log file
-        replace_handlers: If True, clear existing handlers (CLI mode). 
-                         If False, add file handler without clearing (API mode).
-    """
-    logger = logging.getLogger()
-    try:
-        logging.getLogger("matplotlib.font_manager").setLevel(logging.WARNING)
-    except Exception:
-        pass
-    logger.setLevel(level)
-    
-    if replace_handlers:
-        logger.handlers.clear()
-    
-    file_handler_exists = any(
-        isinstance(h, logging.FileHandler) and h.baseFilename == str(logfile)
-        for h in logger.handlers
-    )
-    if not file_handler_exists:
-        handler = logging.FileHandler(logfile, mode="a", encoding="utf-8")
-        handler.setLevel(logging.INFO)
-        formatter = logging.Formatter(
-            "%(asctime)s %(levelname)s %(message)s", datefmt="%Y-%m-%d %H:%M:%S"
-        )
-        handler.setFormatter(formatter)
-        logger.addHandler(handler)
-
+# Initialize logging at module load
 init_logging(replace_handlers=False)
- 
-# === CONSTANTS === #
-# Use /private/tmp for macOS compatibility with Bildvisare security restrictions
-# Bildvisare whitelists /tmp and /private/tmp but not system temp (/var/folders/...)
-TEMP_DIR = Path("/private/tmp") / "hitta_ansikten"
-TEMP_DIR.mkdir(exist_ok=True, parents=True)
-ORDINARY_PREVIEW_PATH = str(TEMP_DIR / "preview.jpg")
-MAX_ATTEMPTS = 2
-MAX_QUEUE = 10
-CACHE_DIR = Path("./preprocessed_cache")
-
-# Reserved command shortcuts that cannot be used as person names
-RESERVED_COMMANDS = {"i", "a", "r", "n", "o", "m", "x"}
-
-# Face detection and processing constants
-FACE_BOX_OVERLAP_BUFFER = 40  # pixels - buffer for detecting overlapping face boxes
-MAX_WORKER_WAIT_TIME = 90  # seconds - max time to wait for worker preprocessing
-QUEUE_GET_TIMEOUT = 1  # seconds - timeout for queue.get() operations
-WORKER_JOIN_TIMEOUT = 30  # seconds - timeout for worker process join
-WORKER_TERMINATE_TIMEOUT = 5  # seconds - timeout after terminate before kill
 
 
-# === Standardkonfiguration ===
-DEFAULT_CONFIG = {
-    # === Automatiska åtgärder & flöden ===
-    # Ignorera ej identifierade ansikten automatiskt (manuell review krävs)
-    "auto_ignore": False,
-    # Vid --fix: ignoreras ansikten under tröskeln automatiskt
-    "auto_ignore_on_fix": True,
-
-    # === Modell & detektering ===
-    # Modell för ansiktsdetektion: "hog" (snabb, CPU) eller "cnn" (noggrann, GPU)
-    "detection_model": "hog",
-
-    # === Bildskalor och prestanda ===
-    # Max-bredd/höjd för lågupplöst försök (snabb men mindre detaljer)
-    "max_downsample_px": 2800,
-    # Max-bredd/höjd för mellanupplöst försök
-    "max_midsample_px": 4500,
-    # Max-bredd/höjd för fullupplöst försök (sista chans, långsamt)
-    "max_fullres_px": 8000,
-    # Antal worker-processer för förbehandling
-    "num_workers": 1,
-    # Maxlängd på kön mellan workers och huvudtråd
-    "max_queue": MAX_QUEUE,
-
-    # === Utseende: etiketter & fönster ===
-    # Skalningsfaktor för etikett-textstorlek
-    "font_size_factor": 45,
-    # App som används för att visa bilder, t.ex. "Bildvisare" eller "feh"
-    "image_viewer_app": "Bildvisare",
-    # Sökväg för temporär förhandsvisningsbild (will use system temp dir)
-    "temp_image_path": None,  # Computed at runtime using ORDINARY_PREVIEW_PATH
-    # Bakgrundsfärg för etiketter i RGBA
-    "label_bg_color": [0, 0, 0, 192],
-    # Textfärg för etiketter i RGB
-    "label_text_color": [255, 255, 0],
-    # Marginal kring ansiktsrutor (pixlar)
-    "padding": 15,
-    # Linjetjocklek för markeringsruta (pixlar)
-    "rectangle_thickness": 6,
-
-    # === Matchningsparametrar (justera för träffsäkerhet) ===
-    # Max-avstånd för att godkänna namn-match (lägre = striktare)
-    "match_threshold": 0.54,
-    # Minsta "confidence" för att visa namn (0.0–1.0, högre = striktare)
-    "min_confidence": 0.5,
-    # Max-avstånd för att automatiskt föreslå ignorering ("ign")
-    "ignore_distance": 0.48,
-    # Namn måste vara så här mycket bättre än ignore för att vinna automatiskt
-    "prefer_name_margin": 0.15,
-
-    # === Backend configuration (face recognition engine) ===
-    # NOTE: dlib backend is DEPRECATED and no longer supported.
-    # Only "insightface" should be used. Existing dlib encodings will be removed.
-    "backend": {
-        "type": "insightface",  # Backend to use: only "insightface" is supported
-        "insightface": {
-            "model_name": "buffalo_l",  # Model: buffalo_s (fast), buffalo_m, buffalo_l (accurate)
-            "ctx_id": -1,  # -1 = CPU, 0+ = GPU device ID
-            "det_size": [640, 640]  # Detection input size
-        }
-    },
-
-    # Threshold mode: "auto" uses match_threshold/ignore_distance for active backend
-    # "manual" uses backend-specific thresholds below
-    "threshold_mode": "auto",
-
-    # Backend-specific distance thresholds (used if threshold_mode="manual")
-    "backend_thresholds": {
-        "dlib": {
-            "match_threshold": 0.54,  # Euclidean distance threshold
-            "ignore_distance": 0.48,
-            "hard_negative_distance": 0.45
-        },
-        "insightface": {
-            "match_threshold": 0.4,  # Cosine distance threshold (typically lower)
-            "ignore_distance": 0.35,
-            "hard_negative_distance": 0.32
-        }
-    },
-}
-
-def load_config():
-    BASE_DIR.mkdir(parents=True, exist_ok=True)
-    if CONFIG_PATH.exists():
-        try:
-            with open(CONFIG_PATH, "r") as f:
-                return {**DEFAULT_CONFIG, **json.load(f)}
-        except Exception:
-            pass
-    with open(CONFIG_PATH, "w") as f:
-        json.dump(DEFAULT_CONFIG, f, indent=2)
-    return DEFAULT_CONFIG
-
-def get_attempt_setting_defs(config, backend=None):
-    """
-    Returnerar alla attempt settings utan rgb_img.
-
-    Args:
-        config: Configuration dict
-        backend: FaceBackend instance (optional, för backend-specifika nivåer)
-
-    Returns:
-        List of attempt setting dicts
-    """
-    # InsightFace: Enklare nivåer (model/upsample ignoreras ändå)
-    # Bara variera upplösning - InsightFace är bra nog att klara de flesta fall
-    if backend and backend.backend_name == 'insightface':
-        # Use actual model name from backend for clarity in logs/stats
-        model_name = backend.get_model_info().get('model', 'buffalo_l')
-        return [
-            {"model": model_name, "upsample": 0, "scale_label": "mid",  "scale_px": config["max_midsample_px"]},
-            {"model": model_name, "upsample": 0, "scale_label": "full", "scale_px": config["max_fullres_px"]},
-            {"model": model_name, "upsample": 0, "scale_label": "down", "scale_px": config["max_downsample_px"]},
-        ]
-
-    # Dlib: Behåll alla variationer med model och upsample
-    return [
-        {"model": "cnn", "upsample": 0, "scale_label": "down", "scale_px": config["max_downsample_px"]},
-        {"model": "cnn", "upsample": 0, "scale_label": "mid",  "scale_px": config["max_midsample_px"]},
-        {"model": "cnn", "upsample": 1, "scale_label": "down", "scale_px": config["max_downsample_px"]},
-        {"model": "hog", "upsample": 0, "scale_label": "full", "scale_px": config["max_fullres_px"]},
-        {"model": "cnn", "upsample": 0, "scale_label": "full", "scale_px": config["max_fullres_px"]},
-        {"model": "cnn", "upsample": 1, "scale_label": "mid",  "scale_px": config["max_midsample_px"]},
-        {"model": "cnn", "upsample": 1, "scale_label": "full", "scale_px": config["max_fullres_px"]},
-    ]
-
-def get_attempt_settings(config, rgb_down, rgb_mid, rgb_full, backend=None):
-    """
-    Kopplar rgb_img enligt scale_label.
-
-    Args:
-        config: Configuration dict
-        rgb_down, rgb_mid, rgb_full: Preprocessed images at different resolutions
-        backend: FaceBackend instance (optional, för backend-specifika nivåer)
-    """
-    arr_map = {
-        "down": rgb_down,
-        "mid": rgb_mid,
-        "full": rgb_full,
-    }
-    settings = []
-    for item in get_attempt_setting_defs(config, backend):
-        item_with_img = dict(item)  # kopiera!
-        item_with_img["rgb_img"] = arr_map[item["scale_label"]]
-        settings.append(item_with_img)
-    return settings
-
-def get_max_possible_attempts(config, backend=None):
-    """Returns max number of attempts for current backend."""
-    return len(get_attempt_setting_defs(config, backend))
-
-def get_settings_signature(attempt_settings):
-    # Serialiserbar och ordningsoberoende
-    as_json = json.dumps([
-        {k: v for k, v in s.items() if k != "rgb_img"}
-        for s in attempt_settings
-    ], sort_keys=True)
-    return hashlib.md5(as_json.encode("utf-8")).hexdigest()
-
-def archive_stats_if_needed(current_sig, force=False):
-    sig_path = ATTEMPT_SETTINGS_SIG
-    log_path = BASE_DIR / "attempt_stats.jsonl"
-    if not log_path.exists():
-        sig_path.write_text(current_sig)
-        return
-
-    old_sig = sig_path.read_text().strip() if sig_path.exists() else None
-    if force or (old_sig != current_sig):
-        ARCHIVE_DIR.mkdir(parents=True, exist_ok=True)
-        dt_str = datetime.now().strftime("%Y%m%d-%H%M%S")
-        archive_name = f"attempt_stats_{dt_str}_{old_sig or 'unknown'}.jsonl"
-        archive_path = ARCHIVE_DIR / archive_name
-        log_path.rename(archive_path)
-        print(f"[INFO] Arkiverade statistikfil till: {archive_path}")
-        sig_path.write_text(current_sig)
-    else:
-        # Skriv alltid signaturen för nuvarande settings
-        sig_path.write_text(current_sig)
-
-def hash_encoding(enc):
-    """
-    Hash an encoding, handling both dict and ndarray formats.
-
-    Returns None for corrupted or invalid encodings.
-    """
-    # Hantera både dict och ndarray
-    if isinstance(enc, dict) and "encoding" in enc:
-        enc = enc["encoding"]
-
-    # Handle None encodings (corrupted or missing data)
-    if enc is None:
-        return None
-
-    # Validate encoding can be hashed
-    try:
-        return hashlib.sha1(enc.tobytes()).hexdigest()
-    except (AttributeError, ValueError, TypeError) as e:
-        logging.error(f"Failed to hash encoding: {type(enc).__name__}: {e}")
-        return None
-
-def export_and_show_original(image_path, config):
-    """
-    Exporterar NEF-filen till högupplöst JPG och skriver en statusfil för Bildvisare-appen.
-    Visar bilden i bildvisaren (om du vill).
-    """
-    import json
-    from pathlib import Path
-
-    import rawpy
-    from PIL import Image
-
-    export_path = TEMP_DIR / "original.jpg"
-
-    try:
-        # Läs NEF, konvertera till RGB
-        with rawpy.imread(str(image_path)) as raw:
-            rgb = raw.postprocess()
-
-        img = Image.fromarray(rgb)
-        img.save(export_path, format="JPEG", quality=98)
-
-        status_path = Path.home() / "Library" / "Application Support" / "bildvisare" / "original_status.json"
-        status = {
-            "timestamp": time.time(),
-            "source_nef": str(image_path),
-            "exported_jpg": str(export_path),
-            "exported": "true"
-        }
-        with open(status_path, "w", encoding="utf-8") as f:
-            json.dump(status, f, indent=2)
-    except FileNotFoundError:
-        logging.error(f"[EXPORT] File not found: {image_path}")
-        print(f"⚠️  Kunde inte hitta filen: {image_path}")
-    except Exception as e:
-        logging.error(f"[EXPORT] Failed to export {image_path}: {e}")
-        print(f"⚠️  Kunde inte exportera bild: {e}")
-
-    # Visa bilden (eller låt bildvisaren själv ladda in statusfilen)
-    # os.system(f"open -a '{config.get('image_viewer_app', 'Bildvisare')}' '{export_path}'")
-
-
-def show_temp_image(preview_path, config, image_path=None, last_shown=[None]):
-    import subprocess
-    viewer_app = config.get("image_viewer_app")
-    status_path = Path.home() / "Library" / "Application Support" / "bildvisare" / "status.json"
-    expected_path = str(Path(preview_path).resolve())
-
-    should_open = True  # Default: öppna om osäkert
-
-    # Använd image_path om det finns, annars preview_path
-    orig_path = str(image_path) if image_path else str(preview_path)
-    status_origjson_path = Path.home() / "Library" / "Application Support" / "bildvisare" / "original_status.json"
-    status_origjson = {
-        "timestamp": time.time(),
-        "source_nef": orig_path,
-        "exported_jpg": None,
-        "exported": "false"
-    }
-    with open(status_origjson_path, "w") as f:
-        json.dump(status_origjson, f, indent=2)
-
-
-    if status_path.exists():
-        try:
-            with open(status_path, "r") as f:
-                status = json.load(f)
-            app_status = status.get("app_status", "unknown")
-            current_file = status.get("file_path", "")
-
-            if app_status == "running":
-                # Check if Bildvisare is showing the correct file
-                try:
-                    if current_file and os.path.samefile(current_file, expected_path):
-                        # Already showing the right file - trust file watching for updates
-                        should_open = False
-                        logging.debug(f"[BILDVISARE] Bildvisaren visar redan rätt fil: {expected_path}")
-                    else:
-                        # Running but showing different/no file - open the preview
-                        should_open = True
-                        logging.debug(f"[BILDVISARE] Bildvisaren kör men visar annan fil ({current_file}), öppnar {expected_path}")
-                except (OSError, ValueError):
-                    # File doesn't exist or can't compare - open it
-                    should_open = True
-                    logging.debug(f"[BILDVISARE] Kan inte jämföra filer, öppnar {expected_path}")
-
-            elif app_status == "exited":
-                logging.debug(f"[BILDVISARE] Bildvisaren har avslutats, kommer öppna bild")
-                should_open = True
-            else:
-                logging.debug(f"[BILDVISARE] Bildvisar-status: {app_status} inte behandlad, kommer öppna bild")
-                should_open = True
-        except Exception as e:
-            logging.debug(f"[BILDVISARE] Misslyckades läsa statusfilen: {status_path} ({e}), kommer öppna bild")
-            should_open = True
-
-    if should_open:
-        # Validate viewer_app to prevent command injection
-        # Allow alphanumeric, spaces, hyphens, underscores, dots
-        safe_chars = set("abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789 -_.")
-        if not viewer_app or not all(c in safe_chars for c in viewer_app):
-            logging.error(f"[SECURITY] Invalid viewer app name: {viewer_app}")
-            print(f"⚠️  Säkerhetsvarning: Ogiltig bildvisarapp '{viewer_app}', hoppar över", file=sys.stderr)
-            return
-
-        logging.debug(f"[BILDVISARE] Öppnar bild i visare: {expected_path}")
-        cmd = ["open", "-a", viewer_app, expected_path]
-        logging.debug(f"[BILDVISARE] Kör kommando: {' '.join(cmd)}")
-        try:
-            proc = subprocess.Popen(cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
-            # Don't wait for completion - let it run in background
-            logging.debug(f"[BILDVISARE] Subprocess startad, PID: {proc.pid}")
-        except Exception as e:
-            logging.error(f"[BILDVISARE] Fel vid start av bildvisare: {e}")
-            print(f"⚠️  Kunde inte öppna bildvisare: {e}", file=sys.stderr)
-        last_shown[0] = expected_path
-    else:
-        logging.debug(f"[BILDVISARE] Hoppar över open")
-        last_shown[0] = preview_path
-
-
-def safe_input(prompt_text, completer=None):
+def safe_input(prompt_text: str, completer: object | None = None) -> str:
     """
     Wrapper för både vanlig input och prompt_toolkit.prompt, med graceful exit.
     Om completer anges, används prompt_toolkit.prompt, annars vanlig input().
@@ -427,7 +72,8 @@ def safe_input(prompt_text, completer=None):
         print("\n⏹ Avbruten. Programmet avslutas.")
         sys.exit(0)
 
-def parse_inputs(args, supported_ext):
+
+def parse_inputs(args: list[str], supported_ext: set[str]) -> Iterator[Path]:
     seen = set()  # för att undvika dubbletter
     for arg in args:
         path = Path(arg)
@@ -459,15 +105,15 @@ def parse_inputs(args, supported_ext):
 
 
 def log_attempt_stats(
-    image_path,
-    attempts,
-    used_attempt_idx,
-    base_dir=None,
-    log_name="attempt_stats.jsonl",
-    review_results=None,
-    labels_per_attempt=None,
-    file_hash=None,
-):
+    image_path: Path | str,
+    attempts: list[dict],
+    used_attempt_idx: int | None,
+    base_dir: Path | str | None = None,
+    log_name: str = "attempt_stats.jsonl",
+    review_results: list[str] | None = None,
+    labels_per_attempt: list[list[dict]] | None = None,
+    file_hash: str | None = None,
+) -> None:
     """
     Spara attempts-statistik för en bild till en JSONL-fil i base_dir.
     :param image_path: Path till bilden.
@@ -499,32 +145,14 @@ def log_attempt_stats(
         f.write(json.dumps(log_entry, ensure_ascii=False) + "\n")
 
 
-def get_match_label(i, best_name, best_name_dist, name_conf, best_ignore, best_ignore_dist, ign_conf, config):
-    return get_face_match_status(i, best_name, best_name_dist, name_conf, best_ignore, best_ignore_dist, ign_conf, config)
-
-def label_preview_for_encodings(face_encodings, known_faces,
-                                ignored_faces, hard_negatives, config, backend):
-    """
-    Label face encodings with matches. Uses optimized filtering for batch processing.
-    """
-    # Pre-filter database once for all faces (optimization for multiple faces)
-    filtered_known, filtered_ignored, filtered_hard_negs = filter_database_by_backend(
-        known_faces, ignored_faces, hard_negatives, backend
-    )
-
-    labels = []
-    for i, encoding in enumerate(face_encodings):
-        # Use optimized filtered matching
-        (best_name, best_name_dist), (best_ignore, best_ignore_dist) = best_matches_filtered(
-            encoding, filtered_known, filtered_ignored, filtered_hard_negs, config, backend
-        )
-        name_conf = int((1 - best_name_dist) * 100) if best_name_dist is not None else None
-        ign_conf = int((1 - best_ignore_dist) * 100) if best_ignore_dist is not None else None
-        label, _ = get_match_label(i, best_name, best_name_dist, name_conf, best_ignore, best_ignore_dist, ign_conf, config)
-        labels.append(label)
-    return labels
-
-def handle_manual_add(known_faces, image_path, file_hash, input_name_func, backend, labels=None):
+def handle_manual_add(
+    known_faces: dict[str, list],
+    image_path: Path | str | None,
+    file_hash: str | None,
+    input_name_func: Callable[[list[str], str], str],
+    backend: FaceBackend,
+    labels: list[dict] | None = None,
+) -> tuple[str, dict]:
     """
     Lägg till manuell person – även med file och hash.
     Om labels ges (lista), addera ett label-objekt, annars returnera namn och label.
@@ -556,49 +184,15 @@ def handle_manual_add(known_faces, image_path, file_hash, input_name_func, backe
         labels.append(label_obj)
     return namn, label_obj
 
-def get_face_match_status(i, best_name, best_name_dist, name_conf, best_ignore, best_ignore_dist, ign_conf, config):
-    name_thr = config.get("match_threshold", 0.6)
-    ignore_thr = config.get("ignore_distance", 0.5)
-    margin = config.get("prefer_name_margin", 0.10)
-    min_conf = config.get("min_confidence", 0.4)
 
-    # Confidence-filter
-    if (
-        (name_conf is not None and name_conf / 100 < min_conf) and
-        (ign_conf is not None and ign_conf / 100 < min_conf)
-    ):
-        return "#%d\nOkänt" % (i + 1), "unknown"
-
-    # Osäker mellan namn och ignore
-    if (
-        best_name is not None and best_name_dist is not None and best_name_dist < name_thr and
-        best_ignore_dist is not None and best_ignore_dist < ignore_thr and
-        abs(best_name_dist - best_ignore_dist) < margin
-    ):
-        if best_name_dist < best_ignore_dist:
-            return f"#%d\n{best_name} / ign" % (i + 1), "uncertain_name"
-        else:
-            return f"#%d\nign / {best_name}" % (i + 1), "uncertain_ign"
-
-    # Namn vinner klart
-    elif (
-        best_name is not None and best_name_dist is not None and best_name_dist < name_thr and
-        (best_ignore_dist is None or best_name_dist < best_ignore_dist - margin)
-    ):
-        return f"#%d\n{best_name}" % (i + 1), "name"
-
-    # Ign vinner klart
-    elif (
-        best_ignore_dist is not None and best_ignore_dist < ignore_thr and
-        (best_name_dist is None or best_ignore_dist < best_name_dist - margin)
-    ):
-        return "#%d\nign" % (i + 1), "ign"
-
-    # Ingen tillräckligt nära
-    else:
-        return "#%d\nOkänt" % (i + 1), "unknown"
-
-def add_hard_negative(hard_negatives, person, encoding, backend, image_path=None, file_hash=None):
+def add_hard_negative(
+    hard_negatives: dict[str, list],
+    person: str,
+    encoding: np.ndarray,
+    backend: FaceBackend,
+    image_path: Path | str | None = None,
+    file_hash: str | None = None,
+) -> None:
     """Add a hard negative example for a person with full metadata."""
     if person not in hard_negatives:
         hard_negatives[person] = []
@@ -715,9 +309,16 @@ def get_validated_user_input(
 
 
 def user_review_encodings(
-    face_encodings, known_faces, ignored_faces, hard_negatives, config, backend,
-    image_path=None, preview_path=None, file_hash=None
-):
+    face_encodings: list[np.ndarray],
+    known_faces: dict[str, list],
+    ignored_faces: list[dict],
+    hard_negatives: dict[str, list],
+    config: dict,
+    backend: FaceBackend,
+    image_path: Path | str | None = None,
+    preview_path: Path | str | None = None,
+    file_hash: str | None = None,
+) -> tuple[str, list[dict]]:
     """
     Terminal-review av hittade ansikten
     """
@@ -760,8 +361,15 @@ def user_review_encodings(
 
         # Centraliserad logik
         label_txt, case = get_face_match_status(
-            i, best_name, best_name_dist, name_confidence,
-            best_ignore, best_ignore_dist, ignore_confidence, config
+            i,
+            best_name,
+            best_name_dist,
+            name_confidence,
+            best_ignore,
+            best_ignore_dist,
+            ignore_confidence,
+            config,
+            backend
         )
 
         # Bestäm vilka actions som är relevanta för detta case
@@ -941,531 +549,13 @@ def user_review_encodings(
     logging.debug(f"[REVIEW] Alla ansikten granskade, returnerar 'ok'.")
     return "ok", labels
 
-def box_overlaps_with_buffer(b1, b2, buffer=FACE_BOX_OVERLAP_BUFFER):
-    l1, t1, r1, b1_ = b1
-    l2, t2, r2, b2_ = b2
-    return not (r1 + buffer <= l2 - buffer or
-                l1 - buffer >= r2 + buffer or
-                b1_ + buffer <= t2 - buffer or
-                t1 - buffer >= b2_ + buffer)
 
-def robust_word_wrap(label_text, max_label_width, draw, font):
-    lines = []
-    text = label_text
-    while text:
-        for cut in range(len(text), 0, -1):
-            trial = text[:cut]
-            bbox = draw.textbbox((0, 0), trial, font=font)
-            line_width = bbox[2] - bbox[0]
-            if line_width <= max_label_width or cut == 1:
-                lines.append(trial.strip())
-                text = text[cut:].lstrip()
-                break
-    return lines
-
-
-# === Funktion för att skapa tempbild med etiketter ===
-def create_labeled_image(rgb_image, face_locations, labels, config, suffix=""):
-
-    from PIL import Image
-    import matplotlib.font_manager as fm
-
-    font_size = max(10, rgb_image.shape[1] // config.get("font_size_factor"))
-    font_path = fm.findfont(fm.FontProperties(family="DejaVu Sans"))
-    font = ImageFont.truetype(font_path, font_size)
-    bg_color = tuple(config.get("label_bg_color"))
-    text_color = tuple(config.get("label_text_color"))
-
-    orig_height, orig_width = rgb_image.shape[0:2]
-    max_label_width = orig_width // 3
-    margin = 50
-    buffer = 40  # px skyddszon runt alla lådor
-
-    # Hjälpfunktioner
-    # Dummy draw for measuring text size
-    draw_temp = ImageDraw.Draw(Image.new("RGB", (orig_width, orig_height)), "RGBA")
-    placements = []
-    placed_boxes = []
-
-    for i, (top, right, bottom, left) in enumerate(face_locations):
-        face_box = (left, top, right, bottom)
-        placed_boxes.append(face_box)
-
-        label_text = "{} {}".format(labels[i].split('\n')[0], labels[i].split('\n')[1]) if "\n" in labels[i] else labels[i]
-        lines = robust_word_wrap(label_text, max_label_width, draw_temp, font)
-        line_sizes = [draw_temp.textbbox((0, 0), line, font=font) for line in lines]
-        text_width = max(b[2] - b[0] for b in line_sizes) + 10
-        text_height = font_size * len(lines) + 4
-
-        # Siffran, ovanför ansiktslådan om plats
-        num_font_size = max(12, font_size // 2)
-        num_font = ImageFont.truetype(font_path, num_font_size)
-        num_text = f"#{i+1}"
-        num_text_bbox = draw_temp.textbbox((0, 0), num_text, font=num_font)
-        num_text_w = num_text_bbox[2] - num_text_bbox[0]
-        num_text_h = num_text_bbox[3] - num_text_bbox[1]
-        num_x = left
-        num_y = top - num_text_h - 4
-        num_box = (num_x, num_y, num_x + num_text_w, num_y + num_text_h)
-
-        # ----- Hitta etikettposition -----
-        found = False
-        # Pröva ringar/cirklar längre och längre bort
-        cx = (left + right) // 2
-        cy = (top + bottom) // 2
-        for radius in range(max((bottom-top), (right-left)) + margin, max(orig_width, orig_height) * 2, 25):
-            for angle in range(0, 360, 10):
-                radians = math.radians(angle)
-                lx = int(cx + radius * math.cos(radians) - text_width // 2)
-                ly = int(cy + radius * math.sin(radians) - text_height // 2)
-                label_box = (lx, ly, lx + text_width, ly + text_height)
-                # Får inte krocka med någon befintlig låda (inkl. buffer)
-                collision = False
-                for box in placed_boxes:
-                    if box_overlaps_with_buffer(label_box, box, buffer):
-                        collision = True
-                        break
-                if not collision:
-                    found = True
-                    break
-            if found:
-                break
-        # Om ingen plats finns ens utanför – låt etiketten ligga långt ut (canvas expanderas sen)
-        if not found:
-            lx = -text_width - margin
-            ly = -text_height - margin
-            label_box = (lx, ly, lx + text_width, ly + text_height)
-        placed_boxes.append(label_box)
-        placements.append({
-            "face_box": face_box,
-            "label_box": label_box,
-            "num_box": num_box,
-            "lines": lines,
-            "num_text": num_text,
-            "num_font": num_font,
-            "text_width": text_width,
-            "text_height": text_height,
-            "label_pos": (lx, ly),
-        })
-
-    # 2. Beräkna nödvändigt canvas-storlek utifrån alla etikettboxar
-    min_x = 0
-    min_y = 0
-    max_x = orig_width
-    max_y = orig_height
-    for p in placements:
-        for box in [p["label_box"], p["num_box"]]:
-            min_x = min(min_x, box[0])
-            min_y = min(min_y, box[1])
-            max_x = max(max_x, box[2])
-            max_y = max(max_y, box[3])
-    offset_x = -min_x
-    offset_y = -min_y
-    canvas_width = max_x - min_x
-    canvas_height = max_y - min_y
-
-    canvas = Image.new("RGB", (canvas_width, canvas_height), (20, 20, 20))
-    canvas.paste(Image.fromarray(rgb_image), (offset_x, offset_y))
-    draw = ImageDraw.Draw(canvas, "RGBA")
-
-    # Rita allt på nya canvasen
-    for p in placements:
-        # Ansiktslåda
-        face_box = tuple(x + offset if i % 2 == 0 else x + offset_y for i, (x, offset) in enumerate(zip(p["face_box"], (offset_x, offset_y, offset_x, offset_y))))
-        draw.rectangle([face_box[0], face_box[1], face_box[2], face_box[3]],
-                       outline="red",
-                       width=config.get("rectangle_thickness", 6))
-
-        # Etikett
-        lx, ly = p["label_pos"]
-        lx += offset_x
-        ly += offset_y
-        draw.rectangle([lx, ly, lx + p["text_width"], ly + p["text_height"]], fill=bg_color)
-        y_offset = 2
-        for line in p["lines"]:
-            draw.text((lx + 5, ly + y_offset), line, fill=text_color, font=font)
-            y_offset += font_size
-
-        # Nummer
-        nb = p["num_box"]
-        nb_off = (nb[0] + offset_x, nb[1] + offset_y, nb[2] + offset_x, nb[3] + offset_y)
-        draw.rectangle(nb_off, fill=(0, 0, 0, 180))
-        draw.text((nb_off[0], nb_off[1]), p["num_text"], fill=(255,255,0), font=p["num_font"])
-
-        # Pil
-        face_cx = (face_box[0] + face_box[2]) // 2
-        face_cy = (face_box[1] + face_box[3]) // 2
-        label_cx = lx + p["text_width"] // 2
-        label_cy = ly + p["text_height"] // 2
-        draw.line([(face_cx, face_cy), (label_cx, label_cy)], fill="yellow", width=2)
-
-    temp_dir = str(TEMP_DIR)
-    temp_prefix = "hitta_ansikten_preview"
-    temp_suffix = f"{suffix}.jpg" if suffix else ".jpg"
-
-    with tempfile.NamedTemporaryFile(prefix=temp_prefix, suffix=temp_suffix, dir=temp_dir, delete=False) as tmp:
-        canvas.save(tmp.name, format="JPEG")
-        return tmp.name
-
-# === Backend threshold helper ===
-def _get_backend_thresholds(config, backend):
-    """
-    Get appropriate thresholds for current backend.
-
-    Args:
-        config: Full config dict
-        backend: FaceBackend instance
-
-    Returns:
-        Dict with 'match_threshold', 'ignore_distance', 'hard_negative_distance'
-    """
-    threshold_mode = config.get('threshold_mode', 'auto')
-
-    if threshold_mode == 'manual':
-        # Use backend-specific thresholds when available
-        backend_thresholds = config.get('backend_thresholds', {})
-        if backend.backend_name in backend_thresholds:
-            return backend_thresholds[backend.backend_name]
-
-        # Fallback: log warning and use top-level config values
-        logging.warning(
-            f"Manual threshold mode: no thresholds configured for backend '{backend.backend_name}'; "
-            f"falling back to top-level threshold values which may not match this "
-            f"backend's distance metric."
-        )
-        return {
-            'match_threshold': config.get('match_threshold', 0.6),
-            'ignore_distance': config.get('ignore_distance', 0.5),
-            'hard_negative_distance': config.get('hard_negative_distance', 0.45)
-        }
-    else:
-        # Auto mode: prefer backend-specific thresholds, then adjust by distance metric
-        backend_thresholds = config.get('backend_thresholds', {})
-        backend_specific = backend_thresholds.get(backend.backend_name)
-        if backend_specific is not None:
-            return backend_specific
-
-        # Fallback based on backend distance metric
-        distance_metric = getattr(backend, 'distance_metric', 'euclidean')
-
-        # Default thresholds for Euclidean-like metrics (preserves existing behavior)
-        default_match = 0.6
-        default_ignore = 0.5
-        default_hard_negative = 0.45
-
-        # For cosine distance, typical thresholds are lower (e.g. ~0.4)
-        if isinstance(distance_metric, str) and 'cos' in distance_metric.lower():
-            default_match = 0.4
-            default_ignore = 0.35
-            default_hard_negative = 0.32
-
-        return {
-            'match_threshold': config.get('match_threshold', default_match),
-            'ignore_distance': config.get('ignore_distance', default_ignore),
-            'hard_negative_distance': config.get('hard_negative_distance', default_hard_negative)
-        }
-
-
-# === Beräkna avstånd till kända encodings ===
-def validate_encoding_dimension(encoding, backend, context=""):
-    """
-    Validate that encoding dimension matches backend's expected dimension.
-
-    Args:
-        encoding: Numpy array encoding to validate
-        backend: FaceBackend instance
-        context: Optional context string for logging (e.g., "known_faces:PersonName")
-
-    Returns:
-        True if valid, False if dimension mismatch
-    """
-    if encoding is None:
-        return False
-
-    if not hasattr(encoding, '__len__'):
-        logging.warning(f"[VALIDATION] Invalid encoding type {type(encoding).__name__} {context}")
-        return False
-
-    expected_dim = backend.encoding_dim
-    actual_dim = len(encoding)
-
-    if actual_dim != expected_dim:
-        logging.warning(
-            f"[VALIDATION] Encoding dimension mismatch for {backend.backend_name} backend: "
-            f"expected {expected_dim}, got {actual_dim} {context}"
-        )
-        return False
-
-    return True
-
-
-def filter_database_by_backend(known_faces, ignored_faces, hard_negatives, backend):
-    """
-    Pre-filter all database structures by backend for efficient batch processing.
-
-    This optimization reduces redundant filtering when processing multiple faces
-    from the same image. Call once per image, then reuse filtered results.
-
-    Args:
-        known_faces: Dict of {name: [encoding_entries]}
-        ignored_faces: List of encoding entries
-        hard_negatives: Dict of {name: [hard_negative_entries]}
-        backend: FaceBackend instance
-
-    Returns:
-        Tuple of (filtered_known, filtered_ignored, filtered_hard_negs)
-        where encodings are pre-filtered and validated for the backend
-    """
-    import numpy as np
-
-    # Filter known_faces
-    filtered_known = {}
-    for name, entries in known_faces.items():
-        encs = []
-        for entry in entries:
-            if isinstance(entry, dict):
-                entry_enc = entry.get("encoding")
-                entry_backend = entry.get("backend", "dlib")
-            else:
-                entry_enc = entry
-                entry_backend = "dlib"
-
-            if entry_enc is not None and entry_backend == backend.backend_name:
-                if isinstance(entry_enc, np.ndarray):
-                    if validate_encoding_dimension(entry_enc, backend, f"known_faces:{name}"):
-                        encs.append(entry_enc)
-
-        if encs:
-            filtered_known[name] = np.array(encs)
-
-    # Filter ignored_faces
-    filtered_ignored = []
-    for entry in ignored_faces:
-        if isinstance(entry, dict):
-            entry_enc = entry.get("encoding")
-            entry_backend = entry.get("backend", "dlib")
-        else:
-            entry_enc = entry
-            entry_backend = "dlib"
-
-        if entry_enc is not None and entry_backend == backend.backend_name:
-            if isinstance(entry_enc, np.ndarray):
-                if validate_encoding_dimension(entry_enc, backend, "ignored_faces"):
-                    filtered_ignored.append(entry_enc)
-
-    filtered_ignored = np.array(filtered_ignored) if filtered_ignored else None
-
-    # Filter hard_negatives
-    filtered_hard_negs = {}
-    for name, entries in hard_negatives.items():
-        negs = []
-        for entry in entries:
-            if isinstance(entry, dict):
-                entry_enc = entry.get("encoding")
-                entry_backend = entry.get("backend", "dlib")
-            else:
-                entry_enc = entry
-                entry_backend = "dlib"
-
-            if entry_enc is not None and entry_backend == backend.backend_name:
-                if isinstance(entry_enc, np.ndarray):
-                    if validate_encoding_dimension(entry_enc, backend, f"hard_negatives:{name}"):
-                        negs.append(entry_enc)
-
-        if negs:
-            filtered_hard_negs[name] = np.array(negs)
-
-    return filtered_known, filtered_ignored, filtered_hard_negs
-
-
-def best_matches_filtered(encoding, filtered_known, filtered_ignored, filtered_hard_negs, config, backend):
-    """
-    Find best matching person using pre-filtered encodings (optimized version).
-
-    This is an optimized version of best_matches() that accepts pre-filtered
-    numpy arrays instead of raw database structures. Use filter_database_by_backend()
-    to prepare the inputs. This avoids redundant filtering when processing
-    multiple faces from the same image.
-
-    Args:
-        encoding: Face encoding to match
-        filtered_known: Dict of {name: np.array of encodings} (pre-filtered)
-        filtered_ignored: np.array of ignored encodings or None (pre-filtered)
-        filtered_hard_negs: Dict of {name: np.array of hard negs} (pre-filtered)
-        config: Config dict
-        backend: FaceBackend instance
-
-    Returns:
-        (best_name, best_name_dist), (best_ignore_idx, best_ignore_dist)
-    """
-    import numpy as np
-
-    best_name = None
-    best_name_dist = None
-    best_ignore_idx = None
-    best_ignore_dist = None
-
-    # Get backend-appropriate thresholds
-    thresholds = _get_backend_thresholds(config, backend)
-    hard_negative_thr = thresholds.get('hard_negative_distance', 0.45)
-
-    # Match against known faces (already filtered)
-    for name, encs in filtered_known.items():
-        # Check hard negatives for this person
-        is_hard_negative = False
-        if filtered_hard_negs and name in filtered_hard_negs:
-            hard_negs = filtered_hard_negs[name]
-            neg_dists = backend.compute_distances(hard_negs, encoding)
-            if np.min(neg_dists) < hard_negative_thr:
-                is_hard_negative = True
-
-        if is_hard_negative:
-            continue
-
-        # Compute distances
-        dists = backend.compute_distances(encs, encoding)
-        min_dist = np.min(dists)
-
-        if best_name_dist is None or min_dist < best_name_dist:
-            best_name_dist = min_dist
-            best_name = name
-
-    # Match against ignored faces (already filtered)
-    if filtered_ignored is not None and len(filtered_ignored) > 0:
-        dists = backend.compute_distances(filtered_ignored, encoding)
-        min_dist = np.min(dists)
-        best_ignore_dist = min_dist
-        best_ignore_idx = int(np.argmin(dists))
-    else:
-        best_ignore_dist = None
-        best_ignore_idx = None
-
-    return (best_name, best_name_dist), (best_ignore_idx, best_ignore_dist)
-
-
-def best_matches(encoding, known_faces, ignored_faces, hard_negatives, config, backend: FaceBackend):
-    """
-    Find best matching person and ignore candidate using backend.
-
-    Args:
-        encoding: Face encoding to match
-        known_faces: Dict of {name: [encoding_entries]}
-        ignored_faces: List of ignored encoding entries
-        hard_negatives: Dict of {name: [hard_negative_entries]}
-        config: Config dict
-        backend: FaceBackend instance
-
-    Returns:
-        (best_name, best_name_dist), (best_ignore_idx, best_ignore_dist)
-    """
-    import numpy as np
-
-    best_name = None
-    best_name_dist = None
-    best_ignore_idx = None
-    best_ignore_dist = None
-
-    # Get backend-appropriate thresholds
-    thresholds = _get_backend_thresholds(config, backend)
-    hard_negative_thr = thresholds.get('hard_negative_distance', 0.45)
-
-    # Match against known faces (with backend filtering)
-    for name, entries in known_faces.items():
-        # Filter encodings by backend
-        encs = []
-        for entry in entries:
-            if isinstance(entry, dict):
-                entry_enc = entry.get("encoding")
-                entry_backend = entry.get("backend", "dlib")
-            else:
-                # Legacy numpy array
-                entry_enc = entry
-                entry_backend = "dlib"
-
-            # Only match against same backend with correct dimensions
-            if entry_enc is not None and entry_backend == backend.backend_name:
-                if isinstance(entry_enc, np.ndarray):
-                    if validate_encoding_dimension(entry_enc, backend, f"known_faces:{name}"):
-                        encs.append(entry_enc)
-
-        if not encs:
-            continue  # No encodings for this backend
-
-        # Check hard negatives (same backend filtering)
-        hard_negs = []
-        if hard_negatives and name in hard_negatives:
-            for neg in hard_negatives[name]:
-                if isinstance(neg, dict):
-                    neg_enc = neg.get("encoding")
-                    neg_backend = neg.get("backend", "dlib")
-                else:
-                    neg_enc = neg
-                    neg_backend = "dlib"
-
-                if neg_enc is not None and neg_backend == backend.backend_name:
-                    if isinstance(neg_enc, np.ndarray):
-                        if validate_encoding_dimension(neg_enc, backend, f"hard_negatives:{name}"):
-                            hard_negs.append(neg_enc)
-
-        # Check if encoding matches hard negatives
-        is_hard_negative = False
-        if hard_negs:
-            neg_dists = backend.compute_distances(np.array(hard_negs), encoding)
-            if np.min(neg_dists) < hard_negative_thr:
-                is_hard_negative = True
-
-        if is_hard_negative:
-            continue  # Skip this person
-
-        # Compute distances using backend
-        dists = backend.compute_distances(np.array(encs), encoding)
-        min_dist = np.min(dists)
-
-        if best_name_dist is None or min_dist < best_name_dist:
-            best_name_dist = min_dist
-            best_name = name
-
-    # Match against ignored faces (with backend filtering)
-    ignored_encs = []
-    for entry in ignored_faces:
-        if isinstance(entry, dict):
-            entry_enc = entry.get("encoding")
-            entry_backend = entry.get("backend", "dlib")
-        else:
-            entry_enc = entry
-            entry_backend = "dlib"
-
-        if entry_enc is not None and entry_backend == backend.backend_name:
-            if isinstance(entry_enc, np.ndarray):
-                if validate_encoding_dimension(entry_enc, backend, "ignored_faces"):
-                    ignored_encs.append(entry_enc)
-
-    if ignored_encs:
-        dists = backend.compute_distances(np.array(ignored_encs), encoding)
-        min_dist = np.min(dists)
-        best_ignore_dist = min_dist
-        best_ignore_idx = int(np.argmin(dists))
-    else:
-        best_ignore_dist = None
-        best_ignore_idx = None
-
-    return (best_name, best_name_dist), (best_ignore_idx, best_ignore_dist)
-
-def load_and_resize_raw(image_path, max_dim=None):
-    """
-    Läser och eventuellt nedskalar RAW-bild till max_dim (längsta sida).
-    Om max_dim=None returneras full originalstorlek.
-    """
-    with rawpy.imread(str(image_path)) as raw:
-        rgb = raw.postprocess()
-    if max_dim and max(rgb.shape[0], rgb.shape[1]) > max_dim:
-        scale = max_dim / max(rgb.shape[0], rgb.shape[1])
-        rgb = (Image.fromarray(rgb)
-               .resize((int(rgb.shape[1] * scale), int(rgb.shape[0] * scale)), Image.LANCZOS))
-        rgb = np.array(rgb)
-    return rgb
-
-def face_detection_attempt(rgb, model, upsample, backend: FaceBackend):
+def face_detection_attempt(
+    rgb: np.ndarray,
+    model: str,
+    upsample: int,
+    backend: FaceBackend,
+) -> tuple[list[tuple[int, int, int, int]], list[np.ndarray]]:
     """
     Detect faces using configured backend.
 
@@ -1488,7 +578,10 @@ def face_detection_attempt(rgb, model, upsample, backend: FaceBackend):
 
     return face_locations, face_encodings
 
-def input_name(known_names, prompt_txt="Ange namn (eller 'i' för ignorera, n = försök igen, x = skippa bild) › "):
+def input_name(
+    known_names: list[str],
+    prompt_txt: str = "Ange namn (eller 'i' för ignorera, n = försök igen, x = skippa bild) › ",
+) -> str:
     """
     Ber användaren om ett namn med autocomplete.
     Reserverade kommandon (i, a, r, n, o, m, x) returneras som är för vidare hantering.
@@ -1504,7 +597,12 @@ def input_name(known_names, prompt_txt="Ange namn (eller 'i' för ignorera, n = 
         sys.exit(0)
 
 
-def remove_encodings_for_file(known_faces, ignored_faces, hard_negatives, identifier):
+def remove_encodings_for_file(
+    known_faces: dict[str, list],
+    ignored_faces: list[dict],
+    hard_negatives: dict[str, list],
+    identifier: str | list[str],
+) -> int:
     """
     Tar bort ALLA encodings (via hash) som mappats från just denna fil.
     identifier kan vara filnamn (str), hash (str), eller lista av dessa.
@@ -1562,15 +660,15 @@ def remove_encodings_for_file(known_faces, ignored_faces, hard_negatives, identi
     return removed
 
 def preprocess_image(
-    image_path,
-    known_faces,
-    ignored_faces,
-    hard_negatives,
-    config,
-    backend,
-    max_attempts=3,
-    attempts_so_far=None
-):
+    image_path: Path | str,
+    known_faces: dict[str, list],
+    ignored_faces: list[dict],
+    hard_negatives: dict[str, list],
+    config: dict,
+    backend: FaceBackend,
+    max_attempts: int = 3,
+    attempts_so_far: list[dict] | None = None,
+) -> list[dict]:
     """
     Förbehandlar en bild och returnerar en lista av attempt-resultat.
     Om attempts_so_far anges (lista), används befintliga attempts och endast saknade attempts (index >= len(attempts_so_far)) körs.
@@ -1649,8 +747,15 @@ def preprocess_image(
     return attempt_results
 
 
-def main_process_image_loop(image_path, known_faces, ignored_faces, hard_negatives,
-                            config, backend, attempt_results):
+def main_process_image_loop(
+    image_path: Path | str,
+    known_faces: dict[str, list],
+    ignored_faces: list[dict],
+    hard_negatives: dict[str, list],
+    config: dict,
+    backend: FaceBackend,
+    attempt_results: list[dict],
+) -> str:
     """
     Review-loop för EN attempt (sista) för en redan preprocessad bild.
 
@@ -1701,7 +806,7 @@ def main_process_image_loop(image_path, known_faces, ignored_faces, hard_negativ
     try:
         shutil.copy(preview_path, ordinary_preview_path)
     except Exception as e:
-        print(f"[WARN] Kunde inte kopiera preview till {ordinary_preview_path}: {e}")
+        logging.warning(f"[PREVIEW] Kunde inte kopiera preview till {ordinary_preview_path}: {e}")
     show_temp_image(ordinary_preview_path, config, image_path)
 
     if face_encodings:
@@ -1774,7 +879,14 @@ def main_process_image_loop(image_path, known_faces, ignored_faces, hard_negativ
         return "no_faces"
     return "retry"
 
-def process_image(image_path, known_faces, ignored_faces, hard_negatives, config, backend):
+def process_image(
+    image_path: Path | str,
+    known_faces: dict[str, list],
+    ignored_faces: list[dict],
+    hard_negatives: dict[str, list],
+    config: dict,
+    backend: FaceBackend,
+) -> str:
     """Single-image processing wrapper."""
     attempt_results = preprocess_image(image_path, known_faces, ignored_faces,
                                        hard_negatives, config, backend, max_attempts=1)
@@ -1783,7 +895,7 @@ def process_image(image_path, known_faces, ignored_faces, hard_negatives, config
                                    config, backend, attempt_results)
 
 
-def extract_prefix_suffix(fname):
+def extract_prefix_suffix(fname: str) -> tuple[str | None, str | None]:
     """
     Returnera (prefix, suffix) där prefix = YYMMDD_HHMMSS eller YYMMDD_HHMMSS-2,
     suffix = .NEF
@@ -1793,12 +905,17 @@ def extract_prefix_suffix(fname):
         return None, None
     return m.group(1), m.group(2)
 
-def is_unrenamed(fname):
+def is_unrenamed(fname: str) -> bool:
     """Returnera True om filnamn är YYMMDD_HHMMSS.NEF eller YYMMDD_HHMMSS-1.NEF etc."""
     prefix, suffix = extract_prefix_suffix(fname)
     return bool(prefix and suffix)
 
-def collect_persons_for_files(filelist, known_faces, processed_files=None, attempt_log=None):
+def collect_persons_for_files(
+    filelist: list[Path | str],
+    known_faces: dict[str, list],
+    processed_files: list[dict] | None = None,
+    attempt_log: list[dict] | None = None,
+) -> dict[str, list[str]]:
     """
     Returnera dict: { filename: [namn, ...] }
     1) Primärt: encodings.pkl – direkt filmatchning (och/eller hash om fil ej hittas)
@@ -1878,7 +995,7 @@ def collect_persons_for_files(filelist, known_faces, processed_files=None, attem
         result[fname] = persons
     return result
 
-def normalize_name(name):
+def normalize_name(name: str) -> str:
     """
     Normalize name by removing diacritics and sanitizing for safe filename use.
 
@@ -1894,14 +1011,14 @@ def normalize_name(name):
 
     return n
 
-def split_fornamn_efternamn(namn):
+def split_fornamn_efternamn(namn: str) -> tuple[str, str]:
     # "Edvin Twedmark" => "Edvin", "Twedmark"
     parts = namn.strip().split()
     if len(parts) < 2:
         return parts[0], ""
     return parts[0], " ".join(parts[1:])
 
-def resolve_fornamn_dubletter(all_persons):
+def resolve_fornamn_dubletter(all_persons: list[str]) -> dict[str, str]:
     """
     all_persons: lista av alla personnamn (kan förekomma flera gånger)
     Returnerar dict namn → kortnamn (bara förnamn, eller förnamn+efternamnsbokstav om flera delar efternamn).
@@ -1931,7 +1048,7 @@ def resolve_fornamn_dubletter(all_persons):
             kortnamn[namn] = fornamn + (efternamn[:prefixlen] if efternamn else "")
     return kortnamn
 
-def build_new_filename(fname, personer, namnmap):
+def build_new_filename(fname: str, personer: list[str], namnmap: dict[str, str]) -> str | None:
     """
     Build new filename with person names.
 
@@ -1957,7 +1074,7 @@ def build_new_filename(fname, personer, namnmap):
 
     return new_name
 
-def is_file_processed(path, processed_files):
+def is_file_processed(path: Path | str, processed_files: list[dict]) -> bool:
     """Kolla om filen redan är processad, via namn ELLER hash."""
     path_name = Path(path).name if not isinstance(path, str) else path
     path_hash = None
@@ -1982,7 +1099,14 @@ def is_file_processed(path, processed_files):
                 return True
     return False
 
-def rename_files(filelist, known_faces, processed_files, simulate=True, allow_renamed=False, only_processed=False):
+def rename_files(
+    filelist: list[Path | str],
+    known_faces: dict[str, list],
+    processed_files: list[dict],
+    simulate: bool = True,
+    allow_renamed: bool = False,
+    only_processed: bool = False,
+) -> None:
     # Filtrera enligt regler
     out_files = []
     for f in filelist:
@@ -2014,6 +1138,7 @@ def rename_files(filelist, known_faces, processed_files, simulate=True, allow_re
             continue
         dest = str(Path(orig).parent / nytt)
         if Path(dest).exists() and Path(dest) != Path(orig):
+            logging.warning(f"[RENAME] Destination already exists: {dest}")
             print(f"⚠️  {dest} finns redan, hoppar över!")
             continue
         if simulate:
@@ -2022,7 +1147,7 @@ def rename_files(filelist, known_faces, processed_files, simulate=True, allow_re
             print(f"{os.path.basename(orig)} → {os.path.basename(dest)}")
             os.rename(orig, dest)
 
-def cleanup_tmp_previews():
+def cleanup_tmp_previews() -> None:
     """Clean up temporary preview files from TEMP_DIR."""
     if not TEMP_DIR.exists():
         return
@@ -2033,13 +1158,14 @@ def cleanup_tmp_previews():
             logging.debug(f"Failed to remove temp file {path}: {e}")
             pass  # Ignorera ev. misslyckanden
 
+
 # === Graceful Exit ===
-def signal_handler(sig, frame):
+def signal_handler(sig: int, frame: FrameType | None) -> None:
     print("\n⏹ Avbruten. Programmet avslutas.")
     cleanup_tmp_previews()
     sys.exit(0)
 
-def print_help():
+def print_help() -> None:
     print(
         """
 hitta_ansikten.py - Ansiktsigenkänning och filnamnsbatchning
@@ -2085,7 +1211,7 @@ Notera:
     )
 
 
-def add_to_processed_files(path, processed_files):
+def add_to_processed_files(path: Path, processed_files: list[dict]) -> None:
     """Lägg till en ny fil sist i listan, med både hash och namn."""
     try:
         sha1 = hashlib.sha1()
@@ -2098,14 +1224,14 @@ def add_to_processed_files(path, processed_files):
     processed_files.append({"name": path.name, "hash": h})
 
 
-def _cache_file(path):
+def _cache_file(path: Path | str) -> Path:
     """Return the cache file path for a given image path."""
     CACHE_DIR.mkdir(exist_ok=True)
     h = hashlib.sha1(str(path).encode()).hexdigest()
     return CACHE_DIR / f"{h}.pkl"
 
 
-def save_preprocessed_cache(path, attempt_results):
+def save_preprocessed_cache(path: Path | str, attempt_results: list[dict]) -> list[dict]:
     """Persist preprocessing results so a run can resume after restart.
 
     Preview images are copied to the cache directory so they exist on restart.
@@ -2134,7 +1260,7 @@ def save_preprocessed_cache(path, attempt_results):
     return cached
 
 
-def load_preprocessed_cache(queue):
+def load_preprocessed_cache(queue: multiprocessing.Queue) -> None:
     """Load any cached preprocessing results into the queue."""
     if not CACHE_DIR.exists():
         return
@@ -2160,7 +1286,7 @@ def load_preprocessed_cache(queue):
             logging.warning(f"[CACHE] Failed to load {file}: {e}")
 
 
-def remove_preprocessed_cache(path):
+def remove_preprocessed_cache(path: Path | str) -> None:
     """Remove cached preprocessing data for a path."""
     cache_path = _cache_file(path)
     if cache_path.exists():
@@ -2174,10 +1300,15 @@ def remove_preprocessed_cache(path):
             pass
 
 def preprocess_worker(
-    known_faces, ignored_faces, hard_negatives, images_to_process,
-    config, max_possible_attempts,
-    preprocessed_queue, preprocess_done
-):
+    known_faces: dict[str, list],
+    ignored_faces: list[dict],
+    hard_negatives: dict[str, list],
+    images_to_process: list[Path],
+    config: dict,
+    max_possible_attempts: int,
+    preprocessed_queue: multiprocessing.Queue,
+    preprocess_done: multiprocessing.Event,
+) -> None:
     """
     Worker process for preprocessing images in background.
 
@@ -2250,7 +1381,7 @@ def preprocess_worker(
         logging.debug("[PREPROCESS worker] Done")
 
 # === Entry point ===
-def main():
+def main() -> None:
     init_logging(replace_handlers=True)
     
     if any(arg in ("-h", "--help") for arg in sys.argv[1:]):
@@ -2449,6 +1580,7 @@ def main():
     import time
     time.sleep(0.1)  # Give workers a moment to start
     if preprocess_done.is_set() and preprocessed_queue.empty():
+        logging.warning("[PREPROCESS] Worker exited immediately - will fall back to main process")
         print(f"\n⚠️  VARNING: Worker-processen avslutades omedelbart!", file=sys.stderr)
         print(f"⚠️  Detta tyder på ett fel i worker-processen.", file=sys.stderr)
         print(f"⚠️  Preprocessing kommer att göras i main-processen istället (långsammare).\n", file=sys.stderr)

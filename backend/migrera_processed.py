@@ -6,7 +6,7 @@ OLD_PATH = BASE_DIR / "processed.txt"
 NEW_PATH = BASE_DIR / "processed_files.jsonl"
 
 
-def main():
+def main() -> None:
     if not OLD_PATH.exists():
         print("Ingen gammal processed.txt-fil hittades.")
         return

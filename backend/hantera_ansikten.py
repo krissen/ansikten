@@ -3,6 +3,7 @@
 import fnmatch
 import hashlib
 from pathlib import Path
+from typing import Any
 
 from prompt_toolkit import prompt
 from prompt_toolkit.completion import WordCompleter
@@ -14,16 +15,21 @@ from faceid_db import (
     save_database,
 )
 
+# Type aliases for readability
+KnownFaces = dict[str, list[dict[str, Any]]]
+IgnoredFaces = list[dict[str, Any]]
+ProcessedFiles = list[dict[str, Any]]
+
 # === Verktygsfunktioner ===
 
 
-def print_known(known):
+def print_known(known: KnownFaces) -> None:
     print("\nNuvarande namn i databasen:")
     for idx, name in enumerate(sorted(known), 1):
         print(f"  {idx:2d}. {name} ({len(known[name])} encodings)")
 
 
-def name_input(known, msg="Namn: "):
+def name_input(known: KnownFaces, msg: str = "Namn: ") -> str:
     names = sorted(known)
     completer = WordCompleter(names, ignore_case=True, sentence=True)
     ans = prompt(msg, completer=completer).strip()
@@ -33,7 +39,7 @@ def name_input(known, msg="Namn: "):
     return ans
 
 
-def print_menu():
+def print_menu() -> None:
     print(
         """
 Meny:
@@ -52,7 +58,7 @@ Meny:
     )
 
 
-def list_recent_files(n=10):
+def list_recent_files(n: int = 10) -> None:
     processed = load_processed_files()
     print("\nSenaste hanterade filer:")
     for i, entry in enumerate(reversed(processed[-n:]), 1):
@@ -60,7 +66,9 @@ def list_recent_files(n=10):
         print(f"{i:2d}. {fname}")
 
 
-def undo_last_file(known, ignored, processed):
+def undo_last_file(
+    known: KnownFaces, ignored: IgnoredFaces, processed: ProcessedFiles
+) -> tuple[KnownFaces, IgnoredFaces, ProcessedFiles]:
     log = load_attempt_log()
     if not processed or not log:
         print("Ingen fil att ångra.")
@@ -96,7 +104,9 @@ def undo_last_file(known, ignored, processed):
     return known, ignored, processed
 
 
-def undo_file_by_name(known, ignored, processed):
+def undo_file_by_name(
+    known: KnownFaces, ignored: IgnoredFaces, processed: ProcessedFiles
+) -> tuple[KnownFaces, IgnoredFaces, ProcessedFiles]:
     pattern = input("Ange exakt filnamn eller glob (t.ex. 2024*.NEF): ").strip()
     if not pattern:
         print("Ingen fil angavs.")
@@ -153,14 +163,16 @@ def undo_file_by_name(known, ignored, processed):
     return known, ignored, processed_new
 
 
-def print_mapping_counts(known, ignored):
+def print_mapping_counts(known: KnownFaces, ignored: IgnoredFaces) -> None:
     print("\nAntal mappningar per namn:")
     for idx, name in enumerate(sorted(known), 1):
         print(f"  {idx:2d}. {name} ({len(known[name])})")
     print(f"\nIgnorerade: {len(ignored)}")
 
 
-def purge_last_x_for_name(known, ignored):
+def purge_last_x_for_name(
+    known: KnownFaces, ignored: IgnoredFaces
+) -> tuple[KnownFaces, IgnoredFaces]:
     all_names = sorted(known) + ["ignore"]
     for idx, n in enumerate(all_names, 1):
         print(f"{idx:2d}. {n} ({len(known[n]) if n != 'ignore' else len(ignored)})")
@@ -196,7 +208,7 @@ def purge_last_x_for_name(known, ignored):
 # ===================================================
 
 
-def main():
+def main() -> None:
     known, ignored, hard_negatives, processed = load_database()
     while True:
         print_menu()

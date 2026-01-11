@@ -451,7 +451,7 @@ export class PreprocessingManager {
     // Step 1: Compute hash
     this._updateStatus(filePath, PreprocessingStatus.HASHING);
     try {
-      const hashResult = await apiClient.post('/api/preprocessing/hash', {
+      const hashResult = await apiClient.post('/api/v1/preprocessing/hash', {
         file_path: filePath
       });
       fileHash = hashResult.file_hash;
@@ -478,7 +478,7 @@ export class PreprocessingManager {
     }
 
     // Step 2: Check what's already cached
-    const cacheCheck = await apiClient.post('/api/preprocessing/check', {
+    const cacheCheck = await apiClient.post('/api/v1/preprocessing/check', {
       file_hash: fileHash
     });
 
@@ -503,7 +503,7 @@ export class PreprocessingManager {
     if (this.steps.nefConversion && this._isRawFile(filePath) && !cacheCheck.has_nef_conversion) {
       this._updateStatus(filePath, PreprocessingStatus.NEF_CONVERTING);
       try {
-        const result = await apiClient.post('/api/preprocessing/nef', {
+        const result = await apiClient.post('/api/v1/preprocessing/nef', {
           file_path: filePath,
           file_hash: fileHash
         });
@@ -522,7 +522,7 @@ export class PreprocessingManager {
     if (this.steps.faceDetection && !cacheCheck.has_face_detection) {
       this._updateStatus(filePath, PreprocessingStatus.DETECTING_FACES);
       try {
-        const result = await apiClient.post('/api/preprocessing/faces', {
+        const result = await apiClient.post('/api/v1/preprocessing/faces', {
           file_path: filePath,
           file_hash: fileHash
         });
@@ -544,7 +544,7 @@ export class PreprocessingManager {
     if (this.steps.thumbnails && !cacheCheck.has_thumbnails) {
       this._updateStatus(filePath, PreprocessingStatus.GENERATING_THUMBNAILS);
       try {
-        const result = await apiClient.post('/api/preprocessing/thumbnails', {
+        const result = await apiClient.post('/api/v1/preprocessing/thumbnails', {
           file_path: filePath,
           file_hash: fileHash
         });
