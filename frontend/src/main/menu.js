@@ -104,13 +104,19 @@ function createApplicationMenu(mainWindow) {
       ]
     }] : []),
 
-    // Edit menu - uses roles for native focus-aware clipboard handling
-    // Roles automatically route to correct context (main window or DevTools)
     {
       label: 'Edit',
       submenu: [
         { role: 'undo' },
         { role: 'redo' },
+        { type: 'separator' },
+        {
+          label: 'Undo Face Action',
+          accelerator: 'CmdOrCtrl+Shift+Z',
+          click: () => {
+            sendMenuCommand('undo-face-action');
+          }
+        },
         { type: 'separator' },
         { role: 'cut' },
         { role: 'copy' },
