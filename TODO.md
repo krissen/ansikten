@@ -10,7 +10,7 @@ Konsoliderad lista över planerade förbättringar, kända brister och teknisk s
 
 ### Nu
 
-(Inga uppgifter just nu)
+- [ ] Rename bugfix. Jag kan ha fel, men jag *tror* att rename inte beaktar manuellt tillagda ansikten/namn? Exempelvis filen ~/Pictures/nerladdat/260111_080910_Aryan.NEF. Den har döpts om enligt ovan. Aryan är ett hittat och bekräftat ansikte---men manuellt har även Elis lagts till. Ändå blir det nya filnamnet endast Aryan; inte Elis. Något är fel! Undersök vad och åtgärda buggen! /plan deepthink Skriv ner planen i en .md för ändamålet i reporoten.
 
 ### Kort sikt
 
