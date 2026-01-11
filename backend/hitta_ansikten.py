@@ -1151,7 +1151,7 @@ def cleanup_tmp_previews() -> None:
     """Clean up temporary preview files from TEMP_DIR."""
     if not TEMP_DIR.exists():
         return
-    for path in TEMP_DIR.glob("hitta_ansikten_*"):
+    for path in TEMP_DIR.glob("ansikten_*"):
         try:
             path.unlink()
         except Exception as e:
@@ -1373,7 +1373,7 @@ def preprocess_worker(
         print(f"\n⚠️  KRITISKT FEL: Worker-processen kraschade!", file=sys.stderr)
         print(f"⚠️  Fel: {type(e).__name__}: {e}", file=sys.stderr)
         print(f"⚠️  Main-processen kommer att fortsätta utan parallell preprocessing.", file=sys.stderr)
-        print(f"⚠️  Se hitta_ansikten.log för detaljer.\n", file=sys.stderr)
+        print(f"⚠️  Se ansikten.log för detaljer.\n", file=sys.stderr)
         traceback.print_exc()
     finally:
         # Always signal completion, even on error, to unblock main loop

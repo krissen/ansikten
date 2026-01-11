@@ -1,4 +1,4 @@
-# TODO - Hitta ansikten
+# TODO - Ansikten
 
 Konsoliderad lista över planerade förbättringar, kända brister och teknisk skuld.
 
@@ -18,15 +18,15 @@ Konsoliderad lista över planerade förbättringar, kända brister och teknisk s
 
 ### Mellan sikt
 
-- [ ] Rebrand till "Ansikten"
-  - [ ] Ersätt nuvarande "Hitta ansikten" och ännu äldre "Bildvisare"
-    - [ ] App
-    - [ ] Docs
+- [x] Rebrand till "Ansikten" (2026-01-11)
+  - [x] Ersätt nuvarande "Hitta ansikten" och ännu äldre "Bildvisare"
+    - [x] App
+    - [x] Docs
   - [ ] Repo-flytt
     - [ ] Be användaren flytta repot, och ange vad nu adressen är
-    - [ ] Ändra referenser i .git/ (remote)
-    - [ ] Uppdatera docs, ifall referenser till gitrepot finns
-  - [ ] Lokal mapp -flytt
+    - [ ] Ändra referenser i .git/ (remote): `git remote set-url origin https://github.com/krissen/ansikten.git`
+    - [x] Uppdatera docs, ifall referenser till gitrepot finns
+  - [ ] Lokal mapp-flytt (manuellt: `hitta_ansikten/` → `ansikten/`)
 - [ ] **Backend distance-optimering** - Optimera distansberäkningar för bättre prestanda
 - [ ] **Duplicate cleanup tool** - Verktyg för att hitta och hantera duplicerade ansikten i databasen
 - [ ] Utveckla smidigare stöd för terminal-interaktion med backend (synkat med frontend)
@@ -202,7 +202,8 @@ dlib-backend är borttaget. InsightFace är det enda stödda backend.
 
 ### Projektnamnbyte
 
-Projektet heter **Hitta ansikten**. "Bildvisare" var ett tidigare namn som inte längre används.
+Projektet heter **Ansikten**. "Hitta ansikten" och "Bildvisare" var tidigare namn som inte längre används.
+CLI-filen heter fortfarande `hitta_ansikten.py` (legacy).
 
 ### Prioritering
 

@@ -93,7 +93,7 @@ function parseCommandLineArgs(argv) {
     /^npx/i,
     /\.js$/i,
     /^\.\.?$/,
-    /^bildvisare$/i,  // Our app name
+    /^ansikten$/i,  // Our app name
   ];
 
   const shouldSkipArg = (arg) => {
@@ -203,9 +203,9 @@ function createWorkspaceWindow() {
       nodeIntegration: false,
       contextIsolation: true,
       preload: path.join(__dirname, "../preload/preload.js"),
-      partition: "persist:bildvisare",
+      partition: "persist:ansikten",
     },
-    title: "Hitta ansikten",
+    title: "Ansikten",
   });
 
   // Set application menu
@@ -298,7 +298,7 @@ app.whenReady().then(async () => {
 
   // Show splash immediately
   createSplashWindow();
-  updateSplashStatus("Startar backend...");
+  updateSplashStatus("Starting backend...");
 
   // Start backend service
   try {
@@ -308,7 +308,7 @@ app.whenReady().then(async () => {
     };
     await backendService.start();
     console.log(`[Main] Backend ready at ${backendService.getUrl()}`);
-    updateSplashStatus("Laddar gränssnitt...", 90);
+    updateSplashStatus("Loading interface...", 90);
   } catch (err) {
     console.error("[Main] Failed to start backend:", err);
     
@@ -319,7 +319,7 @@ app.whenReady().then(async () => {
     const isPackaged = app.isPackaged;
     const suggestion = isPackaged
       ? "Försök installera om appen. Om problemet kvarstår, kontakta support."
-      : "Kontrollera att Python är installerat och att BILDVISARE_PYTHON pekar på rätt tolk.";
+      : "Check that Python is installed and that ANSIKTEN_PYTHON points to the correct interpreter.";
     
     await dialog.showMessageBox({
       type: "error",
@@ -334,7 +334,7 @@ app.whenReady().then(async () => {
   }
 
   // Create workspace window
-  updateSplashStatus("Redo!", 100);
+  updateSplashStatus("Ready!", 100);
   createWorkspaceWindow();
 
   // Close splash when main window is ready
@@ -601,10 +601,9 @@ ipcMain.handle("expand-glob", async (event, pattern) => {
 let rendererLogStream = null;
 
 function getRendererLogPath() {
-  // Use ~/Library/Logs/Bildvisare on macOS, %APPDATA%/Bildvisare/logs on Windows
   const logDir =
     process.platform === "darwin"
-      ? path.join(os.homedir(), "Library", "Logs", "Bildvisare")
+      ? path.join(os.homedir(), "Library", "Logs", "Ansikten")
       : path.join(app.getPath("userData"), "logs");
 
   // Ensure directory exists

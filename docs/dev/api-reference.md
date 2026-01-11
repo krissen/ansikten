@@ -1,6 +1,6 @@
 # API Reference
 
-REST and WebSocket API for the Hitta ansikten backend.
+REST and WebSocket API for the Ansikten backend.
 
 ---
 
@@ -23,7 +23,7 @@ Check backend status and component readiness.
 ```json
 {
   "status": "ok",
-  "service": "bildvisare-backend",
+  "service": "ansikten-backend",
   "version": "1.0.0",
   "components": {
     "backend": { "state": "ready", "message": "Connected" },
@@ -37,7 +37,7 @@ Check backend status and component readiness.
 ```json
 {
   "status": "starting",
-  "service": "bildvisare-backend",
+  "service": "ansikten-backend",
   "version": "1.0.0",
   "components": {
     "backend": { "state": "ready", "message": "Connected" },
