@@ -212,22 +212,59 @@ npm run watch:workspace
 
 ## Testing
 
-Currently no automated test suite exists. Testing is manual:
-
-### Backend Testing
+### Backend (pytest)
 
 ```bash
-# Dry-run processing
-./hitta_ansikten.py --simulate *.NEF
+cd backend
 
-# Check database
-./analysera_ansikten.py
+# Install test dependencies
+pip install pytest pytest-asyncio httpx
 
-# Inspect encodings
-python inspect_encodings.py
+# Run tests
+pytest
+
+# Run with verbose output
+pytest -v
+
+# Run specific test file
+pytest tests/test_api_health.py
 ```
 
-### Frontend Testing
+**Test structure:**
+```
+backend/
+├── pytest.ini          # pytest configuration
+└── tests/
+    ├── __init__.py
+    └── test_api_health.py  # API endpoint tests
+```
+
+### Frontend (Vitest)
+
+```bash
+cd frontend
+
+# Install dependencies (includes vitest)
+npm install
+
+# Run tests
+npm test
+
+# Run in watch mode
+npm run test:watch
+```
+
+**Test structure:**
+```
+frontend/
+├── vitest.config.js    # Vitest configuration
+└── tests/
+    └── nameFormatter.test.js  # Unit tests
+```
+
+### Manual Testing
+
+In addition to automated tests:
 
 1. Start workspace: `npx electron .`
 2. Test each module manually
@@ -235,12 +272,30 @@ python inspect_encodings.py
 4. Test keyboard shortcuts
 5. Check console for errors
 
-### Contributing Tests
+### Writing Tests
 
-Setting up test infrastructure would be valuable:
-- Backend: pytest
-- Frontend: Jest or Vitest
-- Integration: Playwright or Cypress
+**Backend tests** use FastAPI's TestClient:
+```python
+from fastapi.testclient import TestClient
+from api.main import app
+
+def test_health_endpoint():
+    client = TestClient(app)
+    response = client.get("/health")
+    assert response.status_code == 200
+```
+
+**Frontend tests** use Vitest with jsdom:
+```javascript
+import { describe, it, expect } from 'vitest';
+import { myFunction } from '../src/renderer/shared/myModule.js';
+
+describe('myModule', () => {
+  it('should do something', () => {
+    expect(myFunction()).toBe(expected);
+  });
+});
+```
 
 ---
 

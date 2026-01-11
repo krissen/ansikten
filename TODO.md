@@ -18,15 +18,18 @@ Konsoliderad lista över planerade förbättringar, kända brister och teknisk s
 
 ### Mellan sikt
 
-- [ ] **Backend distance-optimering** - Optimera distansberäkningar för bättre prestanda
-- [ ] **Duplicate cleanup tool** - Verktyg för att hitta och hantera duplicerade ansikten i databasen
-- [ ] Utveckla smidigare stöd för terminal-interaktion med backend (synkat med frontend)
 - [ ] Rebrand till "Ansikten"
   - [ ] Ersätt nuvarande "Hitta ansikten" och ännu äldre "Bildvisare"
     - [ ] App
     - [ ] Docs
   - [ ] Repo-flytt
+    - [ ] Be användaren flytta repot, och ange vad nu adressen är
+    - [ ] Ändra referenser i .git/ (remote)
+    - [ ] Uppdatera docs, ifall referenser till gitrepot finns
   - [ ] Lokal mapp -flytt
+- [ ] **Backend distance-optimering** - Optimera distansberäkningar för bättre prestanda
+- [ ] **Duplicate cleanup tool** - Verktyg för att hitta och hantera duplicerade ansikten i databasen
+- [ ] Utveckla smidigare stöd för terminal-interaktion med backend (synkat med frontend)
 
 ### Lång sikt
 
@@ -40,24 +43,17 @@ Konsoliderad lista över planerade förbättringar, kända brister och teknisk s
 
 ### Dokumentation
 
-- [x] ~~SESSION_SUMMARY.md refereras men finns inte~~ (fixad i doc-overhaul)
-- [x] ~~WebSocket var dokumenterad som "Future"~~ (verifierat: redan korrekt i api-reference.md)
-- [x] ~~Saknas komplett lista över keyboard shortcuts~~ (skapad: docs/user/keyboard-shortcuts.md)
-- [ ] Inkonsistent språk (svenska/engelska) i kodbas och docs
+- [x] ~~Inkonsistent språk (svenska/engelska) i kodbas och docs~~ (2026-01-11, UI strings → English)
 
 ### Funktionalitet
 
-- [ ] Ingen testsvit - enhets- och integrationstester saknas helt
-- [x] ~~Ingen deployment-guide~~ (skapad: docs/dev/release-guide.md, docs/user/installation.md)
-- [ ] Saknas felhantering vid nätverksavbrott mot backend
-- [x] ~~Preview-bilder cachas inte effektivt~~ (disk-cache, frontend blob-cache, 30 min TTL)
+- [x] ~~Ingen testsvit - enhets- och integrationstester saknas helt~~ (2026-01-11, pytest + vitest setup with example tests)
+- [x] ~~Saknas felhantering vid nätverksavbrott mot backend~~ (2026-01-11)
 
 ### UI/UX
 
-- [ ] Inga visuella indikatorer för tangentbordsgenvägar i UI
-- [ ] Saknas undo/redo för ansiktsbekräftelser
-- [x] ~~Toast-meddelanden kan inte klickas bort manuellt~~ (klickbar dismiss med cursor-feedback)
-- [x] ~~Ingen progress-indikator för långsamma operationer~~ (ProgressBar-komponent, LoadingOverlay, temabara CSS-variabler)
+- [x] ~~Inga visuella indikatorer för tangentbordsgenvägar i UI~~ (2026-01-11, ? shows shortcuts with active module highlighted)
+- [x] ~~Saknas undo/redo för ansiktsbekräftelser~~ (2026-01-11, Cmd+Z undo, ESC cancels detection)
 
 ---
 
@@ -65,24 +61,15 @@ Konsoliderad lista över planerade förbättringar, kända brister och teknisk s
 
 ### Backend
 
-- [x] ~~`hitta_ansikten.py` är 2000+ rader - bör brytas upp~~ (uppdelad: cli_config.py, cli_image.py, cli_matching.py)
-- [x] ~~Ingen typ-annotation i äldre Python-kod~~ (alla 18 backend-filer har nu moderna Python 3.10+ typ-annotationer)
-- [x] ~~Inkonsekvent error-handling (print vs logging)~~ (alla CLI-verktyg använder nu logging + print för dubbel feedback)
-- [x] ~~Preprocessing-cache kan växa obegränsat~~ (1GB limit med LRU, loggrotation vid startup)
+(Inget just nu)
 
 ### Frontend
 
-- [x] ~~Vissa moduler har duplicerad state-hantering~~ (nya hooks: useOperationStatus, useFormState)
-- [x] ~~WebSocket-reconnect~~ (förbättrad: max-cap 30s, jitter ±20%, disconnect-flag)
-- [ ] Bundle-storlek (~450kb) kan minskas med tree-shaking
-- [x] ~~`useEffect` utan cleanup~~ (verifierat: alla hooks har korrekt cleanup)
+- [x] ~~Bundle-storlek (~450kb) kan minskas med tree-shaking~~ (2026-01-11, analyzed: 504KB is optimal - React 173KB + FlexLayout 116KB + app code. Removed unused dockview dep)
 
 ### Arkitektur
 
-- [x] ~~Backend och frontend har ingen gemensam typdefinition~~ (JSON Schema i shared/schemas/, genererat från Pydantic)
-- [x] ~~API-versioning saknas~~ (alla endpoints nu under /api/v1/)
-- [x] ~~Ingen health-check endpoint~~ (förbättrad: /health returnerar komponentstatus)
-- [x] ~~Loggning är inkonsekvent mellan backend/frontend~~ (konsoliderat: debug.js är enda loggningssystem, stöder fil-loggning via IPC)
+(Inget just nu)
 
 ---
 

@@ -72,7 +72,8 @@ Komplett referens för alla tangentbordsgenvägar i Hitta ansikten.
 | `1-9` | Välj matchningsalternativ |
 | `M` | Lägg till manuellt ansikte |
 | `X` | Hoppa till nästa fil |
-| `Escape` | Avbryt ändringar |
+| `Cmd+Z` | Ångra senaste ansiktsåtgärd |
+| `Escape` | Avbryt detection / förkasta ändringar |
 
 ### Autocomplete
 
