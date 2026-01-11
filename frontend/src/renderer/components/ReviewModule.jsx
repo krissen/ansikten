@@ -16,6 +16,7 @@ import { useBackend } from '../context/BackendContext.jsx';
 import { useToast } from '../context/ToastContext.jsx';
 import { useWebSocket } from '../hooks/useWebSocket.js';
 import { debug, debugWarn, debugError } from '../shared/debug.js';
+import { NetworkError } from '../shared/api-client.js';
 import { preferences } from '../workspace/preferences.js';
 import { useThumbnail } from '../shared/thumbnail-cache.js';
 import { Icon } from './Icon.jsx';
@@ -91,7 +92,7 @@ export function ReviewModule() {
 
   // State
   const [currentImagePath, setCurrentImagePath] = useState(null);
-  const [currentFileHash, setCurrentFileHash] = useState(null);  // For mark-review-complete optimization
+  const [currentFileHash, setCurrentFileHash] = useState(null);
   const [detectedFaces, setDetectedFaces] = useState([]);
   const [people, setPeople] = useState([]);
   const [currentFaceIndex, setCurrentFaceIndex] = useState(0);
@@ -101,12 +102,14 @@ export function ReviewModule() {
   const [isLoading, setIsLoading] = useState(false);
   const [clearInputTrigger, setClearInputTrigger] = useState(0);
   const [confirmDialog, setConfirmDialog] = useState(null);
+  const [undoStack, setUndoStack] = useState([]);
 
   // Refs
   const moduleRef = useRef(null);
   const gridRef = useRef(null);
   const inputRefs = useRef({});
   const cardRefs = useRef({});
+  const detectAbortRef = useRef(null);
 
   /**
    * Load people names for autocomplete
@@ -125,25 +128,35 @@ export function ReviewModule() {
     loadPeopleNames();
   }, [loadPeopleNames]);
 
-  /**
-   * Detect faces in image
-   */
   const detectFaces = useCallback(async (imagePath) => {
+    if (detectAbortRef.current) {
+      detectAbortRef.current.abort();
+    }
+    const abortController = new AbortController();
+    detectAbortRef.current = abortController;
+
     setCurrentImagePath(imagePath);
-    setCurrentFileHash(null);  // Clear previous hash
+    setCurrentFileHash(null);
     setIsLoading(true);
     setStatus('Detecting faces...');
     setDetectedFaces([]);
     setCurrentFaceIndex(0);
     setPendingConfirmations([]);
     setPendingIgnores([]);
+    setUndoStack([]);
 
     try {
-      const result = await api.post('/api/v1/detect-faces', { image_path: imagePath, force_reprocess: false });
+      const result = await api.post(
+        '/api/v1/detect-faces',
+        { image_path: imagePath, force_reprocess: false },
+        { signal: abortController.signal }
+      );
+
+      if (abortController.signal.aborted) return;
 
       const faces = result.faces || [];
       setDetectedFaces(faces);
-      setCurrentFileHash(result.file_hash || null);  // Store hash for mark-review-complete
+      setCurrentFileHash(result.file_hash || null);
       setStatus(`Found ${faces.length} faces (${result.processing_time_ms?.toFixed(0) || 0}ms)`);
 
       emit('faces-detected', { faces, imagePath });
@@ -153,14 +166,26 @@ export function ReviewModule() {
           moduleRef.current?.focus();
         }, 100);
       } else {
-        // No faces detected - show toast and wait for user to press X (skip) or M (add manual)
         const fileName = imagePath.split('/').pop();
         showToast(`No faces found in ${fileName}`, 'info');
       }
     } catch (err) {
+      if (abortController.signal.aborted) {
+        setStatus('Detection cancelled');
+        return;
+      }
       debugError('ReviewModule', 'Face detection failed:', err);
-      setStatus('Detection failed');
+      if (err instanceof NetworkError) {
+        const msg = err.isOffline ? 'Backend unreachable' : err.message;
+        showToast(msg, 'error');
+        setStatus('Connection error');
+      } else {
+        setStatus('Detection failed');
+      }
     } finally {
+      if (detectAbortRef.current === abortController) {
+        detectAbortRef.current = null;
+      }
       setIsLoading(false);
     }
   }, [api, emit, showToast]);
@@ -210,13 +235,13 @@ export function ReviewModule() {
     const face = detectedFaces[index];
     if (!face || face.is_confirmed) return;
 
-    // Create updated faces array for both state and event
+    setUndoStack(prev => [...prev, { type: 'confirm', index, face: { ...face } }]);
+
     const updatedFaces = [...detectedFaces];
     updatedFaces[index] = { ...updatedFaces[index], is_confirmed: true, person_name: personName.trim() };
 
     setDetectedFaces(updatedFaces);
 
-    // Emit updated faces to sync ImageViewer
     emit('faces-detected', { faces: updatedFaces, imagePath: currentImagePath });
 
     setPendingConfirmations(prev => {
@@ -248,13 +273,13 @@ export function ReviewModule() {
     const face = detectedFaces[index];
     if (!face || face.is_confirmed) return;
 
-    // Create updated faces array for both state and event
+    setUndoStack(prev => [...prev, { type: 'ignore', index, face: { ...face } }]);
+
     const updatedFaces = [...detectedFaces];
     updatedFaces[index] = { ...updatedFaces[index], is_confirmed: true, is_rejected: true, person_name: '(ignored)' };
 
     setDetectedFaces(updatedFaces);
 
-    // Emit updated faces to sync ImageViewer
     emit('faces-detected', { faces: updatedFaces, imagePath: currentImagePath });
 
     setPendingIgnores(prev => {
@@ -315,6 +340,39 @@ export function ReviewModule() {
 
     doIgnoreFace(index);
   }, [detectedFaces, getTopMatch, doIgnoreFace]);
+
+  const cancelDetection = useCallback(() => {
+    if (detectAbortRef.current) {
+      detectAbortRef.current.abort();
+      detectAbortRef.current = null;
+    }
+  }, []);
+
+  const undoLastAction = useCallback(() => {
+    if (undoStack.length === 0) return false;
+
+    const lastAction = undoStack[undoStack.length - 1];
+    setUndoStack(prev => prev.slice(0, -1));
+
+    const { type, index, face } = lastAction;
+
+    const updatedFaces = [...detectedFaces];
+    updatedFaces[index] = { ...face };
+    setDetectedFaces(updatedFaces);
+
+    emit('faces-detected', { faces: updatedFaces, imagePath: currentImagePath });
+
+    if (type === 'confirm') {
+      setPendingConfirmations(prev => prev.filter(p => p.face_id !== face.face_id));
+    } else if (type === 'ignore') {
+      setPendingIgnores(prev => prev.filter(p => p.face_id !== face.face_id));
+    }
+
+    setCurrentFaceIndex(index);
+    emit('active-face-changed', { index });
+
+    return true;
+  }, [undoStack, detectedFaces, currentImagePath, emit]);
 
   /**
    * Unconfirm a face - revert to unconfirmed state for re-review
@@ -791,12 +849,23 @@ export function ReviewModule() {
         return;
       }
 
-      // ? - delegate to global shortcut help (handled by FlexLayoutWorkspace)
-      // Don't handle here, let event bubble up
+      // Cmd+Z to undo last face action
+      if (e.key === 'z' && (e.metaKey || e.ctrlKey) && !e.shiftKey && !isInput) {
+        e.preventDefault();
+        if (undoLastAction()) {
+          showToast('Undo', 'info', 1500);
+        }
+        return;
+      }
 
-      // Escape
+      // Escape - cancel detection if running, else blur input or discard changes
       if (e.key === 'Escape') {
         e.preventDefault();
+        if (isLoading) {
+          cancelDetection();
+          showToast('Detection cancelled', 'info', 1500);
+          return;
+        }
         if (isInput) {
           e.target.blur();
         } else {
@@ -808,7 +877,7 @@ export function ReviewModule() {
 
     document.addEventListener('keydown', handleKeyboard);
     return () => document.removeEventListener('keydown', handleKeyboard);
-  }, [currentFaceIndex, detectedFaces, navigateToFace, confirmFace, ignoreFace, discardChanges, skipImage, addManualFace, acceptAllSuggestions]);
+  }, [currentFaceIndex, detectedFaces, navigateToFace, confirmFace, ignoreFace, discardChanges, skipImage, addManualFace, acceptAllSuggestions, undoLastAction, isLoading, cancelDetection, showToast]);
 
   useModuleEvent('image-loaded', useCallback(({ imagePath, skipAutoDetect }) => {
     if (skipAutoDetect) {
@@ -841,6 +910,11 @@ export function ReviewModule() {
    */
   useModuleEvent('save-all-changes', saveAllChanges);
   useModuleEvent('discard-changes', discardChanges);
+  useModuleEvent('undo-face-action', useCallback(() => {
+    if (undoLastAction()) {
+      showToast('Undo', 'info', 1500);
+    }
+  }, [undoLastAction, showToast]));
 
   /**
    * WebSocket events
@@ -933,25 +1007,25 @@ function ConfirmDialog({ type, topMatch, chosenName, onConfirm, onCancel }) {
         tabIndex={-1}
         onClick={(e) => e.stopPropagation()}
       >
-        <h3>{isNameMismatch ? 'Bekräfta namnbyte' : 'Bekräfta ignorering'}</h3>
+        <h3>{isNameMismatch ? 'Confirm name change' : 'Confirm ignore'}</h3>
         <div className="match-info">
-          Bästa matchning: <strong>{topMatch.name}</strong> ({topMatch.confidence}%)
+          Best match: <strong>{topMatch.name}</strong> ({topMatch.confidence}%)
         </div>
         <p>
           {isNameMismatch
-            ? `Du valde "${chosenName}" istället. Är du säker?`
-            : 'Du valde att ignorera detta ansikte. Är du säker?'}
+            ? `You chose "${chosenName}" instead. Are you sure?`
+            : 'You chose to ignore this face. Are you sure?'}
         </p>
         <div className="confirm-buttons">
           <button className="btn-cancel" onClick={onCancel}>
-            Avbryt
+            Cancel
           </button>
           <button className="btn-confirm" onClick={onConfirm}>
-            Bekräfta
+            Confirm
           </button>
         </div>
         <div className="confirm-hint">
-          <kbd>Enter</kbd> bekräftar · <kbd>Esc</kbd> avbryter
+          <kbd>Enter</kbd> confirms · <kbd>Esc</kbd> cancels
         </div>
       </div>
     </div>
