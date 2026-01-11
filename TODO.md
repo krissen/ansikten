@@ -10,7 +10,7 @@ Konsoliderad lista över planerade förbättringar, kända brister och teknisk s
 
 ### Nu
 
-- [ ] File-list-modulen. Show new names. Vi trunkerar filnamnet. Det är bra, men vi skulle kunna fylla ut mer; ända fram till innehåll till höger (blixt-ikonen eller ansikts-antalet). Så räkna ut tillgängligt utrymme och trunkera "lagom mycket"!
+(Inga uppgifter just nu)
 
 ### Kort sikt
 
@@ -113,6 +113,9 @@ Konsoliderad lista över planerade förbättringar, kända brister och teknisk s
   - nameFormatter.js utility med 7 förkortningsnivåer
   - ResizeObserver för dynamisk anpassning
   - Port av Pythons resolve_fornamn_dubletter()-algoritm
+- [x] **File-list dynamisk trunkering** - Show new names utnyttjar hela bredden
+  - Tar bort fast pre-trunkering, låter CSS text-overflow hantera det
+  - Original max 45%, nytt namn får resten
 
 ### 2026-01-11: Typ-annotationer i backend
 
