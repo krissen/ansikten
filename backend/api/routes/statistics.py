@@ -45,7 +45,7 @@ class RecentImage(BaseModel):
     filename: str
     timestamp: str
     person_names: List[str]
-    source: str = "cli"  # 'cli' or 'bildvisare'
+    source: str = "cli"  # 'cli' or 'ansikten'
 
 
 class LogLine(BaseModel):
@@ -184,7 +184,7 @@ async def get_processed_files(n: int = 200, source: Optional[str] = None):
 
     Args:
     - n: Number of files to return (default 200, max 1000)
-    - source: Filter by source ('cli', 'bildvisare', or None for all)
+    - source: Filter by source ('cli', 'ansikten', or None for all)
 
     Returns list of processed files with timestamps, names, and source
     """

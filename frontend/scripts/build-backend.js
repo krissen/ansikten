@@ -15,8 +15,8 @@ const path = require('path');
 const BACKEND_DIR = path.join(__dirname, '../../backend');
 const RESOURCES_DIR = path.join(__dirname, '../resources/backend');
 const IS_WIN = process.platform === 'win32';
-const BUNDLE_NAME = 'bildvisare-backend';
-const EXEC_NAME = IS_WIN ? 'bildvisare-backend.exe' : 'bildvisare-backend';
+const BUNDLE_NAME = 'ansikten-backend';
+const EXEC_NAME = IS_WIN ? 'ansikten-backend.exe' : 'ansikten-backend';
 
 function run(cmd, options = {}) {
   console.log(`> ${cmd}`);
@@ -46,15 +46,15 @@ function copyDirSync(src, dest) {
 function main() {
   console.log('=== Building Backend (onedir mode) ===\n');
 
-  const specFile = path.join(BACKEND_DIR, 'bildvisare-backend.spec');
+  const specFile = path.join(BACKEND_DIR, 'ansikten-backend.spec');
   if (!fs.existsSync(specFile)) {
-    console.error('Error: bildvisare-backend.spec not found in backend/');
+    console.error('Error: ansikten-backend.spec not found in backend/');
     process.exit(1);
   }
 
   console.log('Building with PyInstaller...');
   try {
-    run('pyinstaller bildvisare-backend.spec --noconfirm', { cwd: BACKEND_DIR });
+    run('pyinstaller ansikten-backend.spec --noconfirm', { cwd: BACKEND_DIR });
   } catch (err) {
     console.error('\nPyInstaller build failed.');
     console.error('Make sure you have activated your Python environment and installed dependencies:');

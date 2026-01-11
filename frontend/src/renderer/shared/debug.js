@@ -45,7 +45,7 @@ const DEFAULT_CATEGORIES = {
 };
 
 // Storage key
-const STORAGE_KEY = 'bildvisare-debug-categories';
+const STORAGE_KEY = 'ansikten-debug-categories';
 
 // Current enabled categories (loaded from localStorage)
 let enabledCategories = { ...DEFAULT_CATEGORIES };
@@ -55,7 +55,7 @@ const LOG_BUFFER_MAX = 500;
 const logBuffer = [];
 
 // IPC availability check
-const ipcAvailable = typeof window !== 'undefined' && window.bildvisareAPI;
+const ipcAvailable = typeof window !== 'undefined' && window.ansiktenAPI;
 
 /**
  * Check if file logging is enabled via preferences
@@ -79,7 +79,7 @@ function isFileLoggingEnabled() {
 function sendToFile(level, formattedMessage) {
   if (ipcAvailable && isFileLoggingEnabled()) {
     try {
-      window.bildvisareAPI.send('renderer-log', { level, message: formattedMessage });
+      window.ansiktenAPI.send('renderer-log', { level, message: formattedMessage });
     } catch (err) {
       // Silently fail - don't cause infinite loop
     }

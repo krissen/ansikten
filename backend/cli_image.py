@@ -1,5 +1,5 @@
 """
-cli_image.py - Image utilities for hitta_ansikten CLI
+cli_image.py - Image utilities for Ansikten CLI
 
 Contains:
 - Image loading and resizing
@@ -225,7 +225,7 @@ def create_labeled_image(
         draw.line([(face_cx, face_cy), (label_cx, label_cy)], fill="yellow", width=2)
 
     temp_dir = str(TEMP_DIR)
-    temp_prefix = "hitta_ansikten_preview"
+    temp_prefix = "ansikten_preview"
     temp_suffix = f"{suffix}.jpg" if suffix else ".jpg"
 
     with tempfile.NamedTemporaryFile(prefix=temp_prefix, suffix=temp_suffix, dir=temp_dir, delete=False) as tmp:
@@ -246,7 +246,7 @@ def export_and_show_original(image_path: str | Path, config: dict[str, Any]) -> 
         img = Image.fromarray(rgb)
         img.save(export_path, format="JPEG", quality=98)
 
-        status_path = Path.home() / "Library" / "Application Support" / "bildvisare" / "original_status.json"
+        status_path = Path.home() / "Library" / "Application Support" / "ansikten" / "original_status.json"
         status = {
             "timestamp": time.time(),
             "source_nef": str(image_path),
@@ -273,14 +273,14 @@ def show_temp_image(
     Display a preview image in the configured viewer app.
     """
     viewer_app = config.get("image_viewer_app")
-    status_path = Path.home() / "Library" / "Application Support" / "bildvisare" / "status.json"
+    status_path = Path.home() / "Library" / "Application Support" / "ansikten" / "status.json"
     expected_path = str(Path(preview_path).resolve())
 
     should_open = True
 
     # Skriv original_status.json
     orig_path = str(image_path) if image_path else str(preview_path)
-    status_origjson_path = Path.home() / "Library" / "Application Support" / "bildvisare" / "original_status.json"
+    status_origjson_path = Path.home() / "Library" / "Application Support" / "ansikten" / "original_status.json"
     status_origjson = {
         "timestamp": time.time(),
         "source_nef": orig_path,
@@ -301,22 +301,22 @@ def show_temp_image(
                 try:
                     if current_file and os.path.samefile(current_file, expected_path):
                         should_open = False
-                        logging.debug(f"[BILDVISARE] Bildvisaren visar redan rätt fil: {expected_path}")
+                        logging.debug(f"[ANSIKTEN] Bildvisaren visar redan rätt fil: {expected_path}")
                     else:
                         should_open = True
-                        logging.debug(f"[BILDVISARE] Bildvisaren kör men visar annan fil ({current_file}), öppnar {expected_path}")
+                        logging.debug(f"[ANSIKTEN] Bildvisaren kör men visar annan fil ({current_file}), öppnar {expected_path}")
                 except (OSError, ValueError):
                     should_open = True
-                    logging.debug(f"[BILDVISARE] Kan inte jämföra filer, öppnar {expected_path}")
+                    logging.debug(f"[ANSIKTEN] Kan inte jämföra filer, öppnar {expected_path}")
 
             elif app_status == "exited":
-                logging.debug(f"[BILDVISARE] Bildvisaren har avslutats, kommer öppna bild")
+                logging.debug(f"[ANSIKTEN] Bildvisaren har avslutats, kommer öppna bild")
                 should_open = True
             else:
-                logging.debug(f"[BILDVISARE] Bildvisar-status: {app_status} inte behandlad, kommer öppna bild")
+                logging.debug(f"[ANSIKTEN] Bildvisar-status: {app_status} inte behandlad, kommer öppna bild")
                 should_open = True
         except Exception as e:
-            logging.debug(f"[BILDVISARE] Misslyckades läsa statusfilen: {status_path} ({e}), kommer öppna bild")
+            logging.debug(f"[ANSIKTEN] Misslyckades läsa statusfilen: {status_path} ({e}), kommer öppna bild")
             should_open = True
 
     if should_open:
@@ -327,16 +327,16 @@ def show_temp_image(
             print(f"⚠️  Säkerhetsvarning: Ogiltig bildvisarapp '{viewer_app}', hoppar över", file=sys.stderr)
             return
 
-        logging.debug(f"[BILDVISARE] Öppnar bild i visare: {expected_path}")
+        logging.debug(f"[ANSIKTEN] Öppnar bild i visare: {expected_path}")
         cmd = ["open", "-a", viewer_app, expected_path]
-        logging.debug(f"[BILDVISARE] Kör kommando: {' '.join(cmd)}")
+        logging.debug(f"[ANSIKTEN] Kör kommando: {' '.join(cmd)}")
         try:
             proc = subprocess.Popen(cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
-            logging.debug(f"[BILDVISARE] Subprocess startad, PID: {proc.pid}")
+            logging.debug(f"[ANSIKTEN] Subprocess startad, PID: {proc.pid}")
         except Exception as e:
-            logging.error(f"[BILDVISARE] Fel vid start av bildvisare: {e}")
-            print(f"⚠️  Kunde inte öppna bildvisare: {e}", file=sys.stderr)
+            logging.error(f"[ANSIKTEN] Fel vid start av bildvisare: {e}")
+            print(f"⚠️  Could not open image viewer: {e}", file=sys.stderr)
         last_shown[0] = expected_path
     else:
-        logging.debug(f"[BILDVISARE] Hoppar över open")
+        logging.debug(f"[ANSIKTEN] Hoppar över open")
         last_shown[0] = preview_path

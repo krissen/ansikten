@@ -136,15 +136,15 @@ export function ModuleAPIProvider({ children }) {
    */
   const ipc = useMemo(() => ({
     send: (channel, ...args) => {
-      if (window.bildvisareAPI) {
-        window.bildvisareAPI.send(channel, ...args);
+      if (window.ansiktenAPI) {
+        window.ansiktenAPI.send(channel, ...args);
       }
     },
     invoke: async (channel, ...args) => {
-      if (window.bildvisareAPI) {
-        return window.bildvisareAPI.invoke(channel, ...args);
+      if (window.ansiktenAPI) {
+        return window.ansiktenAPI.invoke(channel, ...args);
       }
-      throw new Error('bildvisareAPI not available');
+      throw new Error('ansiktenAPI not available');
     }
   }), []);
 

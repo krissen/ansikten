@@ -70,12 +70,12 @@ METADATA_PATH = BASE_DIR / "metadata.json"
 PROCESSED_PATH = BASE_DIR / "processed_files.jsonl"
 SUPPORTED_EXT = [".nef", ".NEF"]
 ATTEMPT_LOG_PATH = BASE_DIR / "attempt_stats.jsonl"
-LOGGING_PATH = BASE_DIR / "hitta_ansikten.log"
+LOGGING_PATH = BASE_DIR / "ansikten.log"
 
 # Log rotation settings
 MAX_PROCESSED_ENTRIES = 50000    # Max entries in processed_files.jsonl
 MAX_ATTEMPT_ENTRIES = 10000      # Max entries in attempt_stats.jsonl
-MAX_LOG_SIZE_MB = 10             # Max size of hitta_ansikten.log in MB
+MAX_LOG_SIZE_MB = 10             # Max size of ansikten.log in MB
 
 
 def normalize_encoding_entry(entry: np.ndarray | dict[str, Any], default_backend: str = "dlib") -> dict[str, Any] | None:
@@ -369,7 +369,7 @@ def rotate_logs() -> None:
 
     - processed_files.jsonl: Keep last MAX_PROCESSED_ENTRIES entries
     - attempt_stats.jsonl: Keep last MAX_ATTEMPT_ENTRIES entries
-    - hitta_ansikten.log: Rotate when exceeding MAX_LOG_SIZE_MB
+    - ansikten.log: Rotate when exceeding MAX_LOG_SIZE_MB
     """
     # Rotate processed_files.jsonl
     if PROCESSED_PATH.exists():
@@ -425,14 +425,14 @@ def rotate_logs() -> None:
         except Exception as e:
             logging.warning(f"[LogRotation] Failed to rotate attempt_stats.jsonl: {e}")
 
-    # Rotate hitta_ansikten.log
+    # Rotate ansikten.log
     if LOGGING_PATH.exists():
         try:
             size_mb = LOGGING_PATH.stat().st_size / (1024 * 1024)
             if size_mb > MAX_LOG_SIZE_MB:
                 # Rotate to archive
                 ARCHIVE_DIR.mkdir(parents=True, exist_ok=True)
-                archive_name = f"hitta_ansikten_{datetime.now().strftime('%Y%m%d_%H%M%S')}.log"
+                archive_name = f"ansikten_{datetime.now().strftime('%Y%m%d_%H%M%S')}.log"
                 archive_path = ARCHIVE_DIR / archive_name
 
                 # Move current log to archive
@@ -440,10 +440,10 @@ def rotate_logs() -> None:
                 logging.info(f"[LogRotation] Rotated log file to {archive_name}")
 
                 # Clean up old archived logs (keep last 5)
-                archived_logs = sorted(ARCHIVE_DIR.glob("hitta_ansikten_*.log"))
+                archived_logs = sorted(ARCHIVE_DIR.glob("ansikten_*.log"))
                 if len(archived_logs) > 5:
                     for old_log in archived_logs[:-5]:
                         old_log.unlink()
                         logging.debug(f"[LogRotation] Deleted old archived log: {old_log.name}")
         except Exception as e:
-            logging.warning(f"[LogRotation] Failed to rotate hitta_ansikten.log: {e}")
+            logging.warning(f"[LogRotation] Failed to rotate ansikten.log: {e}")

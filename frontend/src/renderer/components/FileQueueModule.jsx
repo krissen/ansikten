@@ -28,7 +28,7 @@ import './FileQueueModule.css';
  */
 const getAutoLoadPreference = () => {
   try {
-    const stored = localStorage.getItem('bildvisare-preferences');
+    const stored = localStorage.getItem('ansikten-preferences');
     if (stored) {
       const prefs = JSON.parse(stored);
       return prefs.fileQueue?.autoLoadOnStartup ?? true;
@@ -45,7 +45,7 @@ const getAutoLoadPreference = () => {
  */
 const getRenameConfig = () => {
   try {
-    const stored = localStorage.getItem('bildvisare-preferences');
+    const stored = localStorage.getItem('ansikten-preferences');
     if (stored) {
       const prefs = JSON.parse(stored);
       const rename = prefs.rename || {};
@@ -80,7 +80,7 @@ const getRenameConfig = () => {
  */
 const getNotificationPreference = (key) => {
   try {
-    const stored = localStorage.getItem('bildvisare-preferences');
+    const stored = localStorage.getItem('ansikten-preferences');
     if (stored) {
       const prefs = JSON.parse(stored);
       const notifications = prefs.preprocessing?.notifications || {};
@@ -103,7 +103,7 @@ const getNotificationPreference = (key) => {
  */
 const getPreprocessingConfig = () => {
   try {
-    const stored = localStorage.getItem('bildvisare-preferences');
+    const stored = localStorage.getItem('ansikten-preferences');
     if (stored) {
       const prefs = JSON.parse(stored);
       const preprocessing = prefs.preprocessing || {};
@@ -126,7 +126,7 @@ const getPreprocessingConfig = () => {
  */
 const getRequireRenameConfirmation = () => {
   try {
-    const stored = localStorage.getItem('bildvisare-preferences');
+    const stored = localStorage.getItem('ansikten-preferences');
     if (stored) {
       const prefs = JSON.parse(stored);
       return prefs.rename?.requireConfirmation ?? true;
@@ -141,7 +141,7 @@ const getRequireRenameConfirmation = () => {
  */
 const getAutoRemoveMissingPreference = () => {
   try {
-    const stored = localStorage.getItem('bildvisare-preferences');
+    const stored = localStorage.getItem('ansikten-preferences');
     if (stored) {
       const prefs = JSON.parse(stored);
       return prefs.fileQueue?.autoRemoveMissing ?? true;
@@ -156,7 +156,7 @@ const getAutoRemoveMissingPreference = () => {
  */
 const getToastDurationMultiplier = () => {
   try {
-    const stored = localStorage.getItem('bildvisare-preferences');
+    const stored = localStorage.getItem('ansikten-preferences');
     if (stored) {
       const prefs = JSON.parse(stored);
       return prefs.notifications?.toastDuration ?? 1.0;
@@ -171,7 +171,7 @@ const getToastDurationMultiplier = () => {
  */
 const getInsertModePreference = () => {
   try {
-    const stored = localStorage.getItem('bildvisare-preferences');
+    const stored = localStorage.getItem('ansikten-preferences');
     if (stored) {
       const prefs = JSON.parse(stored);
       return prefs.fileQueue?.insertMode ?? 'alphabetical';
@@ -563,7 +563,7 @@ export function FileQueueModule() {
       showToast(`Removed deleted file: ${fileName}`, 'info', 3000);
     };
 
-    const unsubscribe = window.bildvisareAPI?.onFileDeleted(handleFileDeleted);
+    const unsubscribe = window.ansiktenAPI?.onFileDeleted(handleFileDeleted);
     return () => unsubscribe?.();
   }, [showToast]);
 
@@ -576,19 +576,19 @@ export function FileQueueModule() {
       if (stillInQueue.length > 0) {
         debugWarn('FileQueue', `Watcher error for ${dir}, re-registering ${stillInQueue.length}/${affectedFiles.length} files`);
         for (const filePath of stillInQueue) {
-          window.bildvisareAPI?.watchFile(filePath);
+          window.ansiktenAPI?.watchFile(filePath);
         }
       }
     };
 
-    const unsubscribe = window.bildvisareAPI?.onWatcherError(handleWatcherError);
+    const unsubscribe = window.ansiktenAPI?.onWatcherError(handleWatcherError);
     return () => unsubscribe?.();
   }, []);
 
   // Load queue from localStorage on mount
   useEffect(() => {
     try {
-      const saved = localStorage.getItem('bildvisare-file-queue');
+      const saved = localStorage.getItem('ansikten-file-queue');
       if (saved) {
         const parsed = JSON.parse(saved);
         if (Array.isArray(parsed.queue) && parsed.queue.length > 0) {
@@ -622,7 +622,7 @@ export function FileQueueModule() {
   // Save queue to localStorage on change
   useEffect(() => {
     try {
-      localStorage.setItem('bildvisare-file-queue', JSON.stringify({
+      localStorage.setItem('ansikten-file-queue', JSON.stringify({
         queue,
         currentIndex,
         autoAdvance,
@@ -642,14 +642,14 @@ export function FileQueueModule() {
 
     currentPaths.forEach(filePath => {
       if (!watched.has(filePath)) {
-        window.bildvisareAPI?.watchFile(filePath);
+        window.ansiktenAPI?.watchFile(filePath);
         watched.add(filePath);
       }
     });
 
     watched.forEach(filePath => {
       if (!currentPaths.has(filePath)) {
-        window.bildvisareAPI?.unwatchFile(filePath);
+        window.ansiktenAPI?.unwatchFile(filePath);
         watched.delete(filePath);
       }
     });
@@ -659,7 +659,7 @@ export function FileQueueModule() {
   // Cleanup all file watchers only on unmount
   useEffect(() => {
     return () => {
-      window.bildvisareAPI?.unwatchAllFiles();
+      window.ansiktenAPI?.unwatchAllFiles();
       watchedFilesRef.current.clear();
     };
   }, []);
@@ -1566,11 +1566,11 @@ export function FileQueueModule() {
   const openFileDialog = useCallback(async () => {
     try {
       // Try multi-file dialog first
-      let filePaths = await window.bildvisareAPI?.invoke('open-multi-file-dialog');
+      let filePaths = await window.ansiktenAPI?.invoke('open-multi-file-dialog');
 
       // Fall back to single file dialog
       if (!filePaths) {
-        const singlePath = await window.bildvisareAPI?.invoke('open-file-dialog');
+        const singlePath = await window.ansiktenAPI?.invoke('open-file-dialog');
         if (singlePath) {
           filePaths = [singlePath];
         }
@@ -1591,7 +1591,7 @@ export function FileQueueModule() {
   // Open folder dialog
   const openFolderDialog = useCallback(async () => {
     try {
-      const filePaths = await window.bildvisareAPI?.invoke('open-folder-dialog');
+      const filePaths = await window.ansiktenAPI?.invoke('open-folder-dialog');
 
       if (filePaths && filePaths.length > 0) {
         addFiles(filePaths);
@@ -1672,7 +1672,7 @@ export function FileQueueModule() {
       }
     };
 
-    window.bildvisareAPI?.on('queue-files', handleQueueFiles);
+    window.ansiktenAPI?.on('queue-files', handleQueueFiles);
   }, [addFiles, startNextEligible]);
 
   // Expose fileQueue API globally for programmatic access
@@ -1681,7 +1681,7 @@ export function FileQueueModule() {
     const expandAndAdd = async (pattern, position) => {
       if (pattern.includes('*') || pattern.includes('?')) {
         // It's a glob pattern - expand it
-        const files = await window.bildvisareAPI?.invoke('expand-glob', pattern);
+        const files = await window.ansiktenAPI?.invoke('expand-glob', pattern);
         if (files && files.length > 0) {
           addFiles(files, position);
           debug('FileQueue', `Expanded glob "${pattern}" to ${files.length} files`);
