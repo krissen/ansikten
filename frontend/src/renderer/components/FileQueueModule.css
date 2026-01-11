@@ -413,6 +413,18 @@
   font-family: var(--font-mono);
 }
 
+/* When showing preview, limit original filename to make room for new name */
+.file-item.with-preview .file-name {
+  flex: 0 1 auto;
+  max-width: 45%;
+}
+
+/* When showing preview, give inline-preview more space */
+.file-item.with-preview .inline-preview {
+  flex: 1 1 auto;
+  min-width: 100px;
+}
+
 /* Sidecar indicator - container for extension badges after filename */
 .sidecar-indicator {
   flex-shrink: 0;

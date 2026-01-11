@@ -2094,7 +2094,8 @@ function FileQueueItem({ item, index, isActive, isSelected, onClick, onDoubleCli
       {/* Wrapper for file name + preview to maintain consistent right-column alignment */}
       <div className="file-name-area" ref={nameAreaRef}>
         <span className="file-name">
-          {truncateFilename(item.fileName)}
+          {/* When showing preview, don't pre-truncate - let CSS handle it */}
+          {shouldShowPreview ? item.fileName : truncateFilename(item.fileName)}
           {hasSidecars && shouldShowPreview && (
             <span className="sidecar-indicator" title={sidecars.map(s => s.split('/').pop()).join(', ')}>
               {/* Show extension badges for each sidecar */}
@@ -2114,7 +2115,7 @@ function FileQueueItem({ item, index, isActive, isSelected, onClick, onDoubleCli
         {shouldShowPreview && nameWouldChange && (
           <span className="inline-preview">
             <span className="arrow">→</span>
-            <span className="new-name">{truncateFilename(newName, 30)}</span>
+            <span className="new-name">{newName}</span>
           </span>
         )}
         {shouldShowPreview && !newName && previewStatus && previewStatus !== 'ok' && (
