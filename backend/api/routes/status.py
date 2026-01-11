@@ -6,8 +6,10 @@ Endpoints for checking image processing status.
 
 from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel
-from typing import Optional, Literal
+from typing import Optional, Literal, List
 import logging
+
+from ..websocket.progress import set_log_categories
 
 logger = logging.getLogger(__name__)
 router = APIRouter()
@@ -19,12 +21,22 @@ class LogLevelRequest(BaseModel):
     level: Literal["debug", "info", "warn", "error"]
 
 
+class LogCategoriesRequest(BaseModel):
+    categories: List[str]
+
+
 @router.post("/log-level")
 async def set_log_level(request: LogLevelRequest):
     level = LOG_LEVELS.get(request.level, logging.INFO)
     logging.getLogger().setLevel(level)
     logger.info(f"[Status] Log level changed to {request.level.upper()}")
     return {"status": "ok", "level": request.level}
+
+
+@router.post("/log-categories")
+async def update_log_categories(request: LogCategoriesRequest):
+    set_log_categories(set(request.categories))
+    return {"status": "ok", "categories": request.categories}
 
 # Response models
 class ImageStatus(BaseModel):

@@ -219,6 +219,15 @@ export class APIClient {
     }
   }
 
+  async setLogCategories(categories) {
+    try {
+      await this.post('/api/v1/log-categories', { categories });
+      debug('APIClient', `Backend log categories set: ${categories.length} categories`);
+    } catch (err) {
+      debugWarn('APIClient', `Failed to set log categories: ${err.message}`);
+    }
+  }
+
   /**
    * Connect to WebSocket for real-time updates
    * @returns {Promise<void>}
