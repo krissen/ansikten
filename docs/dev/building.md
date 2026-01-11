@@ -1,12 +1,12 @@
-# Building Hitta ansikten
+# Building Ansikten
 
-Guide for building distributable packages of Hitta ansikten.
+Guide for building distributable packages of Ansikten.
 
 ---
 
 ## Overview
 
-Bildvisare consists of two parts:
+Ansikten consists of two parts:
 - **Frontend**: Electron app (JavaScript/React)
 - **Backend**: FastAPI server (Python)
 
@@ -128,9 +128,9 @@ source venv/bin/activate
 pip install pyinstaller
 
 # Build standalone executable
-pyinstaller bildvisare-backend.spec
+pyinstaller ansikten-backend.spec
 
-# Output: dist/bildvisare-backend (or .exe on Windows)
+# Output: dist/ansikten-backend (or .exe on Windows)
 ```
 
 #### 2. Prepare Backend for Electron
@@ -138,10 +138,10 @@ pyinstaller bildvisare-backend.spec
 ```bash
 # Copy to frontend resources
 mkdir -p frontend/resources/backend
-cp backend/dist/bildvisare-backend frontend/resources/backend/
+cp backend/dist/ansikten-backend frontend/resources/backend/
 
 # Make executable (Linux/macOS)
-chmod +x frontend/resources/backend/bildvisare-backend
+chmod +x frontend/resources/backend/ansikten-backend
 ```
 
 #### 3. Build Electron App
@@ -160,24 +160,24 @@ npm run build            # Package with electron-builder
 
 | File | Description |
 |------|-------------|
-| `Bildvisare-{version}-arm64.dmg` | Apple Silicon installer |
-| `Bildvisare-{version}-x64.dmg` | Intel installer |
-| `Bildvisare-{version}-arm64-mac.zip` | Apple Silicon portable |
-| `Bildvisare-{version}-x64-mac.zip` | Intel portable |
+| `Ansikten-{version}-arm64.dmg` | Apple Silicon installer |
+| `Ansikten-{version}-x64.dmg` | Intel installer |
+| `Ansikten-{version}-arm64-mac.zip` | Apple Silicon portable |
+| `Ansikten-{version}-x64-mac.zip` | Intel portable |
 
 ### Windows
 
 | File | Description |
 |------|-------------|
-| `Bildvisare-Setup-{version}.exe` | NSIS installer |
-| `Bildvisare-{version}.exe` | Portable executable |
+| `Ansikten-Setup-{version}.exe` | NSIS installer |
+| `Ansikten-{version}.exe` | Portable executable |
 
 ### Linux
 
 | File | Description |
 |------|-------------|
-| `Bildvisare-{version}.AppImage` | Universal package |
-| `bildvisare_{version}_amd64.deb` | Debian/Ubuntu package |
+| `Ansikten-{version}.AppImage` | Universal package |
+| `ansikten_{version}_amd64.deb` | Debian/Ubuntu package |
 
 ---
 
@@ -206,7 +206,7 @@ Then manually publish the draft release on GitHub.
 
 **Missing modules at runtime:**
 
-Add to `hiddenimports` in `bildvisare-backend.spec`:
+Add to `hiddenimports` in `ansikten-backend.spec`:
 
 ```python
 hiddenimports = [
@@ -264,8 +264,8 @@ pip install onnxruntime insightface
 
 | Variable | Description | Default |
 |----------|-------------|---------|
-| `BILDVISARE_PORT` | Backend server port | `5001` |
-| `BILDVISARE_PYTHON` | Python path (dev only) | Auto-detect |
+| `ANSIKTEN_PORT` | Backend server port | `5001` |
+| `ANSIKTEN_PYTHON` | Python path (dev only) | Auto-detect |
 | `CSC_IDENTITY_AUTO_DISCOVERY` | Disable code signing | - |
 
 ---
@@ -283,13 +283,13 @@ Electron App
 ### Production Mode (Packaged)
 
 ```
-Bildvisare.app/
+Ansikten.app/
 ├── Contents/
 │   ├── MacOS/
-│   │   └── Bildvisare          # Electron
+│   │   └── Ansikten          # Electron
 │   └── Resources/
 │       └── backend/
-│           └── bildvisare-backend  # PyInstaller bundle
+│           └── ansikten-backend  # PyInstaller bundle
 ```
 
 The Electron app detects if it's running packaged (`app.isPackaged`) and spawns the bundled backend executable instead of system Python.

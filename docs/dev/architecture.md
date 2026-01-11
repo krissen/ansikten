@@ -1,15 +1,15 @@
 # Architecture
 
-System overview for Hitta ansikten.
+System overview for Ansikten.
 
 ---
 
 ## Overview
 
-Hitta ansikten is a monorepo with two main components:
+Ansikten is a monorepo with two main components:
 
 ```
-hitta_ansikten/
+ansikten/
 ├── backend/          # Python CLI + FastAPI server
 ├── frontend/         # Electron workspace (React + FlexLayout)
 └── shared/           # Common type definitions
@@ -17,7 +17,7 @@ hitta_ansikten/
 
 ### Backend
 
-- **CLI Tool**: Terminal-based batch processing (`hitta_ansikten.py`)
+- **CLI Tool**: Terminal-based batch processing (`hitta_ansikten.py`) (legacy name)
 - **FastAPI Server**: REST API + WebSocket for frontend integration
 - **Face Recognition**: InsightFace (ONNX Runtime)
 
@@ -214,7 +214,7 @@ Location: `~/.local/share/faceid/config.json`
   },
   "match_threshold": 0.4,
   "auto_ignore": false,
-  "image_viewer_app": "Bildvisare"
+  "image_viewer_app": "Ansikten"
 }
 ```
 
