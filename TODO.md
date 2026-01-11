@@ -2,7 +2,7 @@
 
 Konsoliderad lista över planerade förbättringar, kända brister och teknisk skuld.
 
-**Senast uppdaterad:** 2026-01-10
+**Senast uppdaterad:** 2026-01-11
 
 ---
 
@@ -10,9 +10,6 @@ Konsoliderad lista över planerade förbättringar, kända brister och teknisk s
 
 ### Nu
 
-- [ ] Review-modulen: när jag trycker r för att redigera ett namn, så ändras inte färgen på input-boxen. Det borde den göra, så jag kan lita på att jag "hamnat rätt". Använd temafärger!
-- [ ] Review och viewer-synkronisering: när ett namn korrigeras i review, ska det även justeras i viewers ansiktsutskrivning. När ett namnförslag har blivit bekräftat ska boundingboxen bli grön om det är ett namn; grå om det blivit ett ignore. Bakgrunden för "namnskylten" ska ändras på samma sätt. Vidare, använder vi nu en alltid gul linje för att binda samman bounding-box med namnskylt; den linjen ska istället använda samma färg som bbb- och namnskyltsbakgrunden. /plan på detta
-- [ ] File-list-modulen. Då nya namn inte visas, finns det mycket outnyttjat utrymme, mellan filnamnet och blixtikonen. Vi ska fylla det med namn, på de som vi har info om bekräftade namn av. Vi ska anpassa vad som skrivs beroende på utrymme. Ska finnas lite lagom padding, alltid, dels mellan filnamnet; dels mellan det som är till högerst (blixt-ikon eller ansikts-antal). Ifall vi har mycket utrymme och t ex bara ett eller ett fåtal namn, kan vi skriva ut hela namnet på ansiktet i bilden, t ex "Arvid Wallentinsson, Elis Niemi". Ifall det inte ryms, tar vi bort efternamnet och (på liknande sätt som vid rename) ifall förnamnet är unikt; ifall förnamnet inte är unikt skriver vi ut initial för efternamnet så det blir unikt för de samlade namnen i setet, "Arvid W., Elis"; ifall det inte ryms skriver vi "ArvidW, Elis"; ifall det inte ryms för alla tar vi bort mellanslaget efter kommatecknet; ifall det inte ryms skriver vi ut initialer "AW, EN" osv.; lägg till bokstäver efter efternamnet så det blir unikt för setet, t ex "AW, ENi" osv. Omständligt, så du behöver göra en /plan för detta! Men du borde också ha stor hjälp av rename-biblioteket, som redan gör liknande grejer. När "Show new names" är TRUE så visas inte namnen på ansikten; det byts då ut mot info om nya filnamnet!
 - [ ] File-list-modulen. Show new names. Vi trunkerar filnamnet. Det är bra, men vi skulle kunna fylla ut mer; ända fram till innehåll till höger (blixt-ikonen eller ansikts-antalet). Så räkna ut tillgängligt utrymme och trunkera "lagom mycket"!
 
 ### Kort sikt
@@ -102,6 +99,20 @@ Konsoliderad lista över planerade förbättringar, kända brister och teknisk s
   - useOperationStatus: isLoading/status/showSuccess/showError mönster
   - useFormState: Formulärstate med reset och isDirty
   - Refaktorerade: DatabaseManagement (-26 rader), RefineFacesModule
+
+### 2026-01-11: Review & FileQueue UI-förbättringar
+
+- [x] **Review input-box fokus-styling** - Färgändring vid redigering (r)
+  - focus-state med temafärger och box-shadow
+- [x] **Review/Viewer-synkronisering** - Visuell feedback vid bekräftelse
+  - Bounding box + label blir grön vid bekräftat namn
+  - Bounding box + label blir grå vid ignore
+  - Anslutningslinje matchar nu box-färgen (ersätter fast gul)
+  - Nya temafärger: --face-confirmed-color, --face-ignored-color
+- [x] **File-list namn-display** - Visar bekräftade namn i fillistan
+  - nameFormatter.js utility med 7 förkortningsnivåer
+  - ResizeObserver för dynamisk anpassning
+  - Port av Pythons resolve_fornamn_dubletter()-algoritm
 
 ### 2026-01-11: Typ-annotationer i backend
 
