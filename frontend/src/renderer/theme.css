@@ -70,6 +70,10 @@
   --toast-opacity: 0.75;
   --dropdown-selected-bg: var(--color-info-bg);
 
+  /* Button hover states - in light mode, hover should LIGHTEN to stand out */
+  --btn-secondary-hover-bg: #e8d8b0;  /* Lighter than normal, distinct from bg */
+  --btn-icon-hover-bg: #e8d8b0;
+
   /* Progress indicators */
   --progress-track-bg: #a08858;       /* Gold track */
   --progress-fill: var(--accent-primary);
@@ -142,6 +146,10 @@
   /* Component-specific */
   --toast-opacity: 0.75;
   --dropdown-selected-bg: #454545;  /* Neutral gray for contrast with sky blue text */
+
+  /* Button hover states - in dark mode, hover darkens (standard behavior) */
+  --btn-secondary-hover-bg: var(--bg-hover);
+  --btn-icon-hover-bg: var(--bg-hover);
 
   /* Progress indicators */
   --progress-track-bg: #353535;       /* Dark gray track */
@@ -269,7 +277,8 @@
 }
 
 .btn-secondary:hover:not(:disabled) {
-  background: var(--bg-hover);
+  background: var(--btn-secondary-hover-bg);
+  border-color: var(--border-strong);
 }
 
 /* Danger button - for destructive actions (Delete permanently) */
@@ -297,11 +306,12 @@
   align-items: center;
   justify-content: center;
   font-size: var(--font-md);
-  transition: background var(--transition-base), transform var(--transition-fast);
+  transition: background var(--transition-base), transform var(--transition-fast), box-shadow var(--transition-base);
 }
 
 .btn-icon:hover {
-  background: var(--bg-hover);
+  background: var(--btn-icon-hover-bg);
+  box-shadow: var(--shadow-sm);
 }
 
 .btn-icon:active {
