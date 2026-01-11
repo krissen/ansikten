@@ -530,14 +530,37 @@ class DetectionService:
         """
         logger.info(f"[DetectionService] Confirming face {face_id} as {person_name}")
 
-        # Handle manual faces (no encoding to save, just return success)
-        # Manual faces are included in mark_review_complete for rename functionality
+        # Handle manual faces: save to known_faces with encoding=None for consistency
         if face_id.startswith("manual_"):
-            logger.info(f"[DetectionService] Manual face confirmed: {person_name} (no encoding to save)")
+            logger.info(f"[DetectionService] Manual face confirmed: {person_name}")
+
+            path = Path(image_path)
+            file_hash = get_file_hash(path) if path.exists() else None
+            backend_info = self.backend.get_model_info()
+
+            entry = {
+                "encoding": None,
+                "file": str(image_path),
+                "hash": file_hash,
+                "backend": self.backend.backend_name,
+                "backend_version": backend_info.get("version", "unknown"),
+                "created_at": datetime.now().isoformat(),
+                "encoding_hash": None,
+                "bounding_box": None,
+                "is_manual": True
+            }
+
+            if person_name not in self.known_faces:
+                self.known_faces[person_name] = []
+            self.known_faces[person_name].append(entry)
+
+            save_database(self.known_faces, self.ignored_faces, self.hard_negatives, self.processed_files)
+            logger.info(f"[DetectionService] Saved manual face for {person_name} (total: {len(self.known_faces[person_name])})")
+
             return {
                 "status": "success",
                 "person_name": person_name,
-                "encodings_count": 0  # No encoding saved for manual faces
+                "encodings_count": len(self.known_faces[person_name])
             }
 
         # Get encoding from cache
