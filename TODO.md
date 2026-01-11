@@ -14,7 +14,6 @@ Konsoliderad lista över planerade förbättringar, kända brister och teknisk s
 
 ### Kort sikt
 
-- [ ] Temat för ljust läge. Knappar (t ex clear done, clear all, rename etc. i fil-modulen), de syns fint när de inte är markerade. Men vid hover över borde förväntat utseende vara att de "markeras mera"/highlightas. Istället får de typ samma färg som modul-bakgrund. Det vill säga, de "blandar in sig" i bakgrunden istället för att utmärka sig mer än de andra knapparna. Justera ljusa temat. Beakta var knappar finns; vad som kan finnas i deras bakgrunder. Systematik behövs, alltså!
 - [ ] **Drag-and-drop polish** - Förbättra DnD-upplevelsen i FileQueueModule
 
 ### Mellan sikt
@@ -116,6 +115,10 @@ Konsoliderad lista över planerade förbättringar, kända brister och teknisk s
 - [x] **File-list dynamisk trunkering** - Show new names utnyttjar hela bredden
   - Tar bort fast pre-trunkering, låter CSS text-overflow hantera det
   - Original max 45%, nytt namn får resten
+- [x] **Ljust tema knapp-hover** - Knappar framträder vid hover istället för att försvinna
+  - Nya CSS-variabler: --btn-secondary-hover-bg, --btn-icon-hover-bg
+  - Ljust läge: hover ljusnar (#e8d8b0) istället för mörknar
+  - Border- och box-shadow-förbättringar
 
 ### 2026-01-11: Typ-annotationer i backend
 
