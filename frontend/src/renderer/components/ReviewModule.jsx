@@ -16,7 +16,9 @@ import { useBackend } from '../context/BackendContext.jsx';
 import { useToast } from '../context/ToastContext.jsx';
 import { useWebSocket } from '../hooks/useWebSocket.js';
 import { debug, debugWarn, debugError } from '../shared/debug.js';
+import { NetworkError } from '../shared/api-client.js';
 import { preferences } from '../workspace/preferences.js';
+import { useThumbnail } from '../shared/thumbnail-cache.js';
 import { Icon } from './Icon.jsx';
 import './ReviewModule.css';
 
@@ -90,7 +92,7 @@ export function ReviewModule() {
 
   // State
   const [currentImagePath, setCurrentImagePath] = useState(null);
-  const [currentFileHash, setCurrentFileHash] = useState(null);  // For mark-review-complete optimization
+  const [currentFileHash, setCurrentFileHash] = useState(null);
   const [detectedFaces, setDetectedFaces] = useState([]);
   const [people, setPeople] = useState([]);
   const [currentFaceIndex, setCurrentFaceIndex] = useState(0);
@@ -100,19 +102,21 @@ export function ReviewModule() {
   const [isLoading, setIsLoading] = useState(false);
   const [clearInputTrigger, setClearInputTrigger] = useState(0);
   const [confirmDialog, setConfirmDialog] = useState(null);
+  const [undoStack, setUndoStack] = useState([]);
 
   // Refs
   const moduleRef = useRef(null);
   const gridRef = useRef(null);
   const inputRefs = useRef({});
   const cardRefs = useRef({});
+  const detectAbortRef = useRef(null);
 
   /**
    * Load people names for autocomplete
    */
   const loadPeopleNames = useCallback(async () => {
     try {
-      const response = await api.get('/api/database/people/names');
+      const response = await api.get('/api/v1/database/people/names');
       setPeople(response || []);
     } catch (err) {
       debugError('ReviewModule', 'Failed to load people names:', err);
@@ -124,25 +128,35 @@ export function ReviewModule() {
     loadPeopleNames();
   }, [loadPeopleNames]);
 
-  /**
-   * Detect faces in image
-   */
   const detectFaces = useCallback(async (imagePath) => {
+    if (detectAbortRef.current) {
+      detectAbortRef.current.abort();
+    }
+    const abortController = new AbortController();
+    detectAbortRef.current = abortController;
+
     setCurrentImagePath(imagePath);
-    setCurrentFileHash(null);  // Clear previous hash
+    setCurrentFileHash(null);
     setIsLoading(true);
     setStatus('Detecting faces...');
     setDetectedFaces([]);
     setCurrentFaceIndex(0);
     setPendingConfirmations([]);
     setPendingIgnores([]);
+    setUndoStack([]);
 
     try {
-      const result = await api.post('/api/detect-faces', { image_path: imagePath, force: false });
+      const result = await api.post(
+        '/api/v1/detect-faces',
+        { image_path: imagePath, force_reprocess: false },
+        { signal: abortController.signal }
+      );
+
+      if (abortController.signal.aborted) return;
 
       const faces = result.faces || [];
       setDetectedFaces(faces);
-      setCurrentFileHash(result.file_hash || null);  // Store hash for mark-review-complete
+      setCurrentFileHash(result.file_hash || null);
       setStatus(`Found ${faces.length} faces (${result.processing_time_ms?.toFixed(0) || 0}ms)`);
 
       emit('faces-detected', { faces, imagePath });
@@ -152,14 +166,26 @@ export function ReviewModule() {
           moduleRef.current?.focus();
         }, 100);
       } else {
-        // No faces detected - show toast and wait for user to press X (skip) or M (add manual)
         const fileName = imagePath.split('/').pop();
         showToast(`No faces found in ${fileName}`, 'info');
       }
     } catch (err) {
+      if (abortController.signal.aborted) {
+        setStatus('Detection cancelled');
+        return;
+      }
       debugError('ReviewModule', 'Face detection failed:', err);
-      setStatus('Detection failed');
+      if (err instanceof NetworkError) {
+        const msg = err.isOffline ? 'Backend unreachable' : err.message;
+        showToast(msg, 'error');
+        setStatus('Connection error');
+      } else {
+        setStatus('Detection failed');
+      }
     } finally {
+      if (detectAbortRef.current === abortController) {
+        detectAbortRef.current = null;
+      }
       setIsLoading(false);
     }
   }, [api, emit, showToast]);
@@ -209,11 +235,14 @@ export function ReviewModule() {
     const face = detectedFaces[index];
     if (!face || face.is_confirmed) return;
 
-    setDetectedFaces(prev => {
-      const updated = [...prev];
-      updated[index] = { ...updated[index], is_confirmed: true, person_name: personName.trim() };
-      return updated;
-    });
+    setUndoStack(prev => [...prev, { type: 'confirm', index, face: { ...face } }]);
+
+    const updatedFaces = [...detectedFaces];
+    updatedFaces[index] = { ...updatedFaces[index], is_confirmed: true, person_name: personName.trim() };
+
+    setDetectedFaces(updatedFaces);
+
+    emit('faces-detected', { faces: updatedFaces, imagePath: currentImagePath });
 
     setPendingConfirmations(prev => {
       const existing = prev.findIndex(p => p.face_id === face.face_id);
@@ -223,34 +252,49 @@ export function ReviewModule() {
         updated[existing] = { ...updated[existing], person_name: personName.trim() };
         return updated;
       }
-      return [...prev, { 
-        face_id: face.face_id, 
-        person_name: personName.trim(), 
+      return [...prev, {
+        face_id: face.face_id,
+        person_name: personName.trim(),
         image_path: currentImagePath,
         suggested_name: suggestedName !== personName.trim() ? suggestedName : null
       }];
     });
 
-    navigateToFace(1, index);
-  }, [detectedFaces, currentImagePath, navigateToFace]);
+    // Skip navigation if all faces will be done - auto-save will handle transition
+    const willAllBeDone = detectedFaces.every((f, i) =>
+      i === index || f.is_confirmed || f.is_rejected
+    );
+    if (!willAllBeDone) {
+      navigateToFace(1, index);
+    }
+  }, [detectedFaces, currentImagePath, navigateToFace, emit]);
 
   const doIgnoreFace = useCallback((index) => {
     const face = detectedFaces[index];
     if (!face || face.is_confirmed) return;
 
-    setDetectedFaces(prev => {
-      const updated = [...prev];
-      updated[index] = { ...updated[index], is_confirmed: true, is_rejected: true, person_name: '(ignored)' };
-      return updated;
-    });
+    setUndoStack(prev => [...prev, { type: 'ignore', index, face: { ...face } }]);
+
+    const updatedFaces = [...detectedFaces];
+    updatedFaces[index] = { ...updatedFaces[index], is_confirmed: true, is_rejected: true, person_name: '(ignored)' };
+
+    setDetectedFaces(updatedFaces);
+
+    emit('faces-detected', { faces: updatedFaces, imagePath: currentImagePath });
 
     setPendingIgnores(prev => {
       if (prev.some(p => p.face_id === face.face_id)) return prev;
       return [...prev, { face_id: face.face_id, image_path: currentImagePath }];
     });
 
-    navigateToFace(1, index);
-  }, [detectedFaces, currentImagePath, navigateToFace]);
+    // Skip navigation if all faces will be done - auto-save will handle transition
+    const willAllBeDone = detectedFaces.every((f, i) =>
+      i === index || f.is_confirmed || f.is_rejected
+    );
+    if (!willAllBeDone) {
+      navigateToFace(1, index);
+    }
+  }, [detectedFaces, currentImagePath, navigateToFace, emit]);
 
   const confirmFace = useCallback((index, personName) => {
     if (!personName?.trim()) return;
@@ -297,6 +341,41 @@ export function ReviewModule() {
     doIgnoreFace(index);
   }, [detectedFaces, getTopMatch, doIgnoreFace]);
 
+  const cancelDetection = useCallback(() => {
+    if (detectAbortRef.current) {
+      detectAbortRef.current.abort();
+      detectAbortRef.current = null;
+    }
+  }, []);
+
+  const undoLastAction = useCallback(() => {
+    if (undoStack.length === 0) return null;
+
+    const lastAction = undoStack[undoStack.length - 1];
+    setUndoStack(prev => prev.slice(0, -1));
+
+    const { type, index, face } = lastAction;
+
+    debug('ReviewModule', 'Undo action:', type, 'face:', face.face_id);
+
+    const updatedFaces = [...detectedFaces];
+    updatedFaces[index] = { ...face };
+    setDetectedFaces(updatedFaces);
+
+    emit('faces-detected', { faces: updatedFaces, imagePath: currentImagePath });
+
+    if (type === 'confirm') {
+      setPendingConfirmations(prev => prev.filter(p => p.face_id !== face.face_id));
+    } else if (type === 'ignore') {
+      setPendingIgnores(prev => prev.filter(p => p.face_id !== face.face_id));
+    }
+
+    setCurrentFaceIndex(index);
+    emit('active-face-changed', { index });
+
+    return lastAction;
+  }, [undoStack, detectedFaces, currentImagePath, emit]);
+
   /**
    * Unconfirm a face - revert to unconfirmed state for re-review
    */
@@ -306,17 +385,20 @@ export function ReviewModule() {
 
     debug('ReviewModule', 'Unconfirming face at index:', index);
 
-    setDetectedFaces(prev => {
-      const updated = [...prev];
-      const originalFace = updated[index];
-      updated[index] = {
-        ...originalFace,
-        is_confirmed: false,
-        is_rejected: false,
-        person_name: originalFace._original_person_name || null
-      };
-      return updated;
-    });
+    // Create updated faces array for both state and event
+    const updatedFaces = [...detectedFaces];
+    const originalFace = updatedFaces[index];
+    updatedFaces[index] = {
+      ...originalFace,
+      is_confirmed: false,
+      is_rejected: false,
+      person_name: originalFace._original_person_name || null
+    };
+
+    setDetectedFaces(updatedFaces);
+
+    // Emit updated faces to sync ImageViewer
+    emit('faces-detected', { faces: updatedFaces, imagePath: currentImagePath });
 
     setPendingConfirmations(prev => prev.filter(p => p.face_id !== face.face_id));
     setPendingIgnores(prev => prev.filter(p => p.face_id !== face.face_id));
@@ -327,7 +409,85 @@ export function ReviewModule() {
     setTimeout(() => {
       inputRefs.current[index]?.focus();
     }, 50);
-  }, [detectedFaces, emit]);
+  }, [detectedFaces, currentImagePath, emit]);
+
+  /**
+   * Accept all suggestions - confirm/ignore all unconfirmed faces using their top suggestion
+   */
+  const acceptAllSuggestions = useCallback(() => {
+    let accepted = 0;
+    let ignored = 0;
+    let skipped = 0;
+    const confirmations = [];
+    const ignores = [];
+
+    const updatedFaces = detectedFaces.map((face) => {
+      if (face.is_confirmed) return face;
+
+      const firstAlt = face.match_alternatives?.[0];
+      if (!firstAlt) {
+        skipped++;
+        return face;
+      }
+
+      if (firstAlt.is_ignored || firstAlt.name === 'ign') {
+        ignored++;
+        if (face.face_id) {
+          ignores.push({ face_id: face.face_id, image_path: currentImagePath });
+        }
+        return { ...face, is_confirmed: true, is_rejected: true, person_name: '(ignored)' };
+      }
+
+      const trimmedName = firstAlt.name?.trim() || firstAlt.name;
+      accepted++;
+
+      if (face.face_id) {
+        const suggestedName = face.person_name || null;
+        confirmations.push({
+          face_id: face.face_id,
+          person_name: trimmedName,
+          image_path: currentImagePath,
+          suggested_name: suggestedName && suggestedName.toLowerCase() !== trimmedName.toLowerCase()
+            ? suggestedName
+            : null
+        });
+      }
+
+      return { ...face, is_confirmed: true, is_rejected: false, person_name: trimmedName };
+    });
+
+    if (confirmations.length > 0 || ignores.length > 0) {
+      setDetectedFaces(updatedFaces);
+      emit('faces-detected', { faces: updatedFaces, imagePath: currentImagePath });
+
+      setPendingConfirmations((prev) => {
+        if (confirmations.length === 0) return prev;
+        const next = [...prev];
+        confirmations.forEach((confirmation) => {
+          const existingIndex = next.findIndex(item => item.face_id === confirmation.face_id);
+          if (existingIndex >= 0) {
+            next[existingIndex] = { ...next[existingIndex], person_name: confirmation.person_name, suggested_name: confirmation.suggested_name };
+          } else {
+            next.push(confirmation);
+          }
+        });
+        return next;
+      });
+
+      setPendingIgnores((prev) => {
+        if (ignores.length === 0) return prev;
+        const next = [...prev];
+        ignores.forEach((ignoreEntry) => {
+          if (!next.some(item => item.face_id === ignoreEntry.face_id)) {
+            next.push(ignoreEntry);
+          }
+        });
+        return next;
+      });
+    }
+
+    setStatus(`Accepted ${accepted}, ignored ${ignored}${skipped > 0 ? `, skipped ${skipped}` : ''}`);
+  }, [detectedFaces, currentImagePath, emit]);
 
   /**
    * Build reviewedFaces array for rename functionality
@@ -347,7 +507,7 @@ export function ReviewModule() {
    */
   const markReviewComplete = useCallback(async (imagePath, reviewedFaces, fileHash = null) => {
     try {
-      await api.post('/api/mark-review-complete', {
+      await api.post('/api/v1/mark-review-complete', {
         image_path: imagePath,
         reviewed_faces: reviewedFaces.map(f => ({
           face_index: f.faceIndex,
@@ -378,12 +538,12 @@ export function ReviewModule() {
     try {
       // Save confirmations
       for (const confirmation of pendingConfirmations) {
-        await api.post('/api/confirm-identity', confirmation);
+        await api.post('/api/v1/confirm-identity', confirmation);
       }
 
       // Save ignores
       for (const ignore of pendingIgnores) {
-        await api.post('/api/ignore-face', ignore);
+        await api.post('/api/v1/ignore-face', ignore);
       }
 
       setPendingConfirmations([]);
@@ -476,6 +636,12 @@ export function ReviewModule() {
     setDetectedFaces(prev => {
       const updated = [...prev];
       updated.splice(insertIndex, 0, manualFace);
+
+      // Sync updated faces array to ImageViewer so indices stay aligned
+      setTimeout(() => {
+        emit('faces-detected', { faces: updated, imagePath: currentImagePath });
+      }, 0);
+
       return updated;
     });
 
@@ -626,6 +792,13 @@ export function ReviewModule() {
         return;
       }
 
+      // Shift+Cmd+A to accept all suggestions
+      if ((e.key === 'a' || e.key === 'A') && e.shiftKey && e.metaKey) {
+        e.preventDefault();
+        acceptAllSuggestions();
+        return;
+      }
+
       // A to confirm
       if ((e.key === 'a' || e.key === 'A') && !isInput) {
         e.preventDefault();
@@ -678,12 +851,27 @@ export function ReviewModule() {
         return;
       }
 
-      // ? - delegate to global shortcut help (handled by FlexLayoutWorkspace)
-      // Don't handle here, let event bubble up
+      // Cmd+Z to undo last face action
+      if (e.key === 'z' && (e.metaKey || e.ctrlKey) && !e.shiftKey && !isInput) {
+        e.preventDefault();
+        const undone = undoLastAction();
+        if (undone) {
+          const msg = undone.type === 'confirm'
+            ? `Undo: ${undone.face.person_name || 'confirm'}`
+            : 'Undo: ignore';
+          showToast(msg, 'info', 1500);
+        }
+        return;
+      }
 
-      // Escape
+      // Escape - cancel detection if running, else blur input or discard changes
       if (e.key === 'Escape') {
         e.preventDefault();
+        if (isLoading) {
+          cancelDetection();
+          showToast('Detection cancelled', 'info', 1500);
+          return;
+        }
         if (isInput) {
           e.target.blur();
         } else {
@@ -695,7 +883,7 @@ export function ReviewModule() {
 
     document.addEventListener('keydown', handleKeyboard);
     return () => document.removeEventListener('keydown', handleKeyboard);
-  }, [currentFaceIndex, detectedFaces, navigateToFace, confirmFace, ignoreFace, discardChanges, skipImage, addManualFace]);
+  }, [currentFaceIndex, detectedFaces, navigateToFace, confirmFace, ignoreFace, discardChanges, skipImage, addManualFace, acceptAllSuggestions, undoLastAction, isLoading, cancelDetection, showToast]);
 
   useModuleEvent('image-loaded', useCallback(({ imagePath, skipAutoDetect }) => {
     if (skipAutoDetect) {
@@ -728,6 +916,15 @@ export function ReviewModule() {
    */
   useModuleEvent('save-all-changes', saveAllChanges);
   useModuleEvent('discard-changes', discardChanges);
+  useModuleEvent('undo-face-action', useCallback(() => {
+    const undone = undoLastAction();
+    if (undone) {
+      const msg = undone.type === 'confirm'
+        ? `Undo: ${undone.face.person_name || 'confirm'}`
+        : 'Undo: ignore';
+      showToast(msg, 'info', 1500);
+    }
+  }, [undoLastAction, showToast]));
 
   /**
    * WebSocket events
@@ -820,25 +1017,25 @@ function ConfirmDialog({ type, topMatch, chosenName, onConfirm, onCancel }) {
         tabIndex={-1}
         onClick={(e) => e.stopPropagation()}
       >
-        <h3>{isNameMismatch ? 'Bekräfta namnbyte' : 'Bekräfta ignorering'}</h3>
+        <h3>{isNameMismatch ? 'Confirm name change' : 'Confirm ignore'}</h3>
         <div className="match-info">
-          Bästa matchning: <strong>{topMatch.name}</strong> ({topMatch.confidence}%)
+          Best match: <strong>{topMatch.name}</strong> ({topMatch.confidence}%)
         </div>
         <p>
           {isNameMismatch
-            ? `Du valde "${chosenName}" istället. Är du säker?`
-            : 'Du valde att ignorera detta ansikte. Är du säker?'}
+            ? `You chose "${chosenName}" instead. Are you sure?`
+            : 'You chose to ignore this face. Are you sure?'}
         </p>
         <div className="confirm-buttons">
           <button className="btn-cancel" onClick={onCancel}>
-            Avbryt
+            Cancel
           </button>
           <button className="btn-confirm" onClick={onConfirm}>
-            Bekräfta
+            Confirm
           </button>
         </div>
         <div className="confirm-hint">
-          <kbd>Enter</kbd> bekräftar · <kbd>Esc</kbd> avbryter
+          <kbd>Enter</kbd> confirms · <kbd>Esc</kbd> cancels
         </div>
       </div>
     </div>
@@ -853,7 +1050,12 @@ function FaceCard({ face, index, isActive, imagePath, people, cardRef, inputRef,
   const initialValue = isProbableIgnoreCase ? '' : (face.person_name || '');
   const [inputValue, setInputValue] = useState(initialValue);
   const [typedValue, setTypedValue] = useState(initialValue);
-  const [imageError, setImageError] = useState(false);
+
+  // Use cached thumbnail
+  const { url: thumbnailUrl, loading: thumbnailLoading, error: thumbnailError } = useThumbnail(
+    imagePath,
+    face.bounding_box
+  );
   const [showSuggestions, setShowSuggestions] = useState(false);
   const [selectedSuggestion, setSelectedSuggestion] = useState(-1);
   const localInputRef = useRef(null);
@@ -896,14 +1098,6 @@ function FaceCard({ face, index, isActive, imagePath, people, cardRef, inputRef,
     { maxHeight: 200, gap: 4 }
   );
 
-  // Build thumbnail URL (only for faces with bounding boxes)
-  const bbox = face.bounding_box;
-  const thumbnailUrl = (imagePath && bbox) ? (
-    `http://127.0.0.1:5001/api/face-thumbnail?` +
-    `image_path=${encodeURIComponent(imagePath)}` +
-    `&x=${bbox.x || 0}&y=${bbox.y || 0}&width=${bbox.width || 100}&height=${bbox.height || 100}&size=150`
-  ) : null;
-
   // Determine if this is a probable-ignore case
   const isProbableIgnore = face.match_case === 'ign' || face.match_case === 'uncertain_ign';
 
@@ -928,11 +1122,12 @@ function FaceCard({ face, index, isActive, imagePath, people, cardRef, inputRef,
       <div className="face-number">{index + 1}</div>
 
       <div className="face-thumbnail">
-        {thumbnailUrl && !imageError ? (
+        {thumbnailLoading ? (
+          <div className="thumbnail-loading" />
+        ) : thumbnailUrl && !thumbnailError ? (
           <img
             src={thumbnailUrl}
             alt={face.person_name || 'Unknown'}
-            onError={() => setImageError(true)}
           />
         ) : (
           <Icon name="user" size={32} />
@@ -1006,29 +1201,26 @@ function FaceCard({ face, index, isActive, imagePath, people, cardRef, inputRef,
                   e.stopPropagation();
                   return;
                 }
-                if (e.key === 'ArrowDown' && showSuggestions && filteredPeople.length > 0) {
+                // Arrow Down / Tab - select next suggestion (wraps)
+                if ((e.key === 'ArrowDown' || (e.key === 'Tab' && !e.shiftKey)) &&
+                    showSuggestions && filteredPeople.length > 0) {
                   e.preventDefault();
-                  const newIdx = Math.min(selectedSuggestion + 1, filteredPeople.length - 1);
+                  const newIdx = selectedSuggestion >= filteredPeople.length - 1
+                    ? 0
+                    : selectedSuggestion + 1;
                   setSelectedSuggestion(newIdx);
                   setInputValue(filteredPeople[newIdx]);
                   return;
                 }
-                if (e.key === 'ArrowUp' && showSuggestions && filteredPeople.length > 0) {
+                // Arrow Up / Shift+Tab - select previous suggestion (wraps)
+                if ((e.key === 'ArrowUp' || (e.key === 'Tab' && e.shiftKey)) &&
+                    showSuggestions && filteredPeople.length > 0) {
                   e.preventDefault();
-                  const newIdx = Math.max(selectedSuggestion - 1, -1);
+                  const newIdx = selectedSuggestion <= 0
+                    ? filteredPeople.length - 1
+                    : selectedSuggestion - 1;
                   setSelectedSuggestion(newIdx);
-                  setInputValue(newIdx >= 0 ? filteredPeople[newIdx] : typedValue);
-                  return;
-                }
-                if (e.key === 'Tab' && filteredPeople.length > 0) {
-                  e.preventDefault();
-                  const nameToUse = selectedSuggestion >= 0
-                    ? filteredPeople[selectedSuggestion]
-                    : filteredPeople[0];
-                  setInputValue(nameToUse);
-                  setTypedValue(nameToUse);
-                  setShowSuggestions(false);
-                  setSelectedSuggestion(-1);
+                  setInputValue(filteredPeople[newIdx]);
                   return;
                 }
               }}

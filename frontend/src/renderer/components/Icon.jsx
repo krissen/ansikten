@@ -6,6 +6,7 @@
  */
 
 import React from 'react';
+import { debugWarn } from '../shared/debug.js';
 
 const ICONS = {
   plus: (
@@ -95,7 +96,7 @@ export function Icon({ name, size = 16, className = '', style = {}, ...props }) 
   const iconPath = ICONS[name];
 
   if (!iconPath) {
-    console.warn(`Icon "${name}" not found`);
+    debugWarn('Icon', `Icon "${name}" not found`);
     return null;
   }
 

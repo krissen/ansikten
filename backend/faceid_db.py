@@ -4,7 +4,10 @@ import json
 import logging
 import pickle
 import re
+from datetime import datetime
+from io import BufferedReader
 from pathlib import Path
+from typing import Any
 
 import numpy as np
 from xdg.BaseDirectory import xdg_data_home
@@ -41,7 +44,7 @@ class RestrictedUnpickler(pickle.Unpickler):
         ('collections', 'defaultdict'),
     }
 
-    def find_class(self, module, name):
+    def find_class(self, module: str, name: str) -> type:
         """Only allow whitelisted classes to be unpickled."""
         if (module, name) in self.ALLOWED_CLASSES:
             return super().find_class(module, name)
@@ -50,7 +53,7 @@ class RestrictedUnpickler(pickle.Unpickler):
         raise pickle.UnpicklingError(f"Forbidden class: {module}.{name}")
 
 
-def safe_pickle_load(file_handle):
+def safe_pickle_load(file_handle: BufferedReader) -> Any:
     """Safely load pickle file using RestrictedUnpickler."""
     return RestrictedUnpickler(file_handle).load()
 
@@ -69,8 +72,13 @@ SUPPORTED_EXT = [".nef", ".NEF"]
 ATTEMPT_LOG_PATH = BASE_DIR / "attempt_stats.jsonl"
 LOGGING_PATH = BASE_DIR / "hitta_ansikten.log"
 
+# Log rotation settings
+MAX_PROCESSED_ENTRIES = 50000    # Max entries in processed_files.jsonl
+MAX_ATTEMPT_ENTRIES = 10000      # Max entries in attempt_stats.jsonl
+MAX_LOG_SIZE_MB = 10             # Max size of hitta_ansikten.log in MB
 
-def normalize_encoding_entry(entry, default_backend="dlib"):
+
+def normalize_encoding_entry(entry: np.ndarray | dict[str, Any], default_backend: str = "dlib") -> dict[str, Any] | None:
     """
     Normalize encoding entry to dict format with backend metadata.
 
@@ -131,7 +139,7 @@ def normalize_encoding_entry(entry, default_backend="dlib"):
         return None
 
 
-def load_database():
+def load_database() -> tuple[dict[str, list[dict[str, Any]]], list[dict[str, Any]], dict[str, list[dict[str, Any]]], list[dict[str, Any]]]:
     """
     Load database with file locking to ensure consistency.
 
@@ -232,7 +240,12 @@ def load_database():
     return known_faces, ignored_faces, hard_negatives, processed_files
 
 
-def save_database(known_faces, ignored_faces, hard_negatives, processed_files):
+def save_database(
+    known_faces: dict[str, list[dict[str, Any]]],
+    ignored_faces: list[dict[str, Any]],
+    hard_negatives: dict[str, list[dict[str, Any]]],
+    processed_files: list[dict[str, Any]]
+) -> None:
     """
     Save database with atomic writes and file locking to prevent corruption.
 
@@ -284,7 +297,7 @@ def save_database(known_faces, ignored_faces, hard_negatives, processed_files):
     atomic_jsonl_write(processed_files, PROCESSED_PATH)
 
 
-def load_attempt_log(all_files=False):
+def load_attempt_log(all_files: bool = False) -> list[dict[str, Any]]:
     """Returnerar samtliga entries från attempt-logg (ev. även arkiv)"""
     log = []
     files = [ATTEMPT_LOG_PATH]
@@ -304,7 +317,7 @@ def load_attempt_log(all_files=False):
     return log
 
 
-def load_processed_files():
+def load_processed_files() -> list[dict[str, Any]]:
     """Returnerar lista av dicts {"name":..., "hash":...}"""
     _, _, _, processed_files = load_database()
     if processed_files and isinstance(processed_files[0], str):
@@ -312,7 +325,7 @@ def load_processed_files():
     return processed_files
 
 
-def extract_face_labels(labels):
+def extract_face_labels(labels: list[str | dict[str, Any]]) -> list[str]:
     """Tar ut alla personnamn från en labels_per_attempt-lista."""
     persons = []
     for label in labels:
@@ -326,7 +339,7 @@ def extract_face_labels(labels):
     return persons
 
 
-def get_file_hash(path):
+def get_file_hash(path: Path | str) -> str | None:
     """
     Compute SHA1 hash of a file using chunked reading.
 
@@ -348,3 +361,89 @@ def get_file_hash(path):
     except Exception as e:
         logging.warning(f"Failed to compute file hash for {path}: {e}")
         return None
+
+
+def rotate_logs() -> None:
+    """
+    Rotate log files to prevent unbounded growth.
+
+    - processed_files.jsonl: Keep last MAX_PROCESSED_ENTRIES entries
+    - attempt_stats.jsonl: Keep last MAX_ATTEMPT_ENTRIES entries
+    - hitta_ansikten.log: Rotate when exceeding MAX_LOG_SIZE_MB
+    """
+    # Rotate processed_files.jsonl
+    if PROCESSED_PATH.exists():
+        try:
+            entries = []
+            with open(PROCESSED_PATH, "r", encoding="utf-8") as f:
+                for line in f:
+                    try:
+                        entries.append(json.loads(line))
+                    except json.JSONDecodeError:
+                        pass
+
+            if len(entries) > MAX_PROCESSED_ENTRIES:
+                # Keep the most recent entries
+                entries = entries[-MAX_PROCESSED_ENTRIES:]
+                with open(PROCESSED_PATH, "w", encoding="utf-8") as f:
+                    for entry in entries:
+                        f.write(json.dumps(entry, ensure_ascii=False) + "\n")
+                logging.info(f"[LogRotation] Trimmed processed_files.jsonl to {len(entries)} entries")
+        except Exception as e:
+            logging.warning(f"[LogRotation] Failed to rotate processed_files.jsonl: {e}")
+
+    # Rotate attempt_stats.jsonl
+    if ATTEMPT_LOG_PATH.exists():
+        try:
+            entries = []
+            with open(ATTEMPT_LOG_PATH, "r", encoding="utf-8") as f:
+                for line in f:
+                    try:
+                        entries.append(json.loads(line))
+                    except json.JSONDecodeError:
+                        pass
+
+            if len(entries) > MAX_ATTEMPT_ENTRIES:
+                # Archive old entries
+                ARCHIVE_DIR.mkdir(parents=True, exist_ok=True)
+                archive_name = f"attempt_stats_{datetime.now().strftime('%Y%m%d_%H%M%S')}.jsonl"
+                archive_path = ARCHIVE_DIR / archive_name
+
+                # Write old entries to archive
+                old_entries = entries[:-MAX_ATTEMPT_ENTRIES]
+                with open(archive_path, "w", encoding="utf-8") as f:
+                    for entry in old_entries:
+                        f.write(json.dumps(entry, ensure_ascii=False) + "\n")
+
+                # Keep recent entries in main file
+                recent_entries = entries[-MAX_ATTEMPT_ENTRIES:]
+                with open(ATTEMPT_LOG_PATH, "w", encoding="utf-8") as f:
+                    for entry in recent_entries:
+                        f.write(json.dumps(entry, ensure_ascii=False) + "\n")
+
+                logging.info(f"[LogRotation] Archived {len(old_entries)} attempt entries to {archive_name}")
+        except Exception as e:
+            logging.warning(f"[LogRotation] Failed to rotate attempt_stats.jsonl: {e}")
+
+    # Rotate hitta_ansikten.log
+    if LOGGING_PATH.exists():
+        try:
+            size_mb = LOGGING_PATH.stat().st_size / (1024 * 1024)
+            if size_mb > MAX_LOG_SIZE_MB:
+                # Rotate to archive
+                ARCHIVE_DIR.mkdir(parents=True, exist_ok=True)
+                archive_name = f"hitta_ansikten_{datetime.now().strftime('%Y%m%d_%H%M%S')}.log"
+                archive_path = ARCHIVE_DIR / archive_name
+
+                # Move current log to archive
+                LOGGING_PATH.rename(archive_path)
+                logging.info(f"[LogRotation] Rotated log file to {archive_name}")
+
+                # Clean up old archived logs (keep last 5)
+                archived_logs = sorted(ARCHIVE_DIR.glob("hitta_ansikten_*.log"))
+                if len(archived_logs) > 5:
+                    for old_log in archived_logs[:-5]:
+                        old_log.unlink()
+                        logging.debug(f"[LogRotation] Deleted old archived log: {old_log.name}")
+        except Exception as e:
+            logging.warning(f"[LogRotation] Failed to rotate hitta_ansikten.log: {e}")

@@ -1,0 +1,160 @@
+{
+  "$defs": {
+    "BoundingBox": {
+      "properties": {
+        "x": {
+          "title": "X",
+          "type": "integer"
+        },
+        "y": {
+          "title": "Y",
+          "type": "integer"
+        },
+        "width": {
+          "title": "Width",
+          "type": "integer"
+        },
+        "height": {
+          "title": "Height",
+          "type": "integer"
+        }
+      },
+      "required": [
+        "x",
+        "y",
+        "width",
+        "height"
+      ],
+      "title": "BoundingBox",
+      "type": "object"
+    },
+    "MatchAlternative": {
+      "properties": {
+        "name": {
+          "title": "Name",
+          "type": "string"
+        },
+        "distance": {
+          "title": "Distance",
+          "type": "number"
+        },
+        "confidence": {
+          "title": "Confidence",
+          "type": "integer"
+        },
+        "is_ignored": {
+          "default": false,
+          "title": "Is Ignored",
+          "type": "boolean"
+        }
+      },
+      "required": [
+        "name",
+        "distance",
+        "confidence"
+      ],
+      "title": "MatchAlternative",
+      "type": "object"
+    }
+  },
+  "properties": {
+    "face_id": {
+      "title": "Face Id",
+      "type": "string"
+    },
+    "bounding_box": {
+      "$ref": "#/$defs/BoundingBox"
+    },
+    "confidence": {
+      "title": "Confidence",
+      "type": "number"
+    },
+    "person_name": {
+      "anyOf": [
+        {
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Person Name"
+    },
+    "is_confirmed": {
+      "default": false,
+      "title": "Is Confirmed",
+      "type": "boolean"
+    },
+    "match_case": {
+      "anyOf": [
+        {
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Match Case"
+    },
+    "ignore_distance": {
+      "anyOf": [
+        {
+          "type": "number"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Ignore Distance"
+    },
+    "ignore_confidence": {
+      "anyOf": [
+        {
+          "type": "integer"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Ignore Confidence"
+    },
+    "match_alternatives": {
+      "anyOf": [
+        {
+          "items": {
+            "$ref": "#/$defs/MatchAlternative"
+          },
+          "type": "array"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Match Alternatives"
+    },
+    "encoding_hash": {
+      "anyOf": [
+        {
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Encoding Hash"
+    }
+  },
+  "required": [
+    "face_id",
+    "bounding_box",
+    "confidence"
+  ],
+  "title": "DetectedFace",
+  "type": "object"
+}

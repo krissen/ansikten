@@ -37,6 +37,9 @@ class RenameConfig(BaseModel):
     # File handling
     allowAlreadyRenamed: Optional[bool] = None
     includeIgnoredFaces: Optional[bool] = None
+    # Sidecar files
+    renameSidecars: Optional[bool] = None  # Also rename associated sidecar files (XMP, etc)
+    sidecarExtensions: Optional[List[str]] = None  # Extensions to look for (case insensitive)
 
 
 class RenamePreviewRequest(BaseModel):
@@ -52,6 +55,7 @@ class RenamePreviewItem(BaseModel):
     persons: List[str]
     status: str  # 'ok', 'no_persons', 'already_renamed', 'conflict', 'file_not_found', 'build_failed'
     conflict_with: Optional[str] = None
+    sidecars: List[str] = []  # List of sidecar files that will be renamed
 
 
 class RenamePreviewResponse(BaseModel):
@@ -65,9 +69,15 @@ class RenameExecuteRequest(BaseModel):
     config: Optional[RenameConfig] = None
 
 
+class SidecarRenameResult(BaseModel):
+    original: str
+    new: str
+
+
 class RenameResult(BaseModel):
     original: str
     new: str
+    sidecars: List[SidecarRenameResult] = []  # Sidecar files that were renamed
 
 
 class SkippedFile(BaseModel):

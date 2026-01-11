@@ -15,6 +15,7 @@ import { useCanvasDimensions } from '../hooks/useCanvas.js';
 import { debug, debugWarn, debugError } from '../shared/debug.js';
 import { apiClient } from '../shared/api-client.js';
 import { preferences } from '../workspace/preferences.js';
+import { LoadingOverlay } from './ProgressBar.jsx';
 import './ImageViewer.css';
 
 // Constants (will be user-configurable in Phase 4)
@@ -91,7 +92,7 @@ export function ImageViewer() {
 
       try {
         // Call preprocessing API - handles cache check and conversion in one call
-        const result = await apiClient.post('/api/preprocessing/nef', { file_path: filepath });
+        const result = await apiClient.post('/api/v1/preprocessing/nef', { file_path: filepath });
 
         if (result.status === 'cached') {
           debug('ImageViewer', 'Using cached JPG:', result.nef_jpg_path);
@@ -232,6 +233,14 @@ export function ImageViewer() {
 
     const activeHighlightColor = getComputedStyle(document.documentElement)
       .getPropertyValue('--face-active-highlight').trim() || '#00bcd4';
+    const confirmedColor = getComputedStyle(document.documentElement)
+      .getPropertyValue('--face-confirmed-color').trim() || '#4caf50';
+    const confirmedBg = getComputedStyle(document.documentElement)
+      .getPropertyValue('--face-confirmed-bg').trim() || 'rgba(76, 175, 80, 0.9)';
+    const ignoredColor = getComputedStyle(document.documentElement)
+      .getPropertyValue('--face-ignored-color').trim() || '#9e9e9e';
+    const ignoredBg = getComputedStyle(document.documentElement)
+      .getPropertyValue('--face-ignored-bg').trim() || 'rgba(158, 158, 158, 0.9)';
 
     // Calculate placements with collision avoidance
     const placedBoxes = [];
@@ -320,15 +329,24 @@ export function ImageViewer() {
       const isActiveFace = originalIndex === activeFaceIndex;
       let strokeColor, textBgColor;
 
-      if (matchCase === 'ign' || matchCase === 'uncertain_ign') {
-        strokeColor = '#9e9e9e';
-        textBgColor = 'rgba(158, 158, 158, 0.9)';
+      // Prioritize confirmed status over match_case/confidence
+      if (face.is_confirmed && face.is_rejected) {
+        // Confirmed as ignored
+        strokeColor = ignoredColor;
+        textBgColor = ignoredBg;
+      } else if (face.is_confirmed && !face.is_rejected) {
+        // Confirmed with a name
+        strokeColor = confirmedColor;
+        textBgColor = confirmedBg;
+      } else if (matchCase === 'ign' || matchCase === 'uncertain_ign') {
+        strokeColor = ignoredColor;
+        textBgColor = ignoredBg;
       } else if (matchCase === 'uncertain_name') {
         strokeColor = '#ffc107';
         textBgColor = 'rgba(255, 193, 7, 0.9)';
       } else if (confidence >= 0.65) {
-        strokeColor = '#4caf50';
-        textBgColor = 'rgba(76, 175, 80, 0.9)';
+        strokeColor = confirmedColor;
+        textBgColor = confirmedBg;
       } else if (confidence >= 0.50) {
         strokeColor = '#2196f3';
         textBgColor = 'rgba(33, 150, 243, 0.9)';
@@ -361,8 +379,8 @@ export function ImageViewer() {
         const labelCenterY = labelPos.y + labelHeight / 2;
         const edgePoint = getBoxEdgeIntersection(faceBox, labelCenterX, labelCenterY);
 
-        // Connecting line
-        ctx.strokeStyle = '#ffeb3b';
+        // Connecting line (same color as bounding box)
+        ctx.strokeStyle = strokeColor;
         ctx.lineWidth = 2;
         ctx.beginPath();
         ctx.moveTo(edgePoint.x, edgePoint.y);
@@ -823,12 +841,7 @@ export function ImageViewer() {
         ref={canvasRef}
         style={{ cursor: zoomMode === 'manual' ? 'grab' : 'default' }}
       />
-      {isLoading && (
-        <div className="image-viewer-loading">
-          <div className="loading-spinner">⏳</div>
-          <div>{loadingMessage}</div>
-        </div>
-      )}
+      <LoadingOverlay visible={isLoading} message={loadingMessage} />
       {!image && !isLoading && (
         <div className="image-viewer-placeholder">
           <div className="placeholder-icon">📷</div>
@@ -844,7 +857,7 @@ export function ImageViewer() {
           {queueStatus && (
             <div className="file-info-queue">
               <span className="file-info-progress-text">
-                {queueStatus.done} done · {queueStatus.current + 1}/{queueStatus.total} · {queueStatus.remaining} left
+                {queueStatus.done} done · {queueStatus.remaining} left
               </span>
               <div className="file-info-progress-bar">
                 <div

@@ -1,0 +1,18 @@
+{
+  "properties": {
+    "face_id": {
+      "title": "Face Id",
+      "type": "string"
+    },
+    "image_path": {
+      "title": "Image Path",
+      "type": "string"
+    }
+  },
+  "required": [
+    "face_id",
+    "image_path"
+  ],
+  "title": "IgnoreFaceRequest",
+  "type": "object"
+}

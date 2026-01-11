@@ -1,0 +1,200 @@
+{
+  "$defs": {
+    "RenameConfig": {
+      "description": "Configuration for rename operations.",
+      "properties": {
+        "prefixSource": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Prefixsource"
+        },
+        "exifFallback": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Exiffallback"
+        },
+        "datePattern": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Datepattern"
+        },
+        "filenamePattern": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Filenamepattern"
+        },
+        "useFirstNameOnly": {
+          "anyOf": [
+            {
+              "type": "boolean"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Usefirstnameonly"
+        },
+        "nameSeparator": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Nameseparator"
+        },
+        "removeDiacritics": {
+          "anyOf": [
+            {
+              "type": "boolean"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Removediacritics"
+        },
+        "disambiguationStyle": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Disambiguationstyle"
+        },
+        "alwaysIncludeSurname": {
+          "anyOf": [
+            {
+              "type": "boolean"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Alwaysincludesurname"
+        },
+        "allowAlreadyRenamed": {
+          "anyOf": [
+            {
+              "type": "boolean"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Allowalreadyrenamed"
+        },
+        "includeIgnoredFaces": {
+          "anyOf": [
+            {
+              "type": "boolean"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Includeignoredfaces"
+        },
+        "renameSidecars": {
+          "anyOf": [
+            {
+              "type": "boolean"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Renamesidecars"
+        },
+        "sidecarExtensions": {
+          "anyOf": [
+            {
+              "items": {
+                "type": "string"
+              },
+              "type": "array"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Sidecarextensions"
+        }
+      },
+      "title": "RenameConfig",
+      "type": "object"
+    }
+  },
+  "properties": {
+    "file_paths": {
+      "items": {
+        "type": "string"
+      },
+      "title": "File Paths",
+      "type": "array"
+    },
+    "allow_renamed": {
+      "default": false,
+      "title": "Allow Renamed",
+      "type": "boolean"
+    },
+    "config": {
+      "anyOf": [
+        {
+          "$ref": "#/$defs/RenameConfig"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null
+    }
+  },
+  "required": [
+    "file_paths"
+  ],
+  "title": "RenameExecuteRequest",
+  "type": "object"
+}

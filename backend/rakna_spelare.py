@@ -17,7 +17,7 @@ CONFIG_DIR = Path(os.environ.get("XDG_DATA_HOME", Path.home() / ".local" / "shar
 CONFIG_FILE = CONFIG_DIR / "rakna_spelare.json"
 
 
-def load_exclusion_config():
+def load_exclusion_config() -> dict[str, list[str]]:
     if CONFIG_FILE.exists():
         try:
             with open(CONFIG_FILE, "r") as f:
@@ -27,7 +27,7 @@ def load_exclusion_config():
     return {"tranare": [], "publik": []}
 
 
-def get_exclusion_lists(args):
+def get_exclusion_lists(args: argparse.Namespace) -> tuple[set[str], set[str], set[str]]:
     config = load_exclusion_config()
 
     env_tranare = os.environ.get("RAKNA_TRANARE", "")
@@ -67,12 +67,12 @@ class Colors:
     RESET = "\x1b[0m"
 
     @classmethod
-    def disable(cls):
+    def disable(cls) -> None:
         cls.RED = cls.YELLOW = cls.GREEN = cls.CYAN = ""
         cls.MAGENTA = cls.BOLD = cls.DIM = cls.RESET = ""
 
 
-def parse_filename(fn):
+def parse_filename(fn: str) -> tuple[datetime | None, list[str] | None]:
     """
     Plockar ut timestamp och lista av namn från ett filnamn enligt format:
     YYMMDD_HHMMSS[-N]_Namn1[, _Namn2,...].jpg
@@ -103,14 +103,14 @@ def parse_filename(fn):
     return dt, names
 
 
-def compute_baseline(counts, method="median"):
+def compute_baseline(counts: list[int], method: str = "median") -> float:
     """Compute baseline (target) value from a list of counts."""
     if not counts:
         return 0
     return median(counts) if method == "median" else mean(counts)
 
 
-def render_bar(value, baseline, width=20, ascii_mode=False):
+def render_bar(value: int, baseline: float, width: int = 20, ascii_mode: bool = False) -> str:
     """Render a progress bar showing value relative to baseline."""
     if baseline <= 0:
         ratio = 1.0
@@ -125,7 +125,14 @@ def render_bar(value, baseline, width=20, ascii_mode=False):
     return f"[{bar}]"
 
 
-def render_spark(timestamps, start_dt, end_dt, width=12, ascii_mode=False, match_ranges=None):
+def render_spark(
+    timestamps: list[datetime],
+    start_dt: datetime,
+    end_dt: datetime,
+    width: int = 12,
+    ascii_mode: bool = False,
+    match_ranges: list[tuple[datetime, datetime]] | None = None,
+) -> str:
     """
     Render temporal spark showing when images appear in the time span.
     Bins are proportional to total time span.
@@ -139,7 +146,7 @@ def render_spark(timestamps, start_dt, end_dt, width=12, ascii_mode=False, match
     else:
         chars = "·:*#"
 
-    def bin_to_char(count):
+    def bin_to_char(count: int) -> str:
         if count == 0:
             return chars[0]
         elif count < 3:
@@ -149,7 +156,7 @@ def render_spark(timestamps, start_dt, end_dt, width=12, ascii_mode=False, match
         else:
             return chars[3]
 
-    def render_single_span(ts_list, span_start, span_end, span_width):
+    def render_single_span(ts_list: list[datetime], span_start: datetime, span_end: datetime, span_width: int) -> str:
         """Render a single time span with given width."""
         if not ts_list or span_width <= 0:
             return chars[0] * span_width
@@ -212,7 +219,7 @@ def render_spark(timestamps, start_dt, end_dt, width=12, ascii_mode=False, match
     return spark
 
 
-def get_deviation_label(delta_pct):
+def get_deviation_label(delta_pct: float) -> str:
     abs_pct = abs(delta_pct)
     if abs_pct > 20:
         return "HIGH" if delta_pct > 0 else "LOW "
@@ -221,7 +228,7 @@ def get_deviation_label(delta_pct):
     return " OK "
 
 
-def get_deviation_color(delta_pct):
+def get_deviation_color(delta_pct: float) -> str:
     abs_pct = abs(delta_pct)
     if abs_pct > 20:
         return Colors.RED
@@ -231,20 +238,20 @@ def get_deviation_color(delta_pct):
 
 
 def format_player_line(
-    name,
-    count,
-    total_images,
-    baseline,
-    timestamps,
-    start_dt,
-    end_dt,
-    use_color=True,
-    ascii_mode=False,
-    spark_width=12,
-    bar_width=20,
-    name_width=12,
-    match_ranges=None,
-):
+    name: str,
+    count: int,
+    total_images: int,
+    baseline: float,
+    timestamps: list[datetime],
+    start_dt: datetime,
+    end_dt: datetime,
+    use_color: bool = True,
+    ascii_mode: bool = False,
+    spark_width: int = 12,
+    bar_width: int = 20,
+    name_width: int = 12,
+    match_ranges: list[tuple[datetime, datetime]] | None = None,
+) -> str:
     pct = 100 * count / total_images if total_images > 0 else 0
     delta_n = count - baseline
     delta_pct = 100 * delta_n / baseline if baseline > 0 else 0
@@ -270,24 +277,24 @@ def format_player_line(
 
 
 def print_section(
-    title,
-    counter,
-    timestamps_per_person,
-    total_images,
-    start_dt,
-    end_dt,
-    min_images,
-    baseline_method,
-    use_color,
-    ascii_mode,
-    spark_width,
-    bar_width,
-    tranare_set=None,
-    publik_set=None,
-    grupp_set=None,
-    compact=False,
-    match_ranges=None,
-):
+    title: str,
+    counter: Counter[str],
+    timestamps_per_person: dict[str, list[datetime]],
+    total_images: int,
+    start_dt: datetime,
+    end_dt: datetime,
+    min_images: int,
+    baseline_method: str,
+    use_color: bool,
+    ascii_mode: bool,
+    spark_width: int,
+    bar_width: int,
+    tranare_set: set[str] | None = None,
+    publik_set: set[str] | None = None,
+    grupp_set: set[str] | None = None,
+    compact: bool = False,
+    match_ranges: list[tuple[datetime, datetime]] | None = None,
+) -> None:
     tranare_set = tranare_set or set()
     publik_set = publik_set or set()
     grupp_set = grupp_set or set()
@@ -377,7 +384,7 @@ def print_section(
                 print(f"  {name}: {count} ({pct:.1f}%)")
 
 
-def main(args):
+def main(args: argparse.Namespace) -> None:
     if args.no_color or args.color == "never" or (args.color == "auto" and not sys.stdout.isatty()):
         Colors.disable()
         use_color = False

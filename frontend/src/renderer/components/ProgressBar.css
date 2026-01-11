@@ -1,0 +1,124 @@
+/**
+ * ProgressBar Styles
+ *
+ * Uses theme CSS variables for consistent appearance across themes.
+ */
+
+/* ========================
+   Progress Bar
+   ======================== */
+.progress-bar {
+  display: flex;
+  align-items: center;
+  gap: var(--space-sm);
+  width: 100%;
+}
+
+.progress-bar__label {
+  font-size: var(--font-sm);
+  color: var(--progress-text);
+  white-space: nowrap;
+  min-width: fit-content;
+}
+
+.progress-bar__track {
+  flex: 1;
+  height: var(--progress-height);
+  background: var(--progress-track-bg);
+  border-radius: var(--progress-radius);
+  overflow: hidden;
+}
+
+.progress-bar__fill {
+  height: 100%;
+  background: var(--progress-fill);
+  border-radius: var(--progress-radius);
+  transition: width var(--transition-base);
+}
+
+.progress-bar__percent {
+  font-size: var(--font-xs);
+  color: var(--text-secondary);
+  min-width: 32px;
+  text-align: right;
+}
+
+/* Size variants */
+.progress-bar--sm .progress-bar__track {
+  height: 2px;
+}
+
+.progress-bar--lg .progress-bar__track {
+  height: 8px;
+}
+
+.progress-bar--lg .progress-bar__label {
+  font-size: var(--font-base);
+}
+
+/* Indeterminate animation */
+.progress-bar--indeterminate .progress-bar__fill {
+  animation: progress-indeterminate 1.5s ease-in-out infinite;
+}
+
+@keyframes progress-indeterminate {
+  0% {
+    transform: translateX(-100%);
+  }
+  50% {
+    transform: translateX(100%);
+  }
+  100% {
+    transform: translateX(300%);
+  }
+}
+
+/* ========================
+   Loading Spinner
+   ======================== */
+.loading-spinner {
+  width: 24px;
+  height: 24px;
+  border: 3px solid var(--progress-track-bg);
+  border-top-color: var(--progress-fill);
+  border-radius: 50%;
+  animation: spinner-rotate 0.8s linear infinite;
+}
+
+.loading-spinner--sm {
+  width: 16px;
+  height: 16px;
+  border-width: 2px;
+}
+
+.loading-spinner--lg {
+  width: 40px;
+  height: 40px;
+  border-width: 4px;
+}
+
+@keyframes spinner-rotate {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+/* ========================
+   Loading Overlay
+   ======================== */
+.loading-overlay {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: var(--space-md);
+  background: color-mix(in srgb, var(--bg-primary) 80%, transparent);
+  z-index: var(--z-modal);
+}
+
+.loading-overlay__message {
+  font-size: var(--font-base);
+  color: var(--text-secondary);
+}

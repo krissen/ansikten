@@ -12,6 +12,7 @@
 
 import React, { useState, useCallback } from 'react';
 import { useBackend } from '../context/BackendContext.jsx';
+import { useOperationStatus } from '../hooks/useOperationStatus.js';
 import { debugError } from '../shared/debug.js';
 import './RefineFacesModule.css';
 
@@ -36,23 +37,9 @@ export function RefineFacesModule() {
 
   // State
   const [preview, setPreview] = useState(null);
-  const [isLoading, setIsLoading] = useState(false);
-  const [status, setStatus] = useState({ type: '', message: '' });
 
-  /**
-   * Show success message
-   */
-  const showSuccess = (message) => {
-    setStatus({ type: 'success', message });
-    setTimeout(() => setStatus({ type: '', message: '' }), 5000);
-  };
-
-  /**
-   * Show error message
-   */
-  const showError = (message) => {
-    setStatus({ type: 'error', message });
-  };
+  // Operation status (loading, success, error) - replaces manual isLoading/status/showSuccess/showError
+  const { isLoading, setIsLoading, status, showSuccess, showError, clearStatus } = useOperationStatus();
 
   /**
    * Fetch preview from API
@@ -60,7 +47,7 @@ export function RefineFacesModule() {
   const handlePreview = useCallback(async () => {
     setIsLoading(true);
     setPreview(null);
-    setStatus({ type: '', message: '' });
+    clearStatus();
 
     try {
       const params = new URLSearchParams();
@@ -82,11 +69,11 @@ export function RefineFacesModule() {
       setPreview(result);
 
       if (result.summary.total_remove === 0) {
-        showSuccess('Inga encodings att ta bort med nuvarande inställningar.');
+        showSuccess('No encodings to remove with current settings.');
       }
     } catch (err) {
       debugError('RefineFaces', 'Preview failed:', err);
-      showError('Förhandsgranskning misslyckades: ' + err.message);
+      showError('Preview failed: ' + err.message);
     } finally {
       setIsLoading(false);
     }
@@ -97,12 +84,12 @@ export function RefineFacesModule() {
    */
   const handleApply = useCallback(async (dryRun = false) => {
     if (!preview || preview.summary.total_remove === 0) {
-      showError('Kör förhandsgranskning först');
+      showError('Run preview first');
       return;
     }
 
-    const action = dryRun ? 'simulera' : 'ta bort';
-    const confirmMsg = `Vill du ${action} ${preview.summary.total_remove} encodings från ${preview.summary.affected_people} personer?`;
+    const action = dryRun ? 'simulate removal of' : 'remove';
+    const confirmMsg = `Do you want to ${action} ${preview.summary.total_remove} encodings from ${preview.summary.affected_people} persons?`;
 
     if (!dryRun && !confirm(confirmMsg)) return;
 
@@ -120,17 +107,17 @@ export function RefineFacesModule() {
         dry_run: dryRun
       };
 
-      const result = await api.post('/api/refinement/apply', body);
+      const result = await api.post('/api/v1/refinement/apply', body);
 
       if (dryRun) {
-        showSuccess(`Simulering: ${result.removed} encodings skulle tas bort`);
+        showSuccess(`Dry run: ${result.removed} encodings would be removed`);
       } else {
-        showSuccess(`${result.removed} encodings borttagna`);
+        showSuccess(`${result.removed} encodings removed`);
         setPreview(null);  // Clear preview after successful apply
       }
     } catch (err) {
       debugError('RefineFaces', 'Apply failed:', err);
-      showError('Applicering misslyckades: ' + err.message);
+      showError('Apply failed: ' + err.message);
     } finally {
       setIsLoading(false);
     }
@@ -149,27 +136,27 @@ export function RefineFacesModule() {
         dry_run: dryRun
       };
 
-      const result = await api.post('/api/refinement/repair-shapes', body);
+      const result = await api.post('/api/v1/refinement/repair-shapes', body);
 
       if (result.total_removed === 0) {
-        showSuccess('Inga inkonsistenta shapes hittades.');
+        showSuccess('No inconsistent shapes found.');
         return;
       }
 
       if (dryRun) {
         // Show detailed preview
         const details = result.repaired.map(r =>
-          `${r.person}: ${r.removed} av ${r.total} (behåller ${r.kept_shape.join('x')})`
+          `${r.person}: ${r.removed} of ${r.total} (keeping ${r.kept_shape.join('x')})`
         ).join('\n');
 
-        alert(`Shape-reparation skulle ta bort ${result.total_removed} encodings:\n\n${details}`);
-        showSuccess(`Simulering: ${result.total_removed} encodings med fel shape`);
+        alert(`Shape repair would remove ${result.total_removed} encodings:\n\n${details}`);
+        showSuccess(`Dry run: ${result.total_removed} encodings with wrong shape`);
       } else {
-        showSuccess(`${result.total_removed} encodings med inkonsistent shape borttagna`);
+        showSuccess(`${result.total_removed} encodings with inconsistent shape removed`);
       }
     } catch (err) {
       debugError('RefineFaces', 'Repair shapes failed:', err);
-      showError('Shape-reparation misslyckades: ' + err.message);
+      showError('Shape repair failed: ' + err.message);
     } finally {
       setIsLoading(false);
     }
@@ -178,13 +165,13 @@ export function RefineFacesModule() {
   return (
     <div className="module-container refine-faces">
       <div className="module-header">
-        <h3 className="module-title">Förfina ansikten</h3>
+        <h3 className="module-title">Refine Faces</h3>
       </div>
 
       <div className="module-body">
         {/* Filter Mode Selection */}
         <div className="section-card">
-          <h4 className="section-title">Filterläge</h4>
+          <h4 className="section-title">Filter Mode</h4>
           <div className="mode-selection">
             <label className="mode-option">
               <input
@@ -194,8 +181,8 @@ export function RefineFacesModule() {
                 checked={mode === 'std'}
                 onChange={(e) => setMode(e.target.value)}
               />
-              <span className="mode-label">Standardavvikelse</span>
-              <span className="mode-desc">Ta bort encodings som avviker mer än N standardavvikelser från medelvärdet</span>
+              <span className="mode-label">Standard Deviation</span>
+              <span className="mode-desc">Remove encodings deviating more than N standard deviations from the mean</span>
             </label>
 
             <label className="mode-option">
@@ -206,8 +193,8 @@ export function RefineFacesModule() {
                 checked={mode === 'cluster'}
                 onChange={(e) => setMode(e.target.value)}
               />
-              <span className="mode-label">Kluster</span>
-              <span className="mode-desc">Behåll endast encodings inom ett tätt kluster kring centroiden</span>
+              <span className="mode-label">Cluster</span>
+              <span className="mode-desc">Keep only encodings within a tight cluster around the centroid</span>
             </label>
 
             <label className="mode-option">
@@ -219,7 +206,7 @@ export function RefineFacesModule() {
                 onChange={(e) => setMode(e.target.value)}
               />
               <span className="mode-label">Mahalanobis</span>
-              <span className="mode-desc">Kovariansmedveten outlier-detektion (bättre för högdimensionell data)</span>
+              <span className="mode-desc">Covariance-aware outlier detection (better for high-dimensional data)</span>
             </label>
 
             <label className="mode-option">
@@ -230,20 +217,20 @@ export function RefineFacesModule() {
                 checked={mode === 'shape'}
                 onChange={(e) => setMode(e.target.value)}
               />
-              <span className="mode-label">Shape-reparation</span>
-              <span className="mode-desc">Ta bort encodings med inkonsistenta dimensioner</span>
+              <span className="mode-label">Shape Repair</span>
+              <span className="mode-desc">Remove encodings with inconsistent dimensions</span>
             </label>
           </div>
         </div>
 
         {/* Configuration */}
         <div className="section-card">
-          <h4 className="section-title">Inställningar</h4>
+          <h4 className="section-title">Settings</h4>
           <div className="config-grid">
             {/* Std threshold - only for std mode */}
             {mode === 'std' && (
               <div className="config-row">
-                <label>Std-tröskel:</label>
+                <label>Std threshold:</label>
                 <input
                   type="number"
                   step="0.1"
@@ -253,7 +240,7 @@ export function RefineFacesModule() {
                   onChange={(e) => setConfig(prev => ({ ...prev, stdThreshold: parseFloat(e.target.value) || 2.0 }))}
                 />
                 <span className="config-unit">σ</span>
-                <span className="config-hint">Högre = färre tas bort</span>
+                <span className="config-hint">Higher = fewer removed</span>
               </div>
             )}
 
@@ -261,7 +248,7 @@ export function RefineFacesModule() {
             {mode === 'cluster' && (
               <>
                 <div className="config-row">
-                  <label>Klusteravstånd:</label>
+                  <label>Cluster distance:</label>
                   <input
                     type="number"
                     step="0.05"
@@ -270,10 +257,10 @@ export function RefineFacesModule() {
                     value={config.clusterDist}
                     onChange={(e) => setConfig(prev => ({ ...prev, clusterDist: parseFloat(e.target.value) || 0.35 }))}
                   />
-                  <span className="config-hint">Cosine-avstånd (0.35 = rekommenderat)</span>
+                  <span className="config-hint">Cosine distance (0.35 = recommended)</span>
                 </div>
                 <div className="config-row">
-                  <label>Min klusterstorlek:</label>
+                  <label>Min cluster size:</label>
                   <input
                     type="number"
                     min="2"
@@ -288,7 +275,7 @@ export function RefineFacesModule() {
             {/* Mahalanobis threshold - only for mahalanobis mode */}
             {mode === 'mahalanobis' && (
               <div className="config-row">
-                <label>Mahal-tröskel:</label>
+                <label>Mahal threshold:</label>
                 <input
                   type="number"
                   step="0.5"
@@ -297,7 +284,7 @@ export function RefineFacesModule() {
                   value={config.mahalanobisThreshold}
                   onChange={(e) => setConfig(prev => ({ ...prev, mahalanobisThreshold: parseFloat(e.target.value) || 3.0 }))}
                 />
-                <span className="config-hint">Högre = färre tas bort (kräver många encodings)</span>
+                <span className="config-hint">Higher = fewer removed (requires many encodings)</span>
               </div>
             )}
 
@@ -312,7 +299,7 @@ export function RefineFacesModule() {
                   value={config.minEncodings}
                   onChange={(e) => setConfig(prev => ({ ...prev, minEncodings: parseInt(e.target.value, 10) || 8 }))}
                 />
-                <span className="config-hint">Hoppa över personer med färre</span>
+                <span className="config-hint">Skip persons with fewer</span>
               </div>
             )}
 
@@ -321,7 +308,7 @@ export function RefineFacesModule() {
               <label>Person:</label>
               <input
                 type="text"
-                placeholder="Alla personer"
+                placeholder="All persons"
                 value={config.person}
                 onChange={(e) => setConfig(prev => ({ ...prev, person: e.target.value }))}
               />
@@ -338,14 +325,14 @@ export function RefineFacesModule() {
                 onClick={() => handleRepairShapes(true)}
                 disabled={isLoading}
               >
-                Simulera reparation
+                Simulate repair
               </button>
               <button
                 className="btn-danger"
                 onClick={() => handleRepairShapes(false)}
                 disabled={isLoading}
               >
-                Reparera shapes
+                Repair shapes
               </button>
             </>
           ) : (
@@ -355,7 +342,7 @@ export function RefineFacesModule() {
                 onClick={handlePreview}
                 disabled={isLoading}
               >
-                {isLoading ? 'Laddar...' : 'Förhandsgranska'}
+                {isLoading ? 'Loading...' : 'Preview'}
               </button>
               {preview && preview.summary.total_remove > 0 && (
                 <button
@@ -363,7 +350,7 @@ export function RefineFacesModule() {
                   onClick={() => handleApply(false)}
                   disabled={isLoading}
                 >
-                  Applicera filtrering
+                  Apply filtering
                 </button>
               )}
             </>
@@ -373,7 +360,7 @@ export function RefineFacesModule() {
         {/* Preview Results */}
         {preview && preview.preview.length > 0 && (
           <div className="section-card preview-results">
-            <h4 className="section-title">Förhandsgranskning</h4>
+            <h4 className="section-title">Preview</h4>
             {preview.warnings && preview.warnings.length > 0 && (
               <div className="preview-warnings">
                 {preview.warnings.map((warning, idx) => (
@@ -386,10 +373,10 @@ export function RefineFacesModule() {
                 <thead>
                   <tr>
                     <th>Person</th>
-                    <th>Behåll</th>
-                    <th>Ta bort</th>
-                    <th>Statistik</th>
-                    <th>Orsak</th>
+                    <th>Keep</th>
+                    <th>Remove</th>
+                    <th>Statistics</th>
+                    <th>Reason</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -412,8 +399,8 @@ export function RefineFacesModule() {
               </table>
             </div>
             <div className="preview-summary">
-              Totalt: <strong>{preview.summary.total_remove}</strong> encodings
-              tas bort från <strong>{preview.summary.affected_people}</strong> av {preview.summary.total_people} personer
+              Total: <strong>{preview.summary.total_remove}</strong> encodings
+              to be removed from <strong>{preview.summary.affected_people}</strong> of {preview.summary.total_people} persons
             </div>
           </div>
         )}
@@ -427,15 +414,15 @@ export function RefineFacesModule() {
 
         {/* Info Box */}
         <div className="info-box">
-          <h5>Om filtrering</h5>
+          <h5>About filtering</h5>
           <p>
-            Endast <strong>InsightFace</strong>-encodings stöds (512-dimensionella, cosine-avstånd).
-            dlib-backend är avvecklat och bör tas bort.
+            Only <strong>InsightFace</strong> encodings are supported (512-dimensional, cosine distance).
+            The dlib backend is deprecated and should be removed.
           </p>
           <p>
-            <strong>Standardavvikelse</strong> tar bort encodings som ligger långt från genomsnittet.<br />
-            <strong>Kluster</strong> behåller endast encodings nära centroiden.<br />
-            <strong>Mahalanobis</strong> tar hänsyn till korrelationer mellan dimensioner.
+            <strong>Standard deviation</strong> removes encodings far from the mean.<br />
+            <strong>Cluster</strong> keeps only encodings close to the centroid.<br />
+            <strong>Mahalanobis</strong> accounts for correlations between dimensions.
           </p>
         </div>
       </div>
@@ -444,14 +431,14 @@ export function RefineFacesModule() {
 }
 
 /**
- * Format reason code to Swedish
+ * Format reason code to English
  */
 function formatReason(reason) {
   const reasons = {
-    'std_outlier': 'Standardavvikelse',
-    'cluster_outlier': 'Utanför kluster',
+    'std_outlier': 'Std deviation',
+    'cluster_outlier': 'Outside cluster',
     'mahalanobis_outlier': 'Mahalanobis',
-    'shape_mismatch': 'Fel shape'
+    'shape_mismatch': 'Wrong shape'
   };
   return reasons[reason] || reason;
 }

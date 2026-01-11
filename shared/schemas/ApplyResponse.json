@@ -1,0 +1,32 @@
+{
+  "description": "Response for apply endpoint.",
+  "properties": {
+    "status": {
+      "title": "Status",
+      "type": "string"
+    },
+    "dry_run": {
+      "title": "Dry Run",
+      "type": "boolean"
+    },
+    "removed": {
+      "title": "Removed",
+      "type": "integer"
+    },
+    "by_person": {
+      "additionalProperties": {
+        "type": "integer"
+      },
+      "title": "By Person",
+      "type": "object"
+    }
+  },
+  "required": [
+    "status",
+    "dry_run",
+    "removed",
+    "by_person"
+  ],
+  "title": "ApplyResponse",
+  "type": "object"
+}

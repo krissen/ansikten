@@ -2,13 +2,15 @@
 
 Guide för att installera och köra Hitta ansikten.
 
+> **Tips:** Letar du efter färdigbyggda installerare? Se [Installation](installation.md) för nedladdning av `.dmg`, `.exe` eller `.deb`.
+
 ---
 
-## Systemkrav
+## Systemkrav (utveckling)
 
 ### Backend (Python)
 - Python 3.9+
-- dlib eller InsightFace (se nedan)
+- InsightFace + ONNX Runtime
 - ~2GB RAM för bearbetning
 - SSD rekommenderas för cache
 
@@ -42,17 +44,13 @@ pip install -r requirements.txt
 
 #### Face Recognition Backend
 
-Välj **en** av dessa:
+InsightFace används för ansiktsigenkänning:
 
-**dlib (standard):**
-```bash
-pip install face_recognition
-```
-
-**InsightFace (snabbare, bättre noggrannhet):**
 ```bash
 pip install insightface onnxruntime
 ```
+
+> **Not:** Äldre versioner använde dlib, men detta är deprecated sedan januari 2026. Om du har befintliga dlib-encodings kommer de att tas bort automatiskt vid serverstart.
 
 ### 3. Frontend-beroenden
 
@@ -105,5 +103,7 @@ All data sparas i `~/.local/share/faceid/`:
 
 ## Nästa steg
 
+- [Installation](installation.md) - Ladda ner färdigbyggd app
 - [CLI-referens](cli-reference.md) - Alla kommandon
 - [Workspace-guide](workspace-guide.md) - Använda gränssnittet
+- [Tangentbordsgenvägar](keyboard-shortcuts.md) - Alla genvägar

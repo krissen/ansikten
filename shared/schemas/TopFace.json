@@ -1,0 +1,31 @@
+{
+  "description": "Person with face count",
+  "properties": {
+    "name": {
+      "title": "Name",
+      "type": "string"
+    },
+    "face_count": {
+      "title": "Face Count",
+      "type": "integer"
+    },
+    "percentage": {
+      "anyOf": [
+        {
+          "type": "integer"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Percentage"
+    }
+  },
+  "required": [
+    "name",
+    "face_count"
+  ],
+  "title": "TopFace",
+  "type": "object"
+}

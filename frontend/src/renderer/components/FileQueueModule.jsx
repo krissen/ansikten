@@ -18,9 +18,14 @@ import { apiClient } from '../shared/api-client.js';
 import { getPreprocessingManager, PreprocessingStatus } from '../services/preprocessing/index.js';
 import { Icon } from './Icon.jsx';
 import { isFileEligible as isFileEligiblePure, findNextEligibleIndex } from './fileQueueEligibility.js';
+import { formatNamesToFit, measureTextWidth } from '../shared/nameFormatter.js';
 import './FileQueueModule.css';
 
-// Read preference directly from localStorage to avoid circular dependency
+/**
+ * Read auto-load preference from localStorage.
+ * Avoids a preferences import to prevent circular dependency.
+ * @returns {boolean}
+ */
 const getAutoLoadPreference = () => {
   try {
     const stored = localStorage.getItem('bildvisare-preferences');
@@ -34,7 +39,10 @@ const getAutoLoadPreference = () => {
   return true; // Default to enabled
 };
 
-// Get rename configuration from preferences
+/**
+ * Read rename configuration from preferences, omitting defaults.
+ * @returns {object|null}
+ */
 const getRenameConfig = () => {
   try {
     const stored = localStorage.getItem('bildvisare-preferences');
@@ -54,6 +62,9 @@ const getRenameConfig = () => {
       if (rename.removeDiacritics !== undefined) config.removeDiacritics = rename.removeDiacritics;
       if (rename.includeIgnoredFaces !== undefined) config.includeIgnoredFaces = rename.includeIgnoredFaces;
       if (rename.allowAlreadyRenamed !== undefined) config.allowAlreadyRenamed = rename.allowAlreadyRenamed;
+      // Sidecar settings
+      if (rename.renameSidecars !== undefined) config.renameSidecars = rename.renameSidecars;
+      if (rename.sidecarExtensions !== undefined) config.sidecarExtensions = rename.sidecarExtensions;
       return Object.keys(config).length > 0 ? config : null;
     }
   } catch (e) {
@@ -62,7 +73,11 @@ const getRenameConfig = () => {
   return null;
 };
 
-// Get preprocessing notification preference
+/**
+ * Read preprocessing notification preference by key.
+ * @param {string} key
+ * @returns {boolean}
+ */
 const getNotificationPreference = (key) => {
   try {
     const stored = localStorage.getItem('bildvisare-preferences');
@@ -82,7 +97,10 @@ const getNotificationPreference = (key) => {
   return false;
 };
 
-// Get preprocessing config including rolling window settings
+/**
+ * Read preprocessing config including rolling window settings.
+ * @returns {object}
+ */
 const getPreprocessingConfig = () => {
   try {
     const stored = localStorage.getItem('bildvisare-preferences');
@@ -102,7 +120,10 @@ const getPreprocessingConfig = () => {
   return {};
 };
 
-// Get rename confirmation preference
+/**
+ * Read rename confirmation preference.
+ * @returns {boolean}
+ */
 const getRequireRenameConfirmation = () => {
   try {
     const stored = localStorage.getItem('bildvisare-preferences');
@@ -114,7 +135,10 @@ const getRequireRenameConfirmation = () => {
   return true;
 };
 
-// Get auto-remove missing files preference
+/**
+ * Read auto-remove missing files preference.
+ * @returns {boolean}
+ */
 const getAutoRemoveMissingPreference = () => {
   try {
     const stored = localStorage.getItem('bildvisare-preferences');
@@ -126,7 +150,10 @@ const getAutoRemoveMissingPreference = () => {
   return true;
 };
 
-// Get toast duration multiplier from preferences (1.0 = normal, 2.0 = double)
+/**
+ * Read toast duration multiplier from preferences.
+ * @returns {number}
+ */
 const getToastDurationMultiplier = () => {
   try {
     const stored = localStorage.getItem('bildvisare-preferences');
@@ -138,7 +165,10 @@ const getToastDurationMultiplier = () => {
   return 1.0;
 };
 
-// Get insert mode preference: 'bottom' or 'alphabetical'
+/**
+ * Read insert mode preference ("bottom" or "alphabetical").
+ * @returns {string}
+ */
 const getInsertModePreference = () => {
   try {
     const stored = localStorage.getItem('bildvisare-preferences');
@@ -150,13 +180,24 @@ const getInsertModePreference = () => {
   return 'alphabetical';
 };
 
-// Natural sort comparator for filenames (handles numbers correctly)
+/**
+ * Compare filenames using numeric-aware collation.
+ * @param {object} a
+ * @param {object} b
+ * @returns {number}
+ */
 const naturalSortCompare = (a, b) => {
   return a.fileName.localeCompare(b.fileName, undefined, { numeric: true, sensitivity: 'base' });
 };
 
-// Generate simple unique ID
+/**
+ * Generate a short random ID for list items.
+ * @returns {string}
+ */
 const generateId = () => Math.random().toString(36).substring(2, 9);
+
+// Supported file extensions for drag-and-drop
+const SUPPORTED_EXTENSIONS = new Set(['nef', 'cr2', 'arw', 'jpg', 'jpeg', 'png', 'tiff']);
 
 /**
  * FileQueueModule Component
@@ -184,6 +225,10 @@ export function FileQueueModule() {
   const [showPreviewNames, setShowPreviewNames] = useState(false);
   const [previewData, setPreviewData] = useState(null); // { path: { newName, status, persons } }
   const [renameInProgress, setRenameInProgress] = useState(false);
+
+  // Drag-and-drop state
+  const [isDragOver, setIsDragOver] = useState(false);
+  const dragCounterRef = useRef(0); // Track nested drag enter/leave events
   const renameInProgressRef = useRef(false);
   renameInProgressRef.current = renameInProgress;
 
@@ -234,7 +279,7 @@ export function FileQueueModule() {
   const loadProcessedFiles = useCallback(async () => {
     debug('FileQueue', '>>> loadProcessedFiles starting...');
     try {
-      const response = await api.get('/api/management/recent-files?n=100000');
+      const response = await api.get('/api/v1/management/recent-files?n=100000');
       if (response && Array.isArray(response)) {
         const fileNames = new Set(response.map(f => f.name));
         const fileHashes = new Set(response.map(f => f.hash).filter(Boolean));
@@ -257,11 +302,13 @@ export function FileQueueModule() {
   const emitQueueStatus = useCallback((currentIdx = currentIndex) => {
     const q = queueRef.current;
     const done = q.filter(item => item.status === 'completed').length;
+    // Remaining = total - done, but minimum 0 (avoid -1 when queue is empty)
+    const remaining = Math.max(0, q.length - done);
     emit('queue-status', {
       total: q.length,
       current: currentIdx,
       done: done,
-      remaining: q.length - done - 1
+      remaining: remaining
     });
   }, [emit, currentIndex]);
 
@@ -305,7 +352,7 @@ export function FileQueueModule() {
     
     const filepaths = itemsNeedingStats.map(item => item.filePath);
     debug('FileQueue', 'Fetching stats via hash for', filepaths.length, 'files');
-    api.post('/api/statistics/file-stats', { filepaths })
+    api.post('/api/v1/statistics/file-stats', { filepaths })
       .then(stats => {
         debug('FileQueue', 'Got stats for', Object.keys(stats).length, 'files');
         setPreprocessingStatus(prev => {
@@ -488,6 +535,13 @@ export function FileQueueModule() {
     const handleFileDeleted = (filePath) => {
       debug('FileQueue', 'File deleted from disk:', filePath);
 
+      // During rename, ignore file-deleted events entirely
+      // (rename triggers delete events for old paths - we handle path updates in handleRename)
+      if (renameInProgressRef.current) {
+        debug('FileQueue', 'Ignoring file-deleted during rename:', filePath.split('/').pop());
+        return;
+      }
+
       const ppStatus = preprocessingStatusRef.current[filePath];
       const removedHash = preprocessingManager.current?.removeFile(filePath);
       const hash = removedHash || ppStatus?.hash;
@@ -506,13 +560,7 @@ export function FileQueueModule() {
 
       const fileName = filePath.split('/').pop();
       setQueue(prev => prev.filter(item => item.filePath !== filePath));
-
-      // Only show toast if not renaming (rename moves files, triggering delete events)
-      if (renameInProgressRef.current) {
-        debug('FileQueue', 'File removed during rename (no toast):', fileName);
-      } else {
-        showToast(`Removed deleted file: ${fileName}`, 'info', 3000);
-      }
+      showToast(`Removed deleted file: ${fileName}`, 'info', 3000);
     };
 
     const unsubscribe = window.bildvisareAPI?.onFileDeleted(handleFileDeleted);
@@ -673,7 +721,7 @@ export function FileQueueModule() {
   const connectionStateRef = useRef({ prev: null, hasEverConnected: false });
   useEffect(() => {
     const state = connectionStateRef.current;
-    
+
     if (state.prev === null) {
       state.prev = isConnected;
       if (isConnected) state.hasEverConnected = true;
@@ -687,7 +735,12 @@ export function FileQueueModule() {
         }
         state.hasEverConnected = true;
       } else {
-        showToast('🔴 Backend disconnected', 'error', 4000);
+        // Ignore disconnect during rename (WebSocket briefly disconnects during file operations)
+        if (renameInProgressRef.current) {
+          debug('FileQueue', 'Backend disconnected during rename - ignoring');
+        } else {
+          showToast('🔴 Backend disconnected', 'error', 4000);
+        }
       }
       state.prev = isConnected;
     }
@@ -716,7 +769,7 @@ export function FileQueueModule() {
 
       // Check cache status
       try {
-        const cacheStatus = await api.get('/api/preprocessing/cache/status');
+        const cacheStatus = await api.get('/api/v1/preprocessing/cache/status');
         if (cacheStatus && cacheStatus.usage_percent > 80) {
           queueToast(
             `⚠️ Cache ${Math.round(cacheStatus.usage_percent)}% full (${Math.round(cacheStatus.total_size_mb)}/${cacheStatus.max_size_mb} MB)`,
@@ -870,7 +923,7 @@ export function FileQueueModule() {
     // Fetch face stats for already-processed files that weren't preprocessed
     if (alreadyProcessedFiles.length > 0 && api) {
       const filepaths = alreadyProcessedFiles.map(item => item.filePath);
-      api.post('/api/statistics/file-stats', { filepaths })
+      api.post('/api/v1/statistics/file-stats', { filepaths })
         .then(stats => {
           debug('FileQueue', 'Got file stats for', Object.keys(stats).length, 'files');
           setPreprocessingStatus(prev => {
@@ -1071,7 +1124,7 @@ export function FileQueueModule() {
     if (fixModeRef.current && item.isAlreadyProcessed) {
       try {
         debug('FileQueue', 'Undoing file for fix mode:', item.fileName);
-        await api.post('/api/management/undo-file', {
+        await api.post('/api/v1/management/undo-file', {
           filename_pattern: item.fileName
         });
         await loadProcessedFiles();
@@ -1109,7 +1162,7 @@ export function FileQueueModule() {
 
     try {
       // 1. Undo the file in backend (remove from processed_files.jsonl)
-      await api.post('/api/management/undo-file', {
+      await api.post('/api/v1/management/undo-file', {
         filename_pattern: item.fileName
       });
 
@@ -1238,22 +1291,28 @@ export function FileQueueModule() {
       return;
     }
 
+    // Show loading indicator for large batches
+    if (eligiblePaths.length > 5) {
+      showToast(`Generating name suggestions for ${eligiblePaths.length} files...`, 'info', 2000);
+    }
+
     // Get rename config from preferences
     const renameConfig = getRenameConfig();
 
     try {
-      const result = await api.post('/api/files/rename-preview', {
+      const result = await api.post('/api/v1/files/rename-preview', {
         file_paths: eligiblePaths,
         config: renameConfig
       });
 
-      // Build lookup: path -> { newName, status, persons }
+      // Build lookup: path -> { newName, status, persons, sidecars }
       const lookup = {};
       for (const item of result.items) {
         lookup[item.original_path] = {
           newName: item.new_name,
           status: item.status,
-          persons: item.persons || []
+          persons: item.persons || [],
+          sidecars: item.sidecars || []
         };
       }
       setPreviewData(lookup);
@@ -1262,7 +1321,10 @@ export function FileQueueModule() {
       debugError('FileQueue', 'Failed to fetch rename preview:', err);
       setPreviewData({});
     }
-  }, [api]);
+  }, [api, showToast]);
+
+  // Ref to prevent double fetch on initial toggle
+  const initialPreviewFetchedRef = useRef(false);
 
   // Handle preview toggle
   const handlePreviewToggle = useCallback(async (e) => {
@@ -1271,13 +1333,14 @@ export function FileQueueModule() {
 
     // Always fetch fresh preview when toggling on to avoid stale data
     if (show) {
+      // Mark as fetched to prevent useEffect from also triggering fetch
+      initialPreviewFetchedRef.current = true;
       await fetchRenamePreview();
     }
   }, [fetchRenamePreview]);
 
   // Fetch preview on startup if showPreviewNames was restored as true
   // Wait for preprocessing to complete so backend has the data
-  const initialPreviewFetchedRef = useRef(false);
   useEffect(() => {
     // Only run once, when showPreviewNames is on and we have eligible files
     if (initialPreviewFetchedRef.current) return;
@@ -1326,11 +1389,14 @@ export function FileQueueModule() {
 
     setRenameInProgress(true);
 
+    // Show progress toast
+    showToast(`Renaming ${eligiblePaths.length} file(s)...`, 'info', null);
+
     // Get rename config from preferences
     const renameConfig = getRenameConfig();
 
     try {
-      const result = await api.post('/api/files/rename', {
+      const result = await api.post('/api/v1/files/rename', {
         file_paths: eligiblePaths,
         config: renameConfig
       });
@@ -1442,7 +1508,7 @@ export function FileQueueModule() {
         total: currentQueue.length,
         current: nextIdx >= 0 ? nextIdx : currentIdx,
         done: newDone,
-        remaining: currentQueue.length - newDone - 1
+        remaining: Math.max(0, currentQueue.length - newDone)
       });
 
       // Show toast for review result
@@ -1538,6 +1604,64 @@ export function FileQueueModule() {
       debugError('FileQueue', 'Failed to open folder dialog:', err);
     }
   }, [addFiles, queue.length, loadFile]);
+
+  // Drag-and-drop handlers
+  const handleDragEnter = useCallback((e) => {
+    e.preventDefault();
+    e.stopPropagation();
+    dragCounterRef.current++;
+    if (e.dataTransfer.types.includes('Files')) {
+      setIsDragOver(true);
+    }
+  }, []);
+
+  const handleDragLeave = useCallback((e) => {
+    e.preventDefault();
+    e.stopPropagation();
+    dragCounterRef.current--;
+    if (dragCounterRef.current === 0) {
+      setIsDragOver(false);
+    }
+  }, []);
+
+  const handleDragOver = useCallback((e) => {
+    e.preventDefault();
+    e.stopPropagation();
+  }, []);
+
+  const handleDrop = useCallback((e) => {
+    e.preventDefault();
+    e.stopPropagation();
+    setIsDragOver(false);
+    dragCounterRef.current = 0;
+
+    const files = e.dataTransfer.files;
+    if (!files || files.length === 0) return;
+
+    // Filter for supported file types and extract paths
+    const validPaths = [];
+    for (const file of files) {
+      const ext = file.name.split('.').pop()?.toLowerCase();
+      if (ext && SUPPORTED_EXTENSIONS.has(ext)) {
+        // In Electron, file.path gives the full path
+        if (file.path) {
+          validPaths.push(file.path);
+        }
+      }
+    }
+
+    if (validPaths.length > 0) {
+      debug('FileQueue', `Dropped ${validPaths.length} valid files`);
+      addFiles(validPaths);
+
+      // Auto-start if queue was empty
+      if (queue.length === 0) {
+        setTimeout(() => startNextEligible(), 100);
+      }
+    } else {
+      showToast('No supported image files found', 'warning');
+    }
+  }, [addFiles, queue.length, startNextEligible, showToast]);
 
   useEffect(() => {
     const handleQueueFiles = ({ files, position, startQueue }) => {
@@ -1661,7 +1785,15 @@ export function FileQueueModule() {
   const activeFile = currentIndex >= 0 ? queue[currentIndex] : null;
 
   return (
-    <div ref={moduleRef} className={`module-container file-queue-module ${hasSelection ? 'has-selection' : ''}`} tabIndex={0}>
+    <div
+      ref={moduleRef}
+      className={`module-container file-queue-module ${hasSelection ? 'has-selection' : ''} ${isDragOver ? 'drag-over' : ''}`}
+      tabIndex={0}
+      onDragEnter={handleDragEnter}
+      onDragLeave={handleDragLeave}
+      onDragOver={handleDragOver}
+      onDrop={handleDrop}
+    >
       {/* Header */}
       <div className="module-header">
         <span className="module-title">File Queue</span>
@@ -1849,6 +1981,16 @@ export function FileQueueModule() {
           </div>
         </div>
       )}
+
+      {/* Drop overlay */}
+      {isDragOver && (
+        <div className="drop-overlay">
+          <div className="drop-overlay-content">
+            <Icon name="plus" size={48} />
+            <span>Drop files to add to queue</span>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
@@ -1859,7 +2001,9 @@ export function FileQueueModule() {
 function FileQueueItem({ item, index, isActive, isSelected, onClick, onDoubleClick, onToggleSelect, onRemove, onForceReprocess, fixMode, preprocessingStatus, showPreview, previewInfo }) {
   const [showTooltip, setShowTooltip] = useState(false);
   const [tooltipPos, setTooltipPos] = useState({ x: 0, y: 0 });
+  const [namesDisplay, setNamesDisplay] = useState('');
   const itemRef = useRef(null);
+  const nameAreaRef = useRef(null);
   const tooltipTimerRef = useRef(null);
 
   const handleMouseEnter = (e) => {
@@ -1883,6 +2027,68 @@ function FileQueueItem({ item, index, isActive, isSelected, onClick, onDoubleCli
       if (tooltipTimerRef.current) clearTimeout(tooltipTimerRef.current);
     };
   }, []);
+
+  // Calculate confirmed names display based on available width
+  // Dependencies: confirmedNames, shouldShowPreview, item.fileName are calculated later in component
+  // but useEffect runs after render so they're available via closure
+  const truncateFilenameForMeasure = useCallback((name, maxLen = 25) => {
+    const chars = [...name];
+    if (chars.length <= maxLen) return name;
+    const lastDotIndex = name.lastIndexOf('.');
+    const hasExt = lastDotIndex !== -1;
+    const ext = hasExt ? name.slice(lastDotIndex) : '';
+    const base = hasExt ? name.slice(0, lastDotIndex) : name;
+    const baseChars = [...base];
+    const extLen = [...ext].length;
+    const availableForBase = Math.max(0, maxLen - 3 - extLen);
+    const truncatedBase = baseChars.slice(0, availableForBase).join('');
+    return truncatedBase + '...' + ext;
+  }, []);
+
+  // Compute these early so useEffect can use them
+  const ppPersonsEarly = preprocessingStatus?.persons;
+  const confirmedNamesEarly = previewInfo?.persons || item.reviewedFaces?.map(f => f.personName).filter(Boolean) || ppPersonsEarly || [];
+  const shouldShowPreviewEarly = showPreview && (item.status === 'completed' || item.isAlreadyProcessed) && previewInfo;
+
+  useEffect(() => {
+    // Only show names when NOT showing preview and we have names
+    if (shouldShowPreviewEarly || !confirmedNamesEarly.length) {
+      setNamesDisplay('');
+      return;
+    }
+
+    if (!nameAreaRef.current) return;
+
+    const calculateNames = () => {
+      const container = nameAreaRef.current;
+      if (!container) return;
+
+      const style = getComputedStyle(container);
+      const font = `${style.fontSize} ${style.fontFamily}`;
+
+      // Measure filename width
+      const fileNameText = truncateFilenameForMeasure(item.fileName);
+      const fileNameWidth = measureTextWidth(fileNameText, font);
+
+      // Available space: container width - filename - padding (40px for gaps and margins)
+      const availableWidth = container.offsetWidth - fileNameWidth - 40;
+
+      if (availableWidth > 30) {
+        const result = formatNamesToFit(confirmedNamesEarly, availableWidth, font);
+        setNamesDisplay(result.text);
+      } else {
+        setNamesDisplay('');
+      }
+    };
+
+    calculateNames();
+
+    const observer = new ResizeObserver(calculateNames);
+    observer.observe(nameAreaRef.current);
+
+    return () => observer.disconnect();
+  }, [confirmedNamesEarly, shouldShowPreviewEarly, item.fileName, truncateFilenameForMeasure]);
+
   const getStatusIcon = () => {
     switch (item.status) {
       case 'completed':
@@ -1978,6 +2184,10 @@ function FileQueueItem({ item, index, isActive, isSelected, onClick, onDoubleCli
   const confirmedNames = previewInfo?.persons || item.reviewedFaces?.map(f => f.personName).filter(Boolean) || ppPersons || [];
   const confirmedCount = confirmedNames.length;
 
+  // Sidecars from rename preview
+  const sidecars = previewInfo?.sidecars || [];
+  const hasSidecars = sidecars.length > 0;
+
   return (
     <div
       ref={itemRef}
@@ -1999,15 +2209,30 @@ function FileQueueItem({ item, index, isActive, isSelected, onClick, onDoubleCli
       />
       {getStatusIcon()}
       {/* Wrapper for file name + preview to maintain consistent right-column alignment */}
-      <div className="file-name-area">
+      <div className="file-name-area" ref={nameAreaRef}>
         <span className="file-name">
-          {truncateFilename(item.fileName)}
+          {/* When showing preview, don't pre-truncate - let CSS handle it */}
+          {shouldShowPreview ? item.fileName : truncateFilename(item.fileName)}
+          {hasSidecars && shouldShowPreview && (
+            <span className="sidecar-indicator" title={sidecars.map(s => s.split('/').pop()).join(', ')}>
+              {/* Show extension badges for each sidecar */}
+              {[...new Set(sidecars.map(s => s.split('.').pop().toLowerCase()))].map(ext => (
+                <span key={ext} className="sidecar-badge">{ext}</span>
+              ))}
+            </span>
+          )}
         </span>
+        {/* Confirmed names display (when not showing preview) */}
+        {!shouldShowPreview && namesDisplay && (
+          <span className="confirmed-names" title={confirmedNames.join(', ')}>
+            {namesDisplay}
+          </span>
+        )}
         {/* Inline preview of new name (only if name would actually change) */}
         {shouldShowPreview && nameWouldChange && (
           <span className="inline-preview">
             <span className="arrow">→</span>
-            <span className="new-name">{truncateFilename(newName, 30)}</span>
+            <span className="new-name">{newName}</span>
           </span>
         )}
         {shouldShowPreview && !newName && previewStatus && previewStatus !== 'ok' && (
@@ -2084,6 +2309,12 @@ function FileQueueItem({ item, index, isActive, isSelected, onClick, onDoubleCli
             <div className="tooltip-row tooltip-newname">
               <span className="tooltip-label">New name:</span>
               <span className="tooltip-value">{newName}</span>
+            </div>
+          )}
+          {shouldShowPreview && hasSidecars && (
+            <div className="tooltip-row tooltip-sidecars">
+              <span className="tooltip-label">Sidecars ({sidecars.length}):</span>
+              <span className="tooltip-value">{sidecars.map(s => s.split('/').pop()).join(', ')}</span>
             </div>
           )}
           {shouldShowPreview && !newName && previewStatus && (

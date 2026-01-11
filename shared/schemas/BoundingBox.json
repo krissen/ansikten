@@ -1,0 +1,28 @@
+{
+  "properties": {
+    "x": {
+      "title": "X",
+      "type": "integer"
+    },
+    "y": {
+      "title": "Y",
+      "type": "integer"
+    },
+    "width": {
+      "title": "Width",
+      "type": "integer"
+    },
+    "height": {
+      "title": "Height",
+      "type": "integer"
+    }
+  },
+  "required": [
+    "x",
+    "y",
+    "width",
+    "height"
+  ],
+  "title": "BoundingBox",
+  "type": "object"
+}

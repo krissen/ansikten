@@ -33,8 +33,13 @@ async def lifespan(app: FastAPI):
     logger.info(f"Server ready on http://127.0.0.1:{port}")
     
     def _load_database_sync():
-        """Sync function for thread pool - loads database and migrates dlib"""
+        """Sync function for thread pool - loads database, rotates logs, and migrates dlib"""
         from .services.management_service import get_management_service
+        from faceid_db import rotate_logs
+
+        # Rotate logs on startup to prevent unbounded growth
+        rotate_logs()
+
         svc = get_management_service()
         return len(svc.known_faces)
 
@@ -159,22 +164,54 @@ app.add_middleware(
 # Health check endpoint
 @app.get("/health")
 async def health_check():
-    """Health check endpoint for backend readiness"""
-    return {"status": "ok", "service": "bildvisare-backend"}
+    """Health check endpoint for backend readiness.
+
+    Returns overall status and component states:
+    - status: "ok" (all ready), "degraded" (has errors), "starting" (still loading)
+    - components: backend, database, mlModels with individual states
+    """
+    from .services.startup_service import get_startup_state, LoadingState
+
+    startup = get_startup_state()
+    status_data = startup.get_status()
+
+    # Determine overall status
+    if status_data["allReady"]:
+        overall = "ok"
+    elif status_data["hasError"]:
+        overall = "degraded"
+    else:
+        overall = "starting"
+
+    return {
+        "status": overall,
+        "service": "bildvisare-backend",
+        "version": app.version,
+        "components": {
+            name: {
+                "state": info["state"],
+                "message": info["message"]
+            }
+            for name, info in status_data["items"].items()
+        }
+    }
 
 
+
+# API version prefix
+API_V1_PREFIX = "/api/v1"
 
 # Import routes
 from .routes import detection, status, database, statistics, management, preprocessing, files, startup, refinement
-app.include_router(detection.router, prefix="/api", tags=["detection"])
-app.include_router(status.router, prefix="/api", tags=["status"])
-app.include_router(database.router, prefix="/api", tags=["database"])
-app.include_router(statistics.router, prefix="/api", tags=["statistics"])
-app.include_router(management.router, prefix="/api", tags=["management"])
-app.include_router(refinement.router, prefix="/api", tags=["refinement"])
-app.include_router(preprocessing.router, prefix="/api/preprocessing", tags=["preprocessing"])
-app.include_router(files.router, prefix="/api", tags=["files"])
-app.include_router(startup.router, prefix="/api", tags=["startup"])
+app.include_router(detection.router, prefix=API_V1_PREFIX, tags=["detection"])
+app.include_router(status.router, prefix=API_V1_PREFIX, tags=["status"])
+app.include_router(database.router, prefix=API_V1_PREFIX, tags=["database"])
+app.include_router(statistics.router, prefix=API_V1_PREFIX, tags=["statistics"])
+app.include_router(management.router, prefix=API_V1_PREFIX, tags=["management"])
+app.include_router(refinement.router, prefix=API_V1_PREFIX, tags=["refinement"])
+app.include_router(preprocessing.router, prefix=f"{API_V1_PREFIX}/preprocessing", tags=["preprocessing"])
+app.include_router(files.router, prefix=API_V1_PREFIX, tags=["files"])
+app.include_router(startup.router, prefix=API_V1_PREFIX, tags=["startup"])
 
 # WebSocket endpoint
 from .websocket import progress

@@ -6,9 +6,10 @@ REST and WebSocket API for the Hitta ansikten backend.
 
 ## Overview
 
-- **Base URL**: `http://127.0.0.1:5001/api`
+- **Base URL**: `http://127.0.0.1:5001/api/v1`
 - **WebSocket**: `ws://127.0.0.1:5001/ws/progress`
 - **Format**: JSON
+- **API Version**: v1
 
 ---
 
@@ -16,52 +17,84 @@ REST and WebSocket API for the Hitta ansikten backend.
 
 ### `GET /health`
 
-Check backend status.
+Check backend status and component readiness.
 
-**Response:**
+**Response (all ready):**
 ```json
 {
   "status": "ok",
-  "service": "bildvisare-backend"
+  "service": "bildvisare-backend",
+  "version": "1.0.0",
+  "components": {
+    "backend": { "state": "ready", "message": "Connected" },
+    "database": { "state": "ready", "message": "42 persons" },
+    "mlModels": { "state": "ready", "message": "Ready (2.3s)" }
+  }
 }
 ```
+
+**Response (starting up):**
+```json
+{
+  "status": "starting",
+  "service": "bildvisare-backend",
+  "version": "1.0.0",
+  "components": {
+    "backend": { "state": "ready", "message": "Connected" },
+    "database": { "state": "loading", "message": "Läser in..." },
+    "mlModels": { "state": "pending", "message": "Waiting..." }
+  }
+}
+```
+
+**Status values:**
+- `ok` - All components ready
+- `starting` - Still initializing
+- `degraded` - One or more components have errors
 
 ---
 
 ## Face Detection
 
-### `POST /api/detect-faces`
+### `POST /detect-faces`
 
 Detect faces in an image.
 
 **Request:**
 ```json
 {
-  "imagePath": "/path/to/image.NEF",
-  "maxAlternatives": 5
+  "image_path": "/path/to/image.NEF",
+  "force_reprocess": false
 }
 ```
 
 **Response:**
 ```json
 {
-  "status": "completed",
+  "image_path": "/path/to/image.NEF",
   "faces": [
     {
-      "bbox": { "x": 100, "y": 150, "width": 200, "height": 200 },
-      "personName": "Anna",
+      "face_id": "face_0_abcd1234",
+      "bounding_box": { "x": 100, "y": 150, "width": 200, "height": 200 },
       "confidence": 0.85,
-      "alternatives": [
-        { "name": "Anna", "distance": 0.35 },
-        { "name": "Bert", "distance": 0.52 }
-      ]
+      "person_name": "Anna",
+      "is_confirmed": false,
+      "match_case": "name",
+      "ignore_distance": 0.42,
+      "ignore_confidence": 58,
+      "match_alternatives": [
+        { "name": "Anna", "distance": 0.35, "confidence": 78, "is_ignored": false }
+      ],
+      "encoding_hash": "sha1..."
     }
   ],
-  "imagePath": "/path/to/image.NEF"
+  "processing_time_ms": 123.4,
+  "cached": false,
+  "file_hash": "sha1..."
 }
 ```
 
-### `GET /api/face-thumbnail`
+### `GET /face-thumbnail`
 
 Get cropped face thumbnail.
 
@@ -77,66 +110,97 @@ Get cropped face thumbnail.
 
 **Response:** JPEG image binary
 
-### `POST /api/confirm-identity`
+### `POST /confirm-identity`
 
 Confirm face identity and save to database.
 
 **Request:**
 ```json
 {
-  "imagePath": "/path/to/image.NEF",
-  "faceIndex": 0,
-  "personName": "Anna",
-  "bbox": { "x": 100, "y": 150, "width": 200, "height": 200 }
+  "face_id": "face_0_abcd1234",
+  "person_name": "Anna",
+  "image_path": "/path/to/image.NEF",
+  "suggested_name": "Ann"
 }
 ```
 
 **Response:**
 ```json
 {
-  "status": "ok",
-  "message": "Identity confirmed for Anna"
+  "status": "success",
+  "person_name": "Anna",
+  "encodings_count": 12
 }
 ```
 
-### `POST /api/ignore-face`
+### `POST /ignore-face`
 
 Mark face as ignored.
 
 **Request:**
 ```json
 {
-  "imagePath": "/path/to/image.NEF",
-  "faceIndex": 0,
-  "bbox": { "x": 100, "y": 150, "width": 200, "height": 200 }
+  "face_id": "face_0_abcd1234",
+  "image_path": "/path/to/image.NEF"
 }
 ```
 
-### `POST /api/mark-review-complete`
+**Response:**
+```json
+{
+  "status": "success",
+  "ignored_count": 42
+}
+```
+
+### `POST /mark-review-complete`
 
 Mark file review as complete, log to attempt_stats.
 
 **Request:**
 ```json
 {
-  "imagePath": "/path/to/image.NEF",
-  "faces": [
-    { "name": "Anna", "action": "confirmed" },
-    { "name": null, "action": "ignored" }
-  ]
+  "image_path": "/path/to/image.NEF",
+  "reviewed_faces": [
+    {
+      "face_index": 0,
+      "face_id": "face_0_abcd1234",
+      "encoding_hash": "sha1...",
+      "person_name": "Anna",
+      "is_ignored": false
+    },
+    {
+      "face_index": 1,
+      "face_id": "face_1_efgh5678",
+      "encoding_hash": "sha1...",
+      "person_name": null,
+      "is_ignored": true
+    }
+  ],
+  "file_hash": "sha1..."
 }
 ```
 
-### `POST /api/reload-database`
+**Response:**
+```json
+{
+  "status": "success",
+  "message": "Review logged for 2 faces",
+  "labels_count": 2
+}
+```
+
+### `POST /reload-database`
 
 Reload face database from disk.
 
 **Response:**
 ```json
 {
-  "status": "ok",
-  "peopleCount": 42,
-  "encodingsCount": 156
+  "status": "success",
+  "people_count": 42,
+  "ignored_count": 12,
+  "cache_cleared": 10
 }
 ```
 
@@ -426,6 +490,131 @@ Execute file renames.
       "newPath": "/path/to/250101_120000_Anna.NEF"
     }
   ]
+}
+```
+
+---
+
+## Refinement
+
+Endpoints for filtering outlier encodings and maintaining database quality.
+
+### `GET /api/refinement/preview`
+
+Preview what encodings would be removed.
+
+**Query Parameters:**
+| Parameter | Default | Description |
+|-----------|---------|-------------|
+| `person` | null | Person name or `*` for all |
+| `mode` | `std` | Filter mode: `std`, `cluster`, `mahalanobis`, or `shape` |
+| `std_threshold` | 2.0 | Standard deviations for outlier detection |
+| `cluster_dist` | 0.35 | Max cosine distance from centroid |
+| `cluster_min` | 6 | Minimum cluster size |
+| `mahalanobis_threshold` | 3.0 | Mahalanobis distance threshold |
+| `min_encodings` | 8 | Skip filtering if fewer encodings |
+
+**Response:**
+```json
+{
+  "preview": [
+    {
+      "person": "Anna",
+      "total": 15,
+      "keep": 12,
+      "remove": 3,
+      "remove_indices": [2, 7, 14],
+      "reason": "std outlier",
+      "stats": {
+        "min_dist": 0.21,
+        "max_dist": 0.48,
+        "mean_dist": 0.31,
+        "std_dist": 0.08
+      }
+    }
+  ],
+  "summary": {
+    "total_people": 42,
+    "affected_people": 5,
+    "total_remove": 12
+  }
+}
+```
+
+### `POST /api/refinement/apply`
+
+Apply filtering to remove outlier encodings.
+
+**Request:**
+```json
+{
+  "mode": "mahalanobis",
+  "persons": ["Anna", "Bert"],
+  "mahalanobis_threshold": 3.0,
+  "min_encodings": 8,
+  "dry_run": false
+}
+```
+
+**Response:**
+```json
+{
+  "status": "ok",
+  "dry_run": false,
+  "removed": 5,
+  "by_person": { "Anna": 3, "Bert": 2 }
+}
+```
+
+### `POST /api/refinement/repair-shapes`
+
+Remove encodings with inconsistent shapes (keeps majority shape).
+
+**Request:**
+```json
+{
+  "persons": ["Anna"],
+  "dry_run": true
+}
+```
+
+**Response:**
+```json
+{
+  "status": "ok",
+  "dry_run": true,
+  "total_removed": 2,
+  "repaired": [
+    {
+      "person": "Anna",
+      "removed": 2,
+      "total": 15,
+      "kept_shape": [512],
+      "removed_shapes": [[128], [128]]
+    }
+  ]
+}
+```
+
+### `POST /api/refinement/remove-dlib`
+
+Remove ALL dlib (128-dim) encodings. dlib backend is deprecated.
+
+**Request:**
+```json
+{
+  "dry_run": true
+}
+```
+
+**Response:**
+```json
+{
+  "status": "ok",
+  "dry_run": true,
+  "total_removed": 45,
+  "by_person": { "Anna": 10, "Bert": 8 },
+  "people_affected": 12
 }
 ```
 

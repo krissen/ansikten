@@ -16,8 +16,8 @@ if ARCHIVE_DIR.exists():
     ATTEMPTS_FILES += sorted(ARCHIVE_DIR.glob("attempt_stats*.jsonl"))
 
 
-def build_attempt_hash_map(attempt_files):
-    filehash_map = {}
+def build_attempt_hash_map(attempt_files: list[Path]) -> dict[str, str]:
+    filehash_map: dict[str, str] = {}
     for logfile in attempt_files:
         if not Path(logfile).exists():
             continue
@@ -38,7 +38,7 @@ def build_attempt_hash_map(attempt_files):
     return filehash_map
 
 
-def main(patterns):
+def main(patterns: list[str]) -> None:
     print(f"Backup: {ENCODINGS_PATH} → {BACKUP_PATH}")
     if not BACKUP_PATH.exists():
         BACKUP_PATH.write_bytes(ENCODINGS_PATH.read_bytes())

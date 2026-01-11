@@ -74,6 +74,28 @@ cd backend
 ./hitta_ansikten.py --simulate *.NEF       # Dry-run (no writes)
 ```
 
+### Utility Scripts
+
+```bash
+cd backend
+./rakna_spelare.py 250601*.jpg             # Player photo statistics
+./rakna_spelare.py -p 250601*.jpg          # Per-match breakdown
+./filer2mappar.py ./photos                 # Organize files into folders
+```
+
+### Building for Distribution
+
+```bash
+cd backend
+pip install pyinstaller
+pyinstaller bildvisare-backend.spec        # Creates dist/bildvisare-backend/
+
+cd frontend
+npm run build:mac                          # macOS .dmg
+npm run build:win                          # Windows .exe
+npm run build:linux                        # Linux .AppImage/.deb
+```
+
 ---
 
 ## Architecture
@@ -84,21 +106,29 @@ cd backend
 backend/api/
 ├── server.py              # FastAPI app entry, CORS, startup
 ├── routes/
-│   ├── detection.py       # /api/detect-faces, /api/confirm-identity, /api/ignore-face
+│   ├── detection.py       # /api/detect-faces, /api/confirm-identity
 │   ├── management.py      # /api/management/rename-person, merge, delete
 │   ├── database.py        # /api/database/people, names
+│   ├── files.py           # /api/files/rename, rename-preview
+│   ├── refinement.py      # /api/refinement/outliers, update
 │   ├── statistics.py      # /api/statistics
-│   └── ...
+│   ├── preprocessing.py   # /api/preprocessing
+│   ├── startup.py         # /api/startup/status
+│   └── status.py          # /api/status
 ├── services/
-│   ├── detection_service.py   # Core detection logic, face matching, caching
-│   └── management_service.py  # Database operations (rename, merge, delete)
+│   ├── detection_service.py    # Core detection logic, face matching
+│   ├── management_service.py   # Database operations (rename, merge)
+│   ├── refinement_service.py   # Outlier detection, centroid refinement
+│   ├── rename_service.py       # File rename logic
+│   ├── statistics_service.py   # Processing statistics
+│   └── startup_service.py      # Backend startup coordination
 └── websocket/
     └── progress.py        # ws://localhost:5001/ws/progress
 ```
 
 Core modules (shared with legacy CLI):
 - `faceid_db.py` - Database layer (encodings.pkl, processed_files.jsonl)
-- `face_backends.py` - InsightFace/dlib abstraction
+- `face_backends.py` - InsightFace abstraction
 
 ### Frontend (Electron + React)
 
@@ -115,6 +145,7 @@ frontend/
 │   │   ├── ImageViewer.jsx        # Canvas rendering with zoom/pan
 │   │   ├── ReviewModule.jsx       # Face review UI (keyboard nav, autocomplete)
 │   │   ├── FileQueueModule.jsx    # File queue management
+│   │   ├── RefineFacesModule.jsx  # Outlier detection, centroid refinement
 │   │   ├── DatabaseManagement.jsx # Database admin
 │   │   └── ...
 │   ├── shared/
@@ -173,6 +204,7 @@ Config in `~/.local/share/faceid/config.json`:
 - Encodings only compared against same backend type
 - Backend auto-starts with Electron; use `python -m api.server` for standalone
 - DetectionService caches results by file hash (check cache when debugging)
+- GitHub Actions releases triggered by `v*` tags (e.g., `v1.0.1`)
 
 ---
 

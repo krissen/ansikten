@@ -1,0 +1,18 @@
+{
+  "properties": {
+    "status": {
+      "title": "Status",
+      "type": "string"
+    },
+    "ignored_count": {
+      "title": "Ignored Count",
+      "type": "integer"
+    }
+  },
+  "required": [
+    "status",
+    "ignored_count"
+  ],
+  "title": "IgnoreFaceResponse",
+  "type": "object"
+}

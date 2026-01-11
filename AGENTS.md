@@ -115,6 +115,28 @@ Examples:
 
 ---
 
+## Testing
+
+### Backend (pytest)
+
+```bash
+cd backend
+pytest           # Run all tests
+pytest -v        # Verbose output
+```
+
+### Frontend (Vitest)
+
+```bash
+cd frontend
+npm test         # Run all tests
+npm run test:watch  # Watch mode
+```
+
+See [docs/dev/contributing.md](docs/dev/contributing.md) for detailed testing guidelines.
+
+---
+
 ## Project Documentation
 
 | Topic | Location |

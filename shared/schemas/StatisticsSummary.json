@@ -1,0 +1,211 @@
+{
+  "$defs": {
+    "AttemptStat": {
+      "description": "Statistics for a specific detection attempt configuration",
+      "properties": {
+        "backend": {
+          "title": "Backend",
+          "type": "string"
+        },
+        "upsample": {
+          "anyOf": [
+            {
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "title": "Upsample"
+        },
+        "scale_label": {
+          "title": "Scale Label",
+          "type": "string"
+        },
+        "scale_px": {
+          "title": "Scale Px",
+          "type": "integer"
+        },
+        "used_count": {
+          "title": "Used Count",
+          "type": "integer"
+        },
+        "total_count": {
+          "title": "Total Count",
+          "type": "integer"
+        },
+        "hit_rate": {
+          "title": "Hit Rate",
+          "type": "number"
+        },
+        "avg_faces": {
+          "title": "Avg Faces",
+          "type": "number"
+        },
+        "avg_time": {
+          "title": "Avg Time",
+          "type": "number"
+        }
+      },
+      "required": [
+        "backend",
+        "upsample",
+        "scale_label",
+        "scale_px",
+        "used_count",
+        "total_count",
+        "hit_rate",
+        "avg_faces",
+        "avg_time"
+      ],
+      "title": "AttemptStat",
+      "type": "object"
+    },
+    "LogLine": {
+      "description": "Log entry",
+      "properties": {
+        "level": {
+          "title": "Level",
+          "type": "string"
+        },
+        "message": {
+          "title": "Message",
+          "type": "string"
+        },
+        "timestamp": {
+          "title": "Timestamp",
+          "type": "string"
+        }
+      },
+      "required": [
+        "level",
+        "message",
+        "timestamp"
+      ],
+      "title": "LogLine",
+      "type": "object"
+    },
+    "RecentImage": {
+      "description": "Recently processed image with detected people",
+      "properties": {
+        "filename": {
+          "title": "Filename",
+          "type": "string"
+        },
+        "timestamp": {
+          "title": "Timestamp",
+          "type": "string"
+        },
+        "person_names": {
+          "items": {
+            "type": "string"
+          },
+          "title": "Person Names",
+          "type": "array"
+        },
+        "source": {
+          "default": "cli",
+          "title": "Source",
+          "type": "string"
+        }
+      },
+      "required": [
+        "filename",
+        "timestamp",
+        "person_names"
+      ],
+      "title": "RecentImage",
+      "type": "object"
+    },
+    "TopFace": {
+      "description": "Person with face count",
+      "properties": {
+        "name": {
+          "title": "Name",
+          "type": "string"
+        },
+        "face_count": {
+          "title": "Face Count",
+          "type": "integer"
+        },
+        "percentage": {
+          "anyOf": [
+            {
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Percentage"
+        }
+      },
+      "required": [
+        "name",
+        "face_count"
+      ],
+      "title": "TopFace",
+      "type": "object"
+    }
+  },
+  "description": "Complete statistics summary for dashboard",
+  "properties": {
+    "attempt_stats": {
+      "items": {
+        "$ref": "#/$defs/AttemptStat"
+      },
+      "title": "Attempt Stats",
+      "type": "array"
+    },
+    "top_faces": {
+      "items": {
+        "$ref": "#/$defs/TopFace"
+      },
+      "title": "Top Faces",
+      "type": "array"
+    },
+    "ignored_count": {
+      "title": "Ignored Count",
+      "type": "integer"
+    },
+    "ignored_total": {
+      "title": "Ignored Total",
+      "type": "integer"
+    },
+    "ignored_fraction": {
+      "title": "Ignored Fraction",
+      "type": "number"
+    },
+    "recent_images": {
+      "items": {
+        "$ref": "#/$defs/RecentImage"
+      },
+      "title": "Recent Images",
+      "type": "array"
+    },
+    "recent_logs": {
+      "items": {
+        "$ref": "#/$defs/LogLine"
+      },
+      "title": "Recent Logs",
+      "type": "array"
+    },
+    "total_files_processed": {
+      "title": "Total Files Processed",
+      "type": "integer"
+    }
+  },
+  "required": [
+    "attempt_stats",
+    "top_faces",
+    "ignored_count",
+    "ignored_total",
+    "ignored_fraction",
+    "recent_images",
+    "recent_logs",
+    "total_files_processed"
+  ],
+  "title": "StatisticsSummary",
+  "type": "object"
+}

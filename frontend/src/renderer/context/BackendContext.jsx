@@ -21,6 +21,7 @@ export function BackendProvider({ children }) {
   const [isConnected, setIsConnected] = useState(false);
   const [isConnecting, setIsConnecting] = useState(false);
   const [connectionError, setConnectionError] = useState(null);
+  const [isOffline, setIsOffline] = useState(false);
 
   /**
    * Connect to the backend WebSocket
@@ -60,11 +61,18 @@ export function BackendProvider({ children }) {
       setIsConnected(connected);
     };
 
+    const handleOfflineChange = (offline) => {
+      debug('Backend', `Offline state changed: ${offline}`);
+      setIsOffline(offline);
+    };
+
     apiClient.addConnectionListener(handleConnectionChange);
+    apiClient.addOfflineListener(handleOfflineChange);
     connect();
 
     return () => {
       apiClient.removeConnectionListener(handleConnectionChange);
+      apiClient.removeOfflineListener(handleOfflineChange);
     };
   }, [connect]);
 
@@ -95,12 +103,12 @@ export function BackendProvider({ children }) {
     api,
     isConnected,
     isConnecting,
+    isOffline,
     connectionError,
     connect,
     disconnect,
-    // Direct apiClient access for advanced usage
     client: apiClient
-  }), [api, isConnected, isConnecting, connectionError, connect, disconnect]);
+  }), [api, isConnected, isConnecting, isOffline, connectionError, connect, disconnect]);
 
   return (
     <BackendContext.Provider value={value}>

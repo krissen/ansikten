@@ -1,0 +1,64 @@
+{
+  "properties": {
+    "file_hash": {
+      "title": "File Hash",
+      "type": "string"
+    },
+    "status": {
+      "title": "Status",
+      "type": "string"
+    },
+    "nef_jpg_path": {
+      "anyOf": [
+        {
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Nef Jpg Path"
+    },
+    "faces_cached": {
+      "default": false,
+      "title": "Faces Cached",
+      "type": "boolean"
+    },
+    "thumbnails_cached": {
+      "default": false,
+      "title": "Thumbnails Cached",
+      "type": "boolean"
+    },
+    "face_count": {
+      "anyOf": [
+        {
+          "type": "integer"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Face Count"
+    },
+    "error": {
+      "anyOf": [
+        {
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Error"
+    }
+  },
+  "required": [
+    "file_hash",
+    "status"
+  ],
+  "title": "PreprocessResponse",
+  "type": "object"
+}
