@@ -1,0 +1,24 @@
+.connection-status-banner {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  z-index: 9999;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  padding: 8px 16px;
+  background-color: var(--warning-bg, #ff9800);
+  color: var(--warning-text, #000);
+  font-size: 14px;
+  font-weight: 500;
+}
+
+.connection-status-icon {
+  font-size: 16px;
+}
+
+.connection-status-message {
+  flex: 0 1 auto;
+}

@@ -7,6 +7,17 @@
 
 import { debug, debugWarn, debugError } from './debug.js';
 
+export class NetworkError extends Error {
+  constructor(message, { isOffline = false, isTimeout = false, statusCode = null, retryable = true } = {}) {
+    super(message);
+    this.name = 'NetworkError';
+    this.isOffline = isOffline;
+    this.isTimeout = isTimeout;
+    this.statusCode = statusCode;
+    this.retryable = retryable;
+  }
+}
+
 export class APIClient {
   constructor(baseUrl = 'http://127.0.0.1:5001') {
     this.baseUrl = baseUrl;
@@ -16,10 +27,63 @@ export class APIClient {
     this.reconnectAttempts = 0;
     this.maxReconnectAttempts = 10;
     this.reconnectDelay = 1000;
-    this.maxReconnectDelay = 30000; // Cap at 30 seconds
+    this.maxReconnectDelay = 30000;
     this.isConnecting = false;
     this._connected = false;
-    this._shouldReconnect = true; // Flag to prevent reconnection on intentional disconnect
+    this._shouldReconnect = true;
+    this._isOffline = false;
+    this._offlineListeners = new Set();
+    this._requestTimeout = 30000;
+  }
+
+  get isOffline() {
+    return this._isOffline;
+  }
+
+  addOfflineListener(callback) {
+    this._offlineListeners.add(callback);
+    callback(this._isOffline);
+  }
+
+  removeOfflineListener(callback) {
+    this._offlineListeners.delete(callback);
+  }
+
+  _setOffline(offline) {
+    if (this._isOffline !== offline) {
+      this._isOffline = offline;
+      this._offlineListeners.forEach(cb => {
+        try {
+          cb(offline);
+        } catch (e) {
+          debugError('APIClient', 'Offline listener error:', e);
+        }
+      });
+    }
+  }
+
+  _classifyError(err, response = null) {
+    if (!navigator.onLine) {
+      this._setOffline(true);
+      return new NetworkError('No network connection', { isOffline: true, retryable: true });
+    }
+
+    if (err.name === 'AbortError') {
+      return new NetworkError('Request timed out', { isTimeout: true, retryable: true });
+    }
+
+    if (err.name === 'TypeError' && err.message.includes('fetch')) {
+      this._setOffline(true);
+      return new NetworkError('Backend unreachable', { isOffline: true, retryable: true });
+    }
+
+    if (response) {
+      const statusCode = response.status;
+      const retryable = statusCode >= 500 || statusCode === 429;
+      return new NetworkError(`HTTP ${statusCode}: ${response.statusText}`, { statusCode, retryable });
+    }
+
+    return new NetworkError(err.message || 'Unknown network error', { retryable: false });
   }
 
   addConnectionListener(callback) {
@@ -42,6 +106,26 @@ export class APIClient {
     });
   }
 
+  async _fetchWithTimeout(url, options = {}) {
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), this._requestTimeout);
+
+    const externalSignal = options.signal;
+    if (externalSignal) {
+      externalSignal.addEventListener('abort', () => controller.abort());
+    }
+
+    try {
+      const response = await fetch(url, { ...options, signal: controller.signal });
+      clearTimeout(timeoutId);
+      this._setOffline(false);
+      return response;
+    } catch (err) {
+      clearTimeout(timeoutId);
+      throw err;
+    }
+  }
+
   /**
    * HTTP GET request
    * @param {string} path - API path (e.g., '/api/v1/status/image.jpg')
@@ -51,27 +135,30 @@ export class APIClient {
   async get(path, params = {}) {
     const url = new URL(path, this.baseUrl);
 
-    // Add query parameters
     Object.keys(params).forEach(key => {
       url.searchParams.append(key, params[key]);
     });
 
+    let response;
     try {
-      const response = await fetch(url.toString(), {
+      response = await this._fetchWithTimeout(url.toString(), {
         method: 'GET',
-        headers: {
-          'Content-Type': 'application/json'
-        }
+        headers: { 'Content-Type': 'application/json' }
       });
 
       if (!response.ok) {
-        throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+        throw this._classifyError(null, response);
       }
 
       return await response.json();
     } catch (err) {
-      debugError('Backend', `GET ${path} failed:`, err);
-      throw err;
+      if (err instanceof NetworkError) {
+        debugError('Backend', `GET ${path} failed:`, err.message);
+        throw err;
+      }
+      const classified = this._classifyError(err, response);
+      debugError('Backend', `GET ${path} failed:`, classified.message);
+      throw classified;
     }
   }
 
@@ -79,28 +166,34 @@ export class APIClient {
    * HTTP POST request
    * @param {string} path - API path (e.g., '/api/v1/detect-faces')
    * @param {object} body - Request body
+   * @param {object} options - Optional fetch options (e.g., { signal: AbortSignal })
    * @returns {Promise<any>}
    */
-  async post(path, body = {}) {
+  async post(path, body = {}, options = {}) {
     const url = new URL(path, this.baseUrl);
 
+    let response;
     try {
-      const response = await fetch(url.toString(), {
+      response = await this._fetchWithTimeout(url.toString(), {
         method: 'POST',
-        headers: {
-          'Content-Type': 'application/json'
-        },
-        body: JSON.stringify(body)
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(body),
+        ...options
       });
 
       if (!response.ok) {
-        throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+        throw this._classifyError(null, response);
       }
 
       return await response.json();
     } catch (err) {
-      debugError('Backend', `POST ${path} failed:`, err);
-      throw err;
+      if (err instanceof NetworkError) {
+        debugError('Backend', `POST ${path} failed:`, err.message);
+        throw err;
+      }
+      const classified = this._classifyError(err, response);
+      debugError('Backend', `POST ${path} failed:`, classified.message);
+      throw classified;
     }
   }
 
