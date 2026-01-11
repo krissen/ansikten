@@ -1,6 +1,6 @@
 # Tangentbordsgenvägar
 
-Komplett referens för alla tangentbordsgenvägar i Hitta ansikten.
+Komplett referens för alla tangentbordsgenvägar i Ansikten.
 
 > **Tips:** Tryck `?` för att visa hjälpöverlägget med de viktigaste genvägarna.
 

@@ -1,4 +1,4 @@
-# Hitta ansikten
+# Ansikten
 
 Face recognition tool for event photography.
 
@@ -6,7 +6,7 @@ Face recognition tool for event photography.
 
 ## What is this?
 
-Hitta ansikten helps photographers identify and rename people in large collections of RAW images (NEF). It consists of:
+Ansikten helps photographers identify and rename people in large collections of RAW images (NEF). It consists of:
 
 - **Backend** - Python CLI for batch processing + FastAPI server
 - **Frontend** - Electron workspace for interactive review
@@ -81,7 +81,7 @@ Backend auto-starts on `http://127.0.0.1:5001`
 ## Project Structure
 
 ```
-hitta_ansikten/
+ansikten/
 ├── backend/          # Python CLI + FastAPI server
 ├── frontend/         # Electron workspace (FlexLayout)
 ├── shared/           # Common type definitions

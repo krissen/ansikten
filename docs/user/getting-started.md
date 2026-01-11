@@ -1,6 +1,6 @@
-# Kom igång med Hitta ansikten
+# Kom igång med Ansikten
 
-Guide för att installera och köra Hitta ansikten.
+Guide för att installera och köra Ansikten.
 
 > **Tips:** Letar du efter färdigbyggda installerare? Se [Installation](installation.md) för nedladdning av `.dmg`, `.exe` eller `.deb`.
 
@@ -26,8 +26,8 @@ Guide för att installera och köra Hitta ansikten.
 ### 1. Klona repot
 
 ```bash
-git clone https://github.com/krissen/hitta_ansikten.git
-cd hitta_ansikten
+git clone https://github.com/krissen/ansikten.git
+cd ansikten
 ```
 
 ### 2. Backend-beroenden

@@ -1,6 +1,6 @@
 # Installation
 
-Guide för att installera Hitta ansikten på din dator.
+Guide för att installera Ansikten på din dator.
 
 ---
 
@@ -17,14 +17,14 @@ Guide för att installera Hitta ansikten på din dator.
 
 ## Nedladdning
 
-Hämta senaste versionen från [GitHub Releases](https://github.com/krissen/hitta_ansikten/releases/latest):
+Hämta senaste versionen från [GitHub Releases](https://github.com/krissen/ansikten/releases/latest):
 
 | Plattform | Fil |
 |-----------|-----|
-| macOS | `Bildvisare-X.X.X.dmg` eller `.zip` |
-| Windows | `Bildvisare-Setup-X.X.X.exe` |
-| Linux (Debian/Ubuntu) | `bildvisare_X.X.X_amd64.deb` |
-| Linux (övriga) | `Bildvisare-X.X.X.AppImage` |
+| macOS | `Ansikten-X.X.X.dmg` eller `.zip` |
+| Windows | `Ansikten-Setup-X.X.X.exe` |
+| Linux (Debian/Ubuntu) | `ansikten_X.X.X_amd64.deb` |
+| Linux (övriga) | `Ansikten-X.X.X.AppImage` |
 
 ---
 
@@ -34,18 +34,18 @@ Hämta senaste versionen från [GitHub Releases](https://github.com/krissen/hitt
 
 1. Ladda ner `.dmg`-filen
 2. Dubbelklicka för att öppna
-3. Dra "Bildvisare" till Applications-mappen
+3. Dra "Ansikten" till Applications-mappen
 4. Stäng DMG-fönstret
 
 ### Första start
 
 Vid första start kan macOS visa en varning:
 
-> "Bildvisare" kan inte öppnas eftersom utvecklaren inte kan verifieras.
+> "Ansikten" kan inte öppnas eftersom utvecklaren inte kan verifieras.
 
 **Lösning:**
 1. Öppna **Systeminställningar** → **Integritet och säkerhet**
-2. Klicka "Öppna ändå" bredvid Bildvisare-varningen
+2. Klicka "Öppna ändå" bredvid Ansikten-varningen
 3. Bekräfta i dialogrutan
 
 ---
@@ -80,22 +80,22 @@ Appen startas från Start-menyn eller skrivbordsgenvägen.
 
 ```bash
 # Installera paketet
-sudo dpkg -i bildvisare_X.X.X_amd64.deb
+sudo dpkg -i ansikten_X.X.X_amd64.deb
 
 # Installera beroenden om det behövs
 sudo apt-get install -f
 ```
 
-Starta från appmenyn eller kör `bildvisare` i terminalen.
+Starta från appmenyn eller kör `ansikten` i terminalen.
 
 ### AppImage
 
 ```bash
 # Gör filen körbar
-chmod +x Bildvisare-X.X.X.AppImage
+chmod +x Ansikten-X.X.X.AppImage
 
 # Kör appen
-./Bildvisare-X.X.X.AppImage
+./Ansikten-X.X.X.AppImage
 ```
 
 > **Tips:** Flytta AppImage till `/opt/` eller `~/Applications/` för permanent installation.
@@ -125,7 +125,7 @@ Vid första start skapas en tom databas i:
 
 ### macOS
 
-1. Dra Bildvisare från Applications till papperskorgen
+1. Dra Ansikten från Applications till papperskorgen
 2. Ta bort data (valfritt):
    ```bash
    rm -rf ~/.local/share/faceid/
@@ -134,14 +134,14 @@ Vid första start skapas en tom databas i:
 ### Windows
 
 1. Öppna "Lägg till eller ta bort program"
-2. Sök efter "Bildvisare"
+2. Sök efter "Ansikten"
 3. Klicka "Avinstallera"
 
 ### Linux
 
 ```bash
 # Debian/Ubuntu
-sudo apt remove bildvisare
+sudo apt remove ansikten
 
 # Ta bort data (valfritt)
 rm -rf ~/.local/share/faceid/
@@ -167,7 +167,7 @@ netstat -an | findstr 5001  # Windows
 
 ### Rapportera problem
 
-Om problemen kvarstår, [öppna ett ärende på GitHub](https://github.com/krissen/hitta_ansikten/issues/new).
+Om problemen kvarstår, [öppna ett ärende på GitHub](https://github.com/krissen/ansikten/issues/new).
 
 ---
 

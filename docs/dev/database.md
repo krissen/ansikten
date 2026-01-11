@@ -1,6 +1,6 @@
 # Database
 
-Data files and formats used by Hitta ansikten.
+Data files and formats used by Ansikten.
 
 ---
 
@@ -23,7 +23,7 @@ Override with `$XDG_DATA_HOME` environment variable.
 | `attempt_stats.jsonl` | JSONL | Processing attempt log |
 | `metadata.json` | JSON | Version and migration info |
 | `config.json` | JSON | User configuration |
-| `hitta_ansikten.log` | text | Debug/error log |
+| `ansikten.log` | text | Debug/error log |
 
 ---
 
@@ -153,7 +153,7 @@ User configuration overrides.
     "max_downsample_px": 2800,
     "max_midsample_px": 4500,
     "max_fullres_px": 8000,
-    "image_viewer_app": "Bildvisare"
+    "image_viewer_app": "Ansikten"
 }
 ```
 
@@ -165,7 +165,7 @@ User configuration overrides.
 | `backend.type` | `"insightface"` | InsightFace (512-dim, cosine distance) |
 | `match_threshold` | `0.4` | Distance threshold for matches |
 | `auto_ignore` | `false` | Auto-ignore unmatched faces |
-| `image_viewer_app` | `"Bildvisare"` | External preview app |
+| `image_viewer_app` | `"Ansikten"` | External preview app |
 
 > **Note:** dlib backend is deprecated since January 2026. Existing dlib encodings are automatically removed at server startup.
 

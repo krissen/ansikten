@@ -27,7 +27,7 @@ Or with the project's conda environment:
 
 ```bash
 cd backend
-~/.local/share/miniforge3/envs/hitta_ansikten/bin/python ../shared/generate_schemas.py
+~/.local/share/miniforge3/envs/ansikten/bin/python ../shared/generate_schemas.py
 ```
 
 ### Using Schemas
