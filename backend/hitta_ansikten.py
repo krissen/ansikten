@@ -26,7 +26,10 @@ import unicodedata
 from datetime import datetime
 from pathlib import Path
 from types import FrameType
-from typing import Callable, Iterator
+from typing import TYPE_CHECKING, Callable, Iterator, Sequence
+
+if TYPE_CHECKING:
+    from prompt_toolkit.completion import Completer
 
 import numpy as np
 
@@ -57,15 +60,15 @@ from cli_matching import (
 init_logging(replace_handlers=False)
 
 
-def safe_input(prompt_text: str, completer: object | None = None) -> str:
+def safe_input(prompt_text: str, completer: "Completer | None" = None) -> str:
     """
-    Wrapper för både vanlig input och prompt_toolkit.prompt, med graceful exit.
-    Om completer anges, används prompt_toolkit.prompt, annars vanlig input().
+    Wrapper for input() and prompt_toolkit.prompt with graceful exit.
+    Uses prompt_toolkit if completer provided, otherwise standard input().
     """
     try:
         if completer is not None:
             from prompt_toolkit import prompt
-            return prompt(prompt_text, completer=completer)
+            return prompt(prompt_text, completer=completer)  # type: ignore[arg-type]
         else:
             return input(prompt_text)
     except KeyboardInterrupt:
@@ -73,7 +76,7 @@ def safe_input(prompt_text: str, completer: object | None = None) -> str:
         sys.exit(0)
 
 
-def parse_inputs(args: list[str], supported_ext: set[str]) -> Iterator[Path]:
+def parse_inputs(args: list[str], supported_ext: set[str] | list[str]) -> Iterator[Path]:
     seen = set()  # för att undvika dubbletter
     for arg in args:
         path = Path(arg)
@@ -952,6 +955,8 @@ def collect_persons_for_files(
 
     stats_by_hash = {}
     stats_by_name = {}
+    basename_count = {}
+
     for entry in attempt_log:
         fn = Path(entry.get("filename", "")).name
         fh = entry.get("file_hash")
@@ -972,6 +977,7 @@ def collect_persons_for_files(
                         if fh:
                             stats_by_hash[fh] = persons
                         stats_by_name[fn] = persons
+                        basename_count[fn] = basename_count.get(fn, 0) + 1
 
     result = {}
     for f in filelist:
@@ -985,7 +991,7 @@ def collect_persons_for_files(
         review_persons = []
         if h and h in stats_by_hash:
             review_persons = stats_by_hash[h]
-        elif fname in stats_by_name:
+        elif fname in stats_by_name and basename_count.get(fname, 0) == 1:
             review_persons = stats_by_name[fname]
 
         if review_persons:

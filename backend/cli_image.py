@@ -37,7 +37,7 @@ def load_and_resize_raw(image_path: str | Path, max_dim: int | None = None) -> N
     if max_dim and max(rgb.shape[0], rgb.shape[1]) > max_dim:
         scale = max_dim / max(rgb.shape[0], rgb.shape[1])
         rgb = (Image.fromarray(rgb)
-               .resize((int(rgb.shape[1] * scale), int(rgb.shape[0] * scale)), Image.LANCZOS))
+               .resize((int(rgb.shape[1] * scale), int(rgb.shape[0] * scale)), Image.Resampling.LANCZOS))
         rgb = np.array(rgb)
     return rgb
 
@@ -99,7 +99,7 @@ def create_labeled_image(
     """
     import matplotlib.font_manager as fm
 
-    font_size = max(10, rgb_image.shape[1] // config.get("font_size_factor", 45))
+    font_size = int(max(10, rgb_image.shape[1] // config.get("font_size_factor", 45)))
     font_path = fm.findfont(fm.FontProperties(family="DejaVu Sans"))
     font = ImageFont.truetype(font_path, font_size)
     bg_color = tuple(config.get("label_bg_color", [0, 0, 0, 192]))
@@ -122,8 +122,8 @@ def create_labeled_image(
         label_text = "{} {}".format(labels[i].split('\n')[0], labels[i].split('\n')[1]) if "\n" in labels[i] else labels[i]
         lines = robust_word_wrap(label_text, max_label_width, draw_temp, font)
         line_sizes = [draw_temp.textbbox((0, 0), line, font=font) for line in lines]
-        text_width = max(b[2] - b[0] for b in line_sizes) + 10
-        text_height = font_size * len(lines) + 4
+        text_width = int(max(b[2] - b[0] for b in line_sizes) + 10)
+        text_height = int(font_size * len(lines) + 4)
 
         # Siffran, ovanför ansiktslådan om plats
         num_font_size = max(12, font_size // 2)
@@ -140,6 +140,9 @@ def create_labeled_image(
         found = False
         cx = (left + right) // 2
         cy = (top + bottom) // 2
+        lx = -text_width - margin
+        ly = -text_height - margin
+        label_box: tuple[int, int, int, int] = (lx, ly, lx + text_width, ly + text_height)
         for radius in range(max((bottom-top), (right-left)) + margin, max(orig_width, orig_height) * 2, 25):
             for angle in range(0, 360, 10):
                 radians = math.radians(angle)
@@ -264,7 +267,7 @@ def export_and_show_original(image_path: str | Path, config: dict[str, Any]) -> 
 
 
 def show_temp_image(
-    preview_path: str,
+    preview_path: str | Path,
     config: dict[str, Any],
     image_path: str | Path | None = None,
     last_shown: list[str | None] = [None],  # noqa: B006
@@ -339,4 +342,4 @@ def show_temp_image(
         last_shown[0] = expected_path
     else:
         logging.debug(f"[ANSIKTEN] Hoppar över open")
-        last_shown[0] = preview_path
+        last_shown[0] = str(preview_path)
