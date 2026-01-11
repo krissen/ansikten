@@ -159,6 +159,7 @@ export function LogViewer() {
             onChange={(e) => setFilterLevel(e.target.value)}
           >
             <option value="all">All Levels</option>
+            <option value="debug">Debug</option>
             <option value="info">Info</option>
             <option value="warn">Warning</option>
             <option value="error">Error</option>
