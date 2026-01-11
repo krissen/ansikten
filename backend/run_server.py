@@ -28,13 +28,13 @@ def main() -> None:
     
     # Parse command line arguments
     import argparse
-    parser = argparse.ArgumentParser(description='Bildvisare Backend Server')
+    parser = argparse.ArgumentParser(description='Ansikten Backend Server')
     parser.add_argument('--host', default='127.0.0.1', help='Host to bind to')
     parser.add_argument('--port', type=int, default=5001, help='Port to bind to')
     args = parser.parse_args()
     
     # Set port in environment for the app
-    os.environ['BILDVISARE_PORT'] = str(args.port)
+    os.environ['ANSIKTEN_PORT'] = str(args.port)
     
     # Import the app object directly (string imports don't work in PyInstaller)
     from api.server import app

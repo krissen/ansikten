@@ -37,6 +37,7 @@ export function LogViewer() {
   const [logs, setLogs] = useState([]);
   const [filterLevel, setFilterLevel] = useState('all');
   const [filterSource, setFilterSource] = useState('all');
+  const [copyFeedback, setCopyFeedback] = useState(false);
   const autoScrollRef = useRef(true);
   const entriesRef = useRef(null);
   const lastBufferLengthRef = useRef(0);
@@ -56,9 +57,6 @@ export function LogViewer() {
     setLogs(prev => [...prev, entry]);
   }, []);
 
-  /**
-   * Clear all logs
-   */
   const clearLogs = useCallback(() => {
     setLogs([]);
     clearLogBuffer();
@@ -130,13 +128,44 @@ export function LogViewer() {
     addLogEntry('info', `Face detected: ${data.faceId} (confidence: ${data.confidence})`, data.timestamp, 'backend');
   }, [addLogEntry]));
 
-  /**
-   * Filter logs
-   */
   const filteredLogs = logs.filter(log => {
     if (filterLevel !== 'all' && log.level !== filterLevel) return false;
     if (filterSource !== 'all' && log.source !== filterSource) return false;
     return true;
+  });
+
+  const formatLogsForClipboard = (logsToFormat) => {
+    return logsToFormat.map(entry => {
+      const time = formatTime(entry.timestamp);
+      const source = entry.source === 'frontend' ? 'FE' : 'BE';
+      const level = entry.level.toUpperCase().padEnd(5);
+      return `[${time}] [${source}] ${level} ${entry.message}`;
+    }).join('\n');
+  };
+
+  const copyLogs = async () => {
+    const text = formatLogsForClipboard(filteredLogs);
+    try {
+      await navigator.clipboard.writeText(text);
+      setCopyFeedback(true);
+      setTimeout(() => setCopyFeedback(false), 1500);
+    } catch (err) {
+      console.error('Failed to copy logs:', err);
+    }
+  };
+
+  useEffect(() => {
+    const handleKeyDown = (e) => {
+      if ((e.metaKey || e.ctrlKey) && e.key === 'a') {
+        const container = entriesRef.current;
+        if (container && container.contains(document.activeElement)) {
+          e.preventDefault();
+          copyLogs();
+        }
+      }
+    };
+    document.addEventListener('keydown', handleKeyDown);
+    return () => document.removeEventListener('keydown', handleKeyDown);
   });
 
   return (
@@ -159,11 +188,15 @@ export function LogViewer() {
             onChange={(e) => setFilterLevel(e.target.value)}
           >
             <option value="all">All Levels</option>
+            <option value="debug">Debug</option>
             <option value="info">Info</option>
             <option value="warn">Warning</option>
             <option value="error">Error</option>
           </select>
-          <button className="btn-secondary" onClick={clearLogs}>
+          <button type="button" className="btn-secondary" onClick={copyLogs}>
+            {copyFeedback ? 'Copied!' : 'Copy'}
+          </button>
+          <button type="button" className="btn-secondary" onClick={clearLogs}>
             Clear
           </button>
         </div>

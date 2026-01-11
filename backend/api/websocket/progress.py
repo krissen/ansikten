@@ -8,12 +8,79 @@ from fastapi import APIRouter, WebSocket, WebSocketDisconnect
 from typing import Set
 import logging
 import json
+import asyncio
+import queue
+from datetime import datetime
 
 logger = logging.getLogger(__name__)
 router = APIRouter()
 
 # Active WebSocket connections
 active_connections: Set[WebSocket] = set()
+
+# Enabled log categories for broadcasting (empty = all enabled)
+enabled_log_categories: Set[str] = set()
+
+# Thread-safe queue required: emit() called from any thread, process_log_queue() in asyncio loop
+_log_queue = queue.Queue(maxsize=1000)
+
+
+class WebSocketLogHandler(logging.Handler):
+    """Logging handler that queues log entries for WebSocket broadcast"""
+    
+    def __init__(self):
+        super().__init__()
+        self._loop = None
+    
+    def emit(self, record: logging.LogRecord):
+        try:
+            category = self._extract_category(record)
+            
+            if enabled_log_categories and category not in enabled_log_categories:
+                return
+            
+            level = record.levelname.lower()
+            message = self.format(record)
+            timestamp = datetime.fromtimestamp(record.created).isoformat()
+            
+            entry = {
+                "level": level,
+                "message": message,
+                "category": category,
+                "timestamp": timestamp
+            }
+            
+            try:
+                _log_queue.put_nowait(entry)
+            except queue.Full:
+                pass
+        except Exception:
+            pass
+    
+    def _extract_category(self, record: logging.LogRecord) -> str:
+        msg = record.getMessage()
+        if msg.startswith("[") and "]" in msg:
+            return msg[1:msg.index("]")]
+        return record.name
+
+
+async def process_log_queue():
+    """Background task to process queued log entries and broadcast them"""
+    while True:
+        try:
+            entry = _log_queue.get_nowait()
+            await broadcast_event("log-entry", entry)
+        except queue.Empty:
+            await asyncio.sleep(0.1)
+        except Exception as e:
+            logger.error(f"[WebSocket] Error processing log queue: {e}")
+
+
+def set_log_categories(categories: Set[str]):
+    """Set which log categories to broadcast (empty = all)"""
+    global enabled_log_categories
+    enabled_log_categories = set(categories) if categories else set()
+    logger.info(f"[WebSocket] Log categories updated: {enabled_log_categories or 'all'}")
 
 @router.websocket("/ws/progress")
 async def websocket_progress(websocket: WebSocket):

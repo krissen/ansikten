@@ -21,7 +21,7 @@ const DEBUG = true;
 class BackendService {
   constructor() {
     this.process = null;
-    this.port = parseInt(process.env.BILDVISARE_PORT || '5001');
+    this.port = parseInt(process.env.ANSIKTEN_PORT || '5001');
     this.host = '127.0.0.1';
     this.maxRetries = 30;
     this.retryDelay = 1000;
@@ -60,7 +60,7 @@ class BackendService {
     if (isPackaged) {
       // Production: Use bundled PyInstaller directory (--onedir mode for fast startup)
       const resourcesPath = process.resourcesPath;
-      const execName = process.platform === 'win32' ? 'bildvisare-backend.exe' : 'bildvisare-backend';
+      const execName = process.platform === 'win32' ? 'ansikten-backend.exe' : 'ansikten-backend';
       const backendDir = path.join(resourcesPath, 'backend');
       const backendPath = path.join(backendDir, execName);
 
@@ -81,7 +81,7 @@ class BackendService {
         cwd: backendDir,
         env: {
           ...process.env,
-          BILDVISARE_PORT: this.port.toString()
+          ANSIKTEN_PORT: this.port.toString()
         }
       };
     } else {
@@ -90,8 +90,8 @@ class BackendService {
 
       // Try to find Python in common locations
       const pythonPaths = [
-        process.env.BILDVISARE_PYTHON,  // Custom path via env var
-        '/Users/krisniem/.local/share/miniforge3/envs/hitta_ansikten/bin/python3',  // Dev default
+        process.env.ANSIKTEN_PYTHON,  // Custom path via env var
+        '/Users/krisniem/.local/share/miniforge3/envs/ansikten/bin/python3',  // Dev default
         'python3',  // System Python
         'python',   // Fallback
       ].filter(Boolean);
@@ -117,12 +117,13 @@ class BackendService {
       }
 
       if (!pythonPath) {
-        throw new Error('No Python interpreter found. Set BILDVISARE_PYTHON env var or install python3.');
+        throw new Error('No Python interpreter found. Set ANSIKTEN_PYTHON env var or install python3.');
       }
 
       console.log('[BackendService] Running in development mode');
       console.log('[BackendService] Python path:', pythonPath);
 
+      const logLevel = process.env.ANSIKTEN_LOG_LEVEL || 'info';
       return {
         executable: pythonPath,
         args: [
@@ -130,13 +131,14 @@ class BackendService {
           'api.server:app',
           '--host', this.host,
           '--port', this.port.toString(),
-          '--log-level', 'info'
+          '--log-level', logLevel
         ],
         cwd: backendDir,
         env: {
           ...process.env,
           PYTHONPATH: backendDir,
-          BILDVISARE_PORT: this.port.toString()
+          ANSIKTEN_PORT: this.port.toString(),
+          ANSIKTEN_LOG_LEVEL: logLevel
         }
       };
     }
@@ -212,7 +214,7 @@ class BackendService {
    */
   async waitForReady() {
     console.log(`[BackendService] [${this._timestamp()}] Starting health check polling...`);
-    this._updateStatus('Initierar Python...', 10);
+    this._updateStatus('Initializing Python...', 10);
 
     await new Promise(resolve => setTimeout(resolve, 2000));
 
@@ -231,13 +233,13 @@ class BackendService {
 
       const progress = Math.min(10 + (i / this.maxRetries) * 60, 70);
       if (i === 0) {
-        this._updateStatus('Laddar Python-moduler...', progress);
+        this._updateStatus('Loading Python modules...', progress);
       } else if (i === 3) {
-        this._updateStatus('Startar FastAPI...', progress);
+        this._updateStatus('Starting FastAPI...', progress);
       } else if (i === 6) {
-        this._updateStatus('Startar webbserver...', progress);
+        this._updateStatus('Starting web server...', progress);
       } else if (i > 10) {
-        this._updateStatus(`Väntar på backend... (${i}/${this.maxRetries})`, progress);
+        this._updateStatus(`Waiting for backend... (${i}/${this.maxRetries})`, progress);
       }
 
       if (DEBUG && i > 0 && i % 5 === 0) {

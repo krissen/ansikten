@@ -1,4 +1,4 @@
-"""Shared type definitions for hitta_ansikten monorepo.
+"""Shared type definitions for Ansikten monorepo.
 
 These types are used by both backend (Python) and frontend (TypeScript).
 Keep in sync with types.ts when making changes.

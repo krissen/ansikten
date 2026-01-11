@@ -331,7 +331,7 @@ function RecentImagesSection({ images, isLoading }) {
       <h4 className="section-title">Recent Images</h4>
       <div className="recent-images-list">
         {images.map((img, idx) => (
-          <div key={idx} className={`image-entry ${img.source === 'bildvisare' ? 'source-bildvisare' : 'source-cli'}`}>
+          <div key={idx} className={`image-entry ${img.source === 'ansikten' ? 'source-ansikten' : 'source-cli'}`}>
             <span className="image-filename">
               {img.filename}
               {img.source === 'cli' && <span className="source-badge cli">CLI</span>}

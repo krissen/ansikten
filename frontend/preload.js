@@ -4,7 +4,7 @@
 const { contextBridge, ipcRenderer } = require("electron");
 
 // Expose safe, limited APIs to renderer
-contextBridge.exposeInMainWorld("bildvisareAPI", {
+contextBridge.exposeInMainWorld("ansiktenAPI", {
   // IPC communication - only specific channels allowed
   send: (channel, data) => {
     const allowedChannels = ["bild-visad", "sync-view"];

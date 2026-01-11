@@ -1,12 +1,12 @@
 # Onboarding
 
-Guide for new developers getting started with Hitta ansikten.
+Guide for new developers getting started with Ansikten.
 
 ---
 
 ## About This Project
 
-**Hitta ansikten** is a monorepo for face recognition in event photography:
+**Ansikten** is a monorepo for face recognition in event photography:
 
 - **Backend**: Python FastAPI server + CLI for batch processing
 - **Frontend**: Electron workspace with FlexLayout for image review
@@ -50,8 +50,8 @@ sudo dnf install python3-devel gcc-c++ cmake
 
 ```bash
 cd ~/dev
-git clone https://github.com/krissen/hitta_ansikten.git
-cd hitta_ansikten
+git clone https://github.com/krissen/ansikten.git
+cd ansikten
 ```
 
 ### 2. Backend Setup
@@ -163,9 +163,9 @@ Optional: Rename file
 ## Project Structure
 
 ```
-hitta_ansikten/
+ansikten/
 ├── backend/
-│   ├── hitta_ansikten.py     # Main CLI (~2000 lines)
+│   ├── hitta_ansikten.py     # Main CLI (~2000 lines, legacy name)
 │   ├── faceid_db.py          # Database layer
 │   ├── face_backends.py      # Backend abstraction
 │   ├── api/
@@ -323,7 +323,7 @@ Error: [specific error]
 
 ## Links
 
-- **Repository**: https://github.com/krissen/hitta_ansikten
+- **Repository**: https://github.com/krissen/ansikten
 - **InsightFace**: https://github.com/deepinsight/insightface
 - **FlexLayout**: https://github.com/caplin/FlexLayout
 - **Electron**: https://www.electronjs.org/docs/

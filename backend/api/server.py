@@ -1,18 +1,21 @@
 """
 FastAPI Backend Server
 
-Main entry point for the Bildvisare backend API.
+Main entry point for the Ansikten backend API.
 Provides REST endpoints and WebSocket streaming for face detection.
 """
 
 from contextlib import asynccontextmanager
+import os
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 import logging
 
-# Configure logging
+# Configure logging - level from env var ANSIKTEN_LOG_LEVEL (default: info)
+_log_level_str = os.environ.get('ANSIKTEN_LOG_LEVEL', 'info').upper()
+_log_level = getattr(logging, _log_level_str, logging.INFO)
 logging.basicConfig(
-    level=logging.INFO,
+    level=_log_level,
     format='[%(asctime)s] %(levelname)s - %(message)s',
     datefmt='%Y-%m-%d %H:%M:%S'
 )
@@ -28,8 +31,8 @@ async def lifespan(app: FastAPI):
     
     startup_start = time.perf_counter()
     startup_state = get_startup_state()
-    port = int(os.getenv('BILDVISARE_PORT', '5001'))
-    logger.info("Bildvisare Backend API starting up...")
+    port = int(os.getenv('ANSIKTEN_PORT', '5001'))
+    logger.info("Ansikten Backend API starting up...")
     logger.info(f"Server ready on http://127.0.0.1:{port}")
     
     def _load_database_sync():
@@ -137,17 +140,22 @@ async def lifespan(app: FastAPI):
     
     asyncio.create_task(eager_load_ml())
     
-    # Setup WS broadcast for startup status changes
-    from .websocket.progress import setup_startup_listener
+    from .websocket.progress import setup_startup_listener, WebSocketLogHandler, process_log_queue
     setup_startup_listener()
     
+    ws_handler = WebSocketLogHandler()
+    ws_handler.setLevel(logging.DEBUG)
+    ws_handler.setFormatter(logging.Formatter('%(message)s'))
+    logging.getLogger().addHandler(ws_handler)
+    asyncio.create_task(process_log_queue())
+    
     yield
-    logger.info("Bildvisare Backend API shutting down...")
+    logger.info("Ansikten Backend API shutting down...")
 
 # Create FastAPI app
 app = FastAPI(
-    title="Bildvisare Backend API",
-    description="Face detection and annotation API for Bildvisare image viewer",
+    title="Ansikten Backend API",
+    description="Face detection and annotation API for Ansikten image viewer",
     version="1.0.0",
     lifespan=lifespan
 )
@@ -185,7 +193,7 @@ async def health_check():
 
     return {
         "status": overall,
-        "service": "bildvisare-backend",
+        "service": "ansikten-backend",
         "version": app.version,
         "components": {
             name: {
@@ -222,6 +230,6 @@ if __name__ == "__main__":
     import os
 
     # Get port from environment variable, default to 5001
-    port = int(os.getenv('BILDVISARE_PORT', '5001'))
+    port = int(os.getenv('ANSIKTEN_PORT', '5001'))
 
     uvicorn.run(app, host="127.0.0.1", port=port, log_level="info")

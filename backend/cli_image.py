@@ -1,5 +1,5 @@
 """
-cli_image.py - Image utilities for hitta_ansikten CLI
+cli_image.py - Image utilities for Ansikten CLI
 
 Contains:
 - Image loading and resizing
@@ -37,7 +37,7 @@ def load_and_resize_raw(image_path: str | Path, max_dim: int | None = None) -> N
     if max_dim and max(rgb.shape[0], rgb.shape[1]) > max_dim:
         scale = max_dim / max(rgb.shape[0], rgb.shape[1])
         rgb = (Image.fromarray(rgb)
-               .resize((int(rgb.shape[1] * scale), int(rgb.shape[0] * scale)), Image.LANCZOS))
+               .resize((int(rgb.shape[1] * scale), int(rgb.shape[0] * scale)), Image.Resampling.LANCZOS))
         rgb = np.array(rgb)
     return rgb
 
@@ -99,7 +99,7 @@ def create_labeled_image(
     """
     import matplotlib.font_manager as fm
 
-    font_size = max(10, rgb_image.shape[1] // config.get("font_size_factor", 45))
+    font_size = int(max(10, rgb_image.shape[1] // config.get("font_size_factor", 45)))
     font_path = fm.findfont(fm.FontProperties(family="DejaVu Sans"))
     font = ImageFont.truetype(font_path, font_size)
     bg_color = tuple(config.get("label_bg_color", [0, 0, 0, 192]))
@@ -122,8 +122,8 @@ def create_labeled_image(
         label_text = "{} {}".format(labels[i].split('\n')[0], labels[i].split('\n')[1]) if "\n" in labels[i] else labels[i]
         lines = robust_word_wrap(label_text, max_label_width, draw_temp, font)
         line_sizes = [draw_temp.textbbox((0, 0), line, font=font) for line in lines]
-        text_width = max(b[2] - b[0] for b in line_sizes) + 10
-        text_height = font_size * len(lines) + 4
+        text_width = int(max(b[2] - b[0] for b in line_sizes) + 10)
+        text_height = int(font_size * len(lines) + 4)
 
         # Siffran, ovanför ansiktslådan om plats
         num_font_size = max(12, font_size // 2)
@@ -140,6 +140,9 @@ def create_labeled_image(
         found = False
         cx = (left + right) // 2
         cy = (top + bottom) // 2
+        lx = -text_width - margin
+        ly = -text_height - margin
+        label_box: tuple[int, int, int, int] = (lx, ly, lx + text_width, ly + text_height)
         for radius in range(max((bottom-top), (right-left)) + margin, max(orig_width, orig_height) * 2, 25):
             for angle in range(0, 360, 10):
                 radians = math.radians(angle)
@@ -225,7 +228,7 @@ def create_labeled_image(
         draw.line([(face_cx, face_cy), (label_cx, label_cy)], fill="yellow", width=2)
 
     temp_dir = str(TEMP_DIR)
-    temp_prefix = "hitta_ansikten_preview"
+    temp_prefix = "ansikten_preview"
     temp_suffix = f"{suffix}.jpg" if suffix else ".jpg"
 
     with tempfile.NamedTemporaryFile(prefix=temp_prefix, suffix=temp_suffix, dir=temp_dir, delete=False) as tmp:
@@ -235,7 +238,7 @@ def create_labeled_image(
 
 def export_and_show_original(image_path: str | Path, config: dict[str, Any]) -> None:
     """
-    Exporterar NEF-filen till högupplöst JPG och skriver en statusfil för Bildvisare-appen.
+    Exporterar NEF-filen till högupplöst JPG och skriver en statusfil för Ansikten-appen.
     """
     export_path = TEMP_DIR / "original.jpg"
 
@@ -246,7 +249,7 @@ def export_and_show_original(image_path: str | Path, config: dict[str, Any]) -> 
         img = Image.fromarray(rgb)
         img.save(export_path, format="JPEG", quality=98)
 
-        status_path = Path.home() / "Library" / "Application Support" / "bildvisare" / "original_status.json"
+        status_path = Path.home() / "Library" / "Application Support" / "ansikten" / "original_status.json"
         status = {
             "timestamp": time.time(),
             "source_nef": str(image_path),
@@ -264,7 +267,7 @@ def export_and_show_original(image_path: str | Path, config: dict[str, Any]) -> 
 
 
 def show_temp_image(
-    preview_path: str,
+    preview_path: str | Path,
     config: dict[str, Any],
     image_path: str | Path | None = None,
     last_shown: list[str | None] = [None],  # noqa: B006
@@ -273,14 +276,14 @@ def show_temp_image(
     Display a preview image in the configured viewer app.
     """
     viewer_app = config.get("image_viewer_app")
-    status_path = Path.home() / "Library" / "Application Support" / "bildvisare" / "status.json"
+    status_path = Path.home() / "Library" / "Application Support" / "ansikten" / "status.json"
     expected_path = str(Path(preview_path).resolve())
 
     should_open = True
 
     # Skriv original_status.json
     orig_path = str(image_path) if image_path else str(preview_path)
-    status_origjson_path = Path.home() / "Library" / "Application Support" / "bildvisare" / "original_status.json"
+    status_origjson_path = Path.home() / "Library" / "Application Support" / "ansikten" / "original_status.json"
     status_origjson = {
         "timestamp": time.time(),
         "source_nef": orig_path,
@@ -301,22 +304,22 @@ def show_temp_image(
                 try:
                     if current_file and os.path.samefile(current_file, expected_path):
                         should_open = False
-                        logging.debug(f"[BILDVISARE] Bildvisaren visar redan rätt fil: {expected_path}")
+                        logging.debug(f"[ANSIKTEN] Appen visar redan rätt fil: {expected_path}")
                     else:
                         should_open = True
-                        logging.debug(f"[BILDVISARE] Bildvisaren kör men visar annan fil ({current_file}), öppnar {expected_path}")
+                        logging.debug(f"[ANSIKTEN] Appen kör men visar annan fil ({current_file}), öppnar {expected_path}")
                 except (OSError, ValueError):
                     should_open = True
-                    logging.debug(f"[BILDVISARE] Kan inte jämföra filer, öppnar {expected_path}")
+                    logging.debug(f"[ANSIKTEN] Kan inte jämföra filer, öppnar {expected_path}")
 
             elif app_status == "exited":
-                logging.debug(f"[BILDVISARE] Bildvisaren har avslutats, kommer öppna bild")
+                logging.debug(f"[ANSIKTEN] Appen har avslutats, kommer öppna bild")
                 should_open = True
             else:
-                logging.debug(f"[BILDVISARE] Bildvisar-status: {app_status} inte behandlad, kommer öppna bild")
+                logging.debug(f"[ANSIKTEN] App-status: {app_status} inte behandlad, kommer öppna bild")
                 should_open = True
         except Exception as e:
-            logging.debug(f"[BILDVISARE] Misslyckades läsa statusfilen: {status_path} ({e}), kommer öppna bild")
+            logging.debug(f"[ANSIKTEN] Misslyckades läsa statusfilen: {status_path} ({e}), kommer öppna bild")
             should_open = True
 
     if should_open:
@@ -327,16 +330,16 @@ def show_temp_image(
             print(f"⚠️  Säkerhetsvarning: Ogiltig bildvisarapp '{viewer_app}', hoppar över", file=sys.stderr)
             return
 
-        logging.debug(f"[BILDVISARE] Öppnar bild i visare: {expected_path}")
+        logging.debug(f"[ANSIKTEN] Öppnar bild i visare: {expected_path}")
         cmd = ["open", "-a", viewer_app, expected_path]
-        logging.debug(f"[BILDVISARE] Kör kommando: {' '.join(cmd)}")
+        logging.debug(f"[ANSIKTEN] Kör kommando: {' '.join(cmd)}")
         try:
             proc = subprocess.Popen(cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
-            logging.debug(f"[BILDVISARE] Subprocess startad, PID: {proc.pid}")
+            logging.debug(f"[ANSIKTEN] Subprocess startad, PID: {proc.pid}")
         except Exception as e:
-            logging.error(f"[BILDVISARE] Fel vid start av bildvisare: {e}")
-            print(f"⚠️  Kunde inte öppna bildvisare: {e}", file=sys.stderr)
+            logging.error(f"[ANSIKTEN] Fel vid start av extern bildvisare: {e}")
+            print(f"⚠️  Kunde inte öppna extern bildvisare: {e}", file=sys.stderr)
         last_shown[0] = expected_path
     else:
-        logging.debug(f"[BILDVISARE] Hoppar över open")
-        last_shown[0] = preview_path
+        logging.debug(f"[ANSIKTEN] Hoppar över open")
+        last_shown[0] = str(preview_path)

@@ -2,7 +2,7 @@
 Rename Service
 
 Handles file renaming based on confirmed face identities.
-Ported from hitta_ansikten.py rename functionality.
+Ported from the Ansikten CLI rename functionality.
 """
 
 import logging
@@ -77,7 +77,7 @@ def extract_exif_datetime(file_path: Path) -> Optional[datetime]:
 
         if ext in ['.jpg', '.jpeg', '.tiff', '.tif']:
             with Image.open(file_path) as img:
-                exif_data = img._getexif()
+                exif_data = getattr(img, '_getexif', lambda: None)()
                 if exif_data:
                     for tag_id, value in exif_data.items():
                         tag = TAGS.get(tag_id, tag_id)
@@ -540,10 +540,13 @@ def collect_persons_for_files(
     """
     Collect person names for each file from database and attempt log.
 
-    Uses 3-tier priority:
-    1. encodings.pkl - direct filename match
-    2. encodings.pkl - hash match
-    3. attempt_stats.jsonl - fallback
+    Uses merge strategy with review-order priority:
+    1. If attempt_stats has reviewed data -> start with those names (preserves review order)
+    2. Merge in names from encodings.pkl that aren't already present (dedupe)
+    3. If no attempt_stats -> fall back to encodings.pkl only
+
+    This ensures manual faces (only in attempt_stats) are included alongside
+    auto-detected faces (in encodings.pkl).
 
     Args:
         filelist: List of file paths
@@ -590,52 +593,65 @@ def collect_persons_for_files(
         if isinstance(x, dict) and x.get('name')
     }
 
-    # Load attempts log for fallback
     if attempt_log is None:
         attempt_log = load_attempt_log()
 
-    # Build attempts fallback: filename -> labels (in detection order)
-    # Keyed by basename since attempt_log stores basenames
-    stats_map: Dict[str, List[str]] = {}
+    stats_by_hash: Dict[str, List[str]] = {}
+    stats_by_name: Dict[str, List[str]] = {}
+    basename_count: Dict[str, int] = {}
+
     for entry in attempt_log:
         fn = Path(entry.get("filename", "")).name
+        fh = entry.get("file_hash")
         if entry.get("used_attempt") is not None and entry.get("review_results"):
             idx = entry["used_attempt"]
             if idx < len(entry.get("labels_per_attempt", [])):
                 res = entry["review_results"][idx] if idx < len(entry["review_results"]) else None
                 labels = entry["labels_per_attempt"][idx]
                 if res == "ok" and labels:
-                    # Extract person names from labels: "#1\nName"
-                    persons = []
+                    persons_with_idx = []
                     for lbl in labels:
                         label = lbl["label"] if isinstance(lbl, dict) else lbl
                         if "\n" in label:
-                            namn = label.split("\n", 1)[1]
+                            prefix, namn = label.split("\n", 1)
                             if namn.lower() not in ("ignorerad", "ign", "okänt", "okant"):
-                                persons.append(namn)
+                                try:
+                                    idx = int(prefix.lstrip("#"))
+                                except ValueError:
+                                    idx = 999
+                                persons_with_idx.append((idx, namn))
+                    persons_with_idx.sort(key=lambda x: x[0])
+                    persons = [p[1] for p in persons_with_idx]
                     if persons:
-                        stats_map[fn] = persons
+                        if fh:
+                            stats_by_hash[fh] = persons
+                        stats_by_name[fn] = persons
+                        basename_count[fn] = basename_count.get(fn, 0) + 1
 
-    # Collect persons for each file - result keyed by FULL PATH
     result: Dict[str, List[str]] = {}
     for f in filelist:
         fpath = Path(f)
         fname = fpath.name
-        # Use full path for hash lookup to avoid basename collisions
         h = filehash_map.get(str(fpath)) or processed_name_to_hash.get(fname)
 
-        # 1. Try filename first (encodings.pkl stores basenames)
-        persons = file_to_persons.get(fname, [])
+        encoding_persons = file_to_persons.get(fname, [])
+        if not encoding_persons and h:
+            encoding_persons = hash_to_persons.get(h, [])
 
-        # 2. Otherwise try hash (encodings.pkl)
-        if not persons and h:
-            persons = hash_to_persons.get(h, [])
+        review_persons = []
+        if h and h in stats_by_hash:
+            review_persons = stats_by_hash[h]
+        elif fname in stats_by_name and basename_count.get(fname, 0) == 1:
+            review_persons = stats_by_name[fname]
 
-        # 3. Otherwise try attempts log (fallback, uses basenames)
-        if not persons:
-            persons = stats_map.get(fname, [])
+        if review_persons:
+            persons = list(review_persons)
+            for name in encoding_persons:
+                if name not in persons:
+                    persons.append(name)
+        else:
+            persons = encoding_persons
 
-        # Key result by full path to avoid collisions
         result[str(fpath)] = persons
 
     return result
@@ -733,6 +749,7 @@ class RenameService:
             allow_renamed = config["allowAlreadyRenamed"]
 
         logger.info(f"[RenameService] Generating preview for {len(file_paths)} files")
+        logger.debug(f"[RenameService] Config: {effective_config}")
 
         # Validate all paths for security
         validated_paths = []
@@ -810,6 +827,7 @@ class RenameService:
 
             # Get persons for this file (keyed by full path to avoid basename collisions)
             persons = persons_map.get(file_path, [])
+            logger.debug(f"[RenameService] {fname}: persons={persons}")
             if not persons:
                 items.append({
                     "original_path": file_path,
@@ -824,6 +842,7 @@ class RenameService:
 
             # Build new filename using config
             new_name = build_new_filename_with_config(fname, persons, name_map, path, effective_config)
+            logger.debug(f"[RenameService] {fname} -> {new_name}")
             if not new_name:
                 items.append({
                     "original_path": file_path,

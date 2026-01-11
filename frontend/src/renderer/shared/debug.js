@@ -12,18 +12,13 @@
  *   debugError('ImageViewer', 'Failed to load', error);
  */
 
-// Debug categories - disabled by default except for essential ones
 const DEFAULT_CATEGORIES = {
-  // Core systems - Backend/WebSocket enabled for connection status
-  'FlexLayout': false,  // Verbose tab/panel management, disabled by default
+  // Frontend
+  'FlexLayout': false,
   'Backend': true,
   'WebSocket': true,
-
-  // Module communication - disabled by default (verbose)
   'ModuleAPI': false,
   'ModuleEvent': false,
-
-  // Individual modules - disabled by default
   'FileQueue': false,
   'ImageViewer': false,
   'ReviewModule': false,
@@ -31,21 +26,37 @@ const DEFAULT_CATEGORIES = {
   'LogViewer': false,
   'Statistics': false,
   'DatabaseMgmt': false,
-
-  // Subsystems - disabled by default
   'Preferences': false,
   'IPC': false,
   'NEFConvert': false,
   'FaceDetection': false,
-
-  // Preprocessing - disabled by default (enable for debugging)
   'Preprocessing': false,
   'Cache': false,
-  'ThumbnailCache': false,  // Enable for debugging thumbnail issues
+  'ThumbnailCache': false,
+  // Backend
+  'DetectionService': false,
+  'Detection': false,
+  'Management': false,
+  'ManagementService': false,
+  'RenameService': false,
+  'PreprocessingCache': false,
+  'Refinement': false,
+  'RefinementService': false,
+  'Files': false,
+  'Database': false,
+  'DatabaseService': false,
+  'StatisticsService': false,
+  'StartupState': false,
+  'Status': false,
+  'EXIF': false,
+  'Migration': false,
+  'SECURITY': false,
+  'get_file_stats': false,
+  'convert_nef_to_jpg': false,
 };
 
 // Storage key
-const STORAGE_KEY = 'bildvisare-debug-categories';
+const STORAGE_KEY = 'ansikten-debug-categories';
 
 // Current enabled categories (loaded from localStorage)
 let enabledCategories = { ...DEFAULT_CATEGORIES };
@@ -55,7 +66,7 @@ const LOG_BUFFER_MAX = 500;
 const logBuffer = [];
 
 // IPC availability check
-const ipcAvailable = typeof window !== 'undefined' && window.bildvisareAPI;
+const ipcAvailable = typeof window !== 'undefined' && window.ansiktenAPI;
 
 /**
  * Check if file logging is enabled via preferences
@@ -79,7 +90,7 @@ function isFileLoggingEnabled() {
 function sendToFile(level, formattedMessage) {
   if (ipcAvailable && isFileLoggingEnabled()) {
     try {
-      window.bildvisareAPI.send('renderer-log', { level, message: formattedMessage });
+      window.ansiktenAPI.send('renderer-log', { level, message: formattedMessage });
     } catch (err) {
       // Silently fail - don't cause infinite loop
     }

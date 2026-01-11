@@ -26,7 +26,10 @@ import unicodedata
 from datetime import datetime
 from pathlib import Path
 from types import FrameType
-from typing import Callable, Iterator
+from typing import TYPE_CHECKING, Callable, Iterator, Sequence
+
+if TYPE_CHECKING:
+    from prompt_toolkit.completion import Completer
 
 import numpy as np
 
@@ -57,15 +60,15 @@ from cli_matching import (
 init_logging(replace_handlers=False)
 
 
-def safe_input(prompt_text: str, completer: object | None = None) -> str:
+def safe_input(prompt_text: str, completer: "Completer | None" = None) -> str:
     """
-    Wrapper för både vanlig input och prompt_toolkit.prompt, med graceful exit.
-    Om completer anges, används prompt_toolkit.prompt, annars vanlig input().
+    Wrapper for input() and prompt_toolkit.prompt with graceful exit.
+    Uses prompt_toolkit if completer provided, otherwise standard input().
     """
     try:
         if completer is not None:
             from prompt_toolkit import prompt
-            return prompt(prompt_text, completer=completer)
+            return prompt(prompt_text, completer=completer)  # type: ignore[arg-type]
         else:
             return input(prompt_text)
     except KeyboardInterrupt:
@@ -73,7 +76,7 @@ def safe_input(prompt_text: str, completer: object | None = None) -> str:
         sys.exit(0)
 
 
-def parse_inputs(args: list[str], supported_ext: set[str]) -> Iterator[Path]:
+def parse_inputs(args: list[str], supported_ext: set[str] | list[str]) -> Iterator[Path]:
     seen = set()  # för att undvika dubbletter
     for arg in args:
         path = Path(arg)
@@ -918,57 +921,51 @@ def collect_persons_for_files(
 ) -> dict[str, list[str]]:
     """
     Returnera dict: { filename: [namn, ...] }
-    1) Primärt: encodings.pkl – direkt filmatchning (och/eller hash om fil ej hittas)
-    2) Sekundärt: encodings.pkl – hashmatchning
-    3) Tertiärt: attempt_stats – som fallback
+    Merge-strategi: review-ordning först, sedan komplettera från encodings.
     """
     import hashlib
     from pathlib import Path
 
-    # --- Bygg index för encodings.pkl: filnamn→namn, hash→namn ---
-    file_to_persons = {}    # filnamn (basename) → [namn, ...]
-    hash_to_persons = {}    # hash → [namn, ...]
+    file_to_persons = {}
+    hash_to_persons = {}
 
-    # Först, indexera encodings.pkl på både 'file' och 'hash'
     for name, entries in known_faces.items():
         for entry in entries:
             if isinstance(entry, dict):
                 f = entry.get("file")
                 h = entry.get("hash")
                 if f:
-                    f = Path(f).name  # endast basename
+                    f = Path(f).name
                     file_to_persons.setdefault(f, []).append(name)
                 if h:
                     hash_to_persons.setdefault(h, []).append(name)
-            # gamla formatet (np.ndarray) kan ej kopplas
 
-    # --- Bygg hash-mapp för aktuella filer ---
-    filehash_map = {}  # fname (basename) → hash
+    filehash_map = {}
     for f in filelist:
         fpath = Path(f)
         h = get_file_hash(fpath)
         filehash_map[fpath.name] = h
 
-    # --- Index för processed_files (kan ge extra säkerhet) ---
     if processed_files is None:
         processed_files = []
     processed_name_to_hash = {Path(x['name']).name: x.get('hash') for x in processed_files if isinstance(x, dict) and x.get('name')}
 
-    # --- Ladda attempts-logg för fallback ---
     if attempt_log is None:
         attempt_log = load_attempt_log()
 
-    # --- Ladda attempts som fallback: filename→labels ---
-    stats_map = {}
+    stats_by_hash = {}
+    stats_by_name = {}
+    basename_count = {}
+
     for entry in attempt_log:
         fn = Path(entry.get("filename", "")).name
+        fh = entry.get("file_hash")
         if entry.get("used_attempt") is not None and entry.get("review_results"):
             idx = entry["used_attempt"]
             if idx < len(entry.get("labels_per_attempt", [])):
                 res = entry["review_results"][idx]
                 labels = entry["labels_per_attempt"][idx]
                 if res == "ok" and labels:
-                    # Personnamn ur label: "#1\nNamn"
                     persons = []
                     for lbl in labels:
                         label = lbl["label"] if isinstance(lbl, dict) else lbl
@@ -977,21 +974,34 @@ def collect_persons_for_files(
                             if namn.lower() not in ("ignorerad", "ign", "okänt", "okant"):
                                 persons.append(namn)
                     if persons:
-                        stats_map[fn] = persons
+                        if fh:
+                            stats_by_hash[fh] = persons
+                        stats_by_name[fn] = persons
+                        basename_count[fn] = basename_count.get(fn, 0) + 1
 
-    # --- Samla personer för varje fil ---
     result = {}
     for f in filelist:
         fname = Path(f).name
         h = filehash_map.get(fname) or processed_name_to_hash.get(fname)
-        # 1. Försök filnamn (encodings.pkl)
-        persons = file_to_persons.get(fname, [])
-        # 2. Annars försök hash (encodings.pkl)
-        if not persons and h:
-            persons = hash_to_persons.get(h, [])
-        # 3. Annars försök attempts-logg (fallback)
-        if not persons:
-            persons = stats_map.get(fname, [])
+
+        encoding_persons = file_to_persons.get(fname, [])
+        if not encoding_persons and h:
+            encoding_persons = hash_to_persons.get(h, [])
+
+        review_persons = []
+        if h and h in stats_by_hash:
+            review_persons = stats_by_hash[h]
+        elif fname in stats_by_name and basename_count.get(fname, 0) == 1:
+            review_persons = stats_by_name[fname]
+
+        if review_persons:
+            persons = list(review_persons)
+            for name in encoding_persons:
+                if name not in persons:
+                    persons.append(name)
+        else:
+            persons = encoding_persons
+
         result[fname] = persons
     return result
 
@@ -1151,7 +1161,7 @@ def cleanup_tmp_previews() -> None:
     """Clean up temporary preview files from TEMP_DIR."""
     if not TEMP_DIR.exists():
         return
-    for path in TEMP_DIR.glob("hitta_ansikten_*"):
+    for path in TEMP_DIR.glob("ansikten_*"):
         try:
             path.unlink()
         except Exception as e:
@@ -1373,7 +1383,7 @@ def preprocess_worker(
         print(f"\n⚠️  KRITISKT FEL: Worker-processen kraschade!", file=sys.stderr)
         print(f"⚠️  Fel: {type(e).__name__}: {e}", file=sys.stderr)
         print(f"⚠️  Main-processen kommer att fortsätta utan parallell preprocessing.", file=sys.stderr)
-        print(f"⚠️  Se hitta_ansikten.log för detaljer.\n", file=sys.stderr)
+        print(f"⚠️  Se ansikten.log för detaljer.\n", file=sys.stderr)
         traceback.print_exc()
     finally:
         # Always signal completion, even on error, to unblock main loop

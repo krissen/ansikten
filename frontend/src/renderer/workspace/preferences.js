@@ -9,7 +9,7 @@ import { debug, debugWarn, debugError } from '../shared/debug.js';
 
 export class PreferencesManager {
   constructor() {
-    this.storageKey = 'bildvisare-preferences';
+    this.storageKey = 'ansikten-preferences';
     this.version = 1;
 
     // Default preferences structure
