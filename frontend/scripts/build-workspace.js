@@ -49,34 +49,34 @@ const buildOptions = {
   target: ['chrome110'],
   sourcemap: isDev,
   minify: !isDev,
+  metafile: true,
+  treeShaking: true,
   jsx: 'automatic',
-  // External modules that should not be bundled (loaded separately)
   external: [],
-  // Define globals
   define: {
     'process.env.NODE_ENV': isDev ? '"development"' : '"production"'
   },
-  // Loader for different file types
   loader: {
-    '.js': 'jsx',  // Allow JSX in .js files too
+    '.js': 'jsx',
     '.jsx': 'jsx',
     '.css': 'css'
   },
-  // Log level
   logLevel: 'info'
 };
 
 async function build() {
   try {
     if (isWatch) {
-      // Watch mode
       const ctx = await esbuild.context(buildOptions);
       await ctx.watch();
       console.log('Watching for changes...');
     } else {
-      // One-time build
       const result = await esbuild.build(buildOptions);
-      console.log('Build complete:', result);
+      if (result.metafile && !isDev) {
+        const analysis = await esbuild.analyzeMetafile(result.metafile, { verbose: false });
+        console.log('\nBundle analysis:\n' + analysis);
+      }
+      console.log('Build complete');
     }
   } catch (error) {
     console.error('Build failed:', error);

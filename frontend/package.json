@@ -5,7 +5,8 @@
   "description": "Face detection and annotation tool for image review",
   "main": "main.js",
   "scripts": {
-    "test": "echo \"Error: no test specified\" && exit 1",
+    "test": "vitest run",
+    "test:watch": "vitest",
     "clean": "rm -rf dist resources/backend ../backend/dist ../backend/build",
     "build:workspace": "node scripts/build-workspace.js",
     "watch:workspace": "node scripts/build-workspace.js --watch --dev",
@@ -29,7 +30,6 @@
   },
   "type": "commonjs",
   "dependencies": {
-    "dockview": "^1.17.2",
     "flexlayout-react": "^0.8.17",
     "react": "^19.2.3",
     "react-dom": "^19.2.3"
@@ -37,7 +37,10 @@
   "devDependencies": {
     "electron": "^36.3.2",
     "electron-builder": "^26.0.0",
-    "esbuild": "^0.27.2"
+    "esbuild": "^0.27.2",
+    "vitest": "^3.0.0",
+    "@testing-library/react": "^16.0.0",
+    "jsdom": "^26.0.0"
   },
   "build": {
     "appId": "se.krissen.bildvisare",
