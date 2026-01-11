@@ -29,11 +29,98 @@ import { RefineFacesModule } from '../../components/RefineFacesModule.jsx';
 // Storage key for layout persistence
 const STORAGE_KEY = 'bildvisare-flexlayout';
 
-/**
- * Shortcuts Help Overlay - shows all keyboard shortcuts
- */
-function ShortcutsHelpOverlay({ onClose }) {
-  // Close on Escape or clicking overlay
+const SHORTCUT_SECTIONS = [
+  {
+    id: 'navigation',
+    title: 'Navigation',
+    modules: [],
+    shortcuts: [
+      { keys: ['Cmd', '←→↑↓'], desc: 'Move focus between panels' },
+      { keys: ['↑', '↓'], desc: 'Previous / next item', sep: '/' },
+      { keys: ['Tab'], desc: 'Complete name (in input)' }
+    ]
+  },
+  {
+    id: 'layout',
+    title: 'Layout',
+    modules: [],
+    shortcuts: [
+      { keys: ['Cmd', '1-4'], desc: 'Switch layout template' },
+      { keys: ['Cmd', 'Shift', ']'], desc: 'Add column' },
+      { keys: ['Cmd', 'Shift', '['], desc: 'Remove column' },
+      { keys: ['Cmd', 'Shift', '}'], desc: 'Add row' },
+      { keys: ['Cmd', 'Shift', '{'], desc: 'Remove row' }
+    ]
+  },
+  {
+    id: 'image-viewer',
+    title: 'Image Viewer',
+    modules: ['image-viewer', 'original-view'],
+    shortcuts: [
+      { keys: ['+', '-'], desc: 'Zoom in/out (hold for continuous)', sep: ' / ' },
+      { keys: ['='], desc: 'Reset to 1:1' },
+      { keys: ['0'], desc: 'Auto-fit to window' },
+      { keys: ['B'], desc: 'Toggle bounding boxes on/off' },
+      { keys: ['b'], desc: 'Toggle single/all boxes' },
+      { keys: ['c', 'C'], desc: 'Toggle auto-center on face', sep: ' / ' }
+    ]
+  },
+  {
+    id: 'face-review',
+    title: 'Face Review',
+    modules: ['review-module'],
+    shortcuts: [
+      { keys: ['Enter', 'A'], desc: 'Accept suggested match', sep: ' / ' },
+      { keys: ['I'], desc: 'Ignore face' },
+      { keys: ['R'], desc: 'Rename / enter name' },
+      { keys: ['1-N'], desc: 'Select match alternative' },
+      { keys: ['↑', '↓'], desc: 'Previous / next face', sep: ' / ' },
+      { keys: ['X'], desc: 'Skip to next file' },
+      { keys: ['Shift', 'Cmd', 'A'], desc: 'Accept all suggestions' },
+      { keys: ['Cmd', 'Z'], desc: 'Undo last face action' },
+      { keys: ['Esc'], desc: 'Cancel detection / discard changes' }
+    ]
+  },
+  {
+    id: 'file-queue',
+    title: 'File Queue',
+    modules: ['file-queue'],
+    shortcuts: [
+      { keys: ['Cmd', 'O'], desc: 'Open files' },
+      { keys: ['↑', '↓'], desc: 'Navigate queue', sep: ' / ' },
+      { keys: ['Enter'], desc: 'Load selected file' },
+      { keys: ['Delete'], desc: 'Remove from queue' },
+      { keys: ['Cmd', 'A'], desc: 'Select all files' }
+    ]
+  },
+  {
+    id: 'general',
+    title: 'General',
+    modules: [],
+    shortcuts: [
+      { keys: ['?'], desc: 'Show this help' },
+      { keys: ['Cmd', 'R'], desc: 'Reload window' },
+      { keys: ['Cmd', ','], desc: 'Preferences' }
+    ]
+  }
+];
+
+function ShortcutRow({ shortcut }) {
+  const { keys, desc, sep = '+' } = shortcut;
+  return (
+    <div className="shortcut-row">
+      {keys.map((key, i) => (
+        <span key={key}>
+          {i > 0 && <span className="key-sep">{sep}</span>}
+          <kbd>{key}</kbd>
+        </span>
+      ))}
+      <span className="shortcut-desc">{desc}</span>
+    </div>
+  );
+}
+
+function ShortcutsHelpOverlay({ onClose, activeModule }) {
   useEffect(() => {
     const handleKeyDown = (e) => {
       if (e.key === 'Escape' || e.key === '?') {
@@ -50,66 +137,23 @@ function ShortcutsHelpOverlay({ onClose }) {
       <div className="shortcuts-dialog" onClick={e => e.stopPropagation()}>
         <div className="shortcuts-header">
           <h2>Keyboard Shortcuts</h2>
-          <button className="shortcuts-close" onClick={onClose}>&times;</button>
+          <button type="button" className="shortcuts-close" onClick={onClose}>&times;</button>
         </div>
         <div className="shortcuts-content">
-          {/* Navigation */}
-          <div className="shortcuts-section">
-            <h3>Navigation</h3>
-            <div className="shortcut-row"><kbd>Cmd</kbd>+<kbd>←→↑↓</kbd><span>Move focus between panels</span></div>
-            <div className="shortcut-row"><kbd>↑</kbd>/<kbd>↓</kbd><span>Previous / next face</span></div>
-            <div className="shortcut-row"><kbd>Tab</kbd><span>Complete name (in input)</span></div>
-          </div>
-
-          {/* Layout */}
-          <div className="shortcuts-section">
-            <h3>Layout</h3>
-            <div className="shortcut-row"><kbd>Cmd</kbd>+<kbd>1-4</kbd><span>Switch layout template</span></div>
-            <div className="shortcut-row"><kbd>Cmd</kbd>+<kbd>Shift</kbd>+<kbd>]</kbd><span>Add column</span></div>
-            <div className="shortcut-row"><kbd>Cmd</kbd>+<kbd>Shift</kbd>+<kbd>[</kbd><span>Remove column</span></div>
-            <div className="shortcut-row"><kbd>Cmd</kbd>+<kbd>Shift</kbd>+<kbd>{'}'}</kbd><span>Add row</span></div>
-            <div className="shortcut-row"><kbd>Cmd</kbd>+<kbd>Shift</kbd>+<kbd>{'{'}</kbd><span>Remove row</span></div>
-          </div>
-
-          {/* Image Viewer */}
-          <div className="shortcuts-section">
-            <h3>Image Viewer</h3>
-            <div className="shortcut-row"><kbd>+</kbd> / <kbd>-</kbd><span>Zoom in/out (hold for continuous)</span></div>
-            <div className="shortcut-row"><kbd>=</kbd><span>Reset to 1:1</span></div>
-            <div className="shortcut-row"><kbd>0</kbd><span>Auto-fit to window</span></div>
-            <div className="shortcut-row"><kbd>B</kbd><span>Toggle bounding boxes on/off</span></div>
-            <div className="shortcut-row"><kbd>b</kbd><span>Toggle single/all boxes</span></div>
-            <div className="shortcut-row"><kbd>c</kbd> / <kbd>C</kbd><span>Toggle auto-center on face</span></div>
-          </div>
-
-          {/* Face Review */}
-          <div className="shortcuts-section">
-            <h3>Face Review</h3>
-            <div className="shortcut-row"><kbd>Enter</kbd> / <kbd>A</kbd><span>Accept suggested match</span></div>
-            <div className="shortcut-row"><kbd>I</kbd><span>Ignore face</span></div>
-            <div className="shortcut-row"><kbd>R</kbd><span>Rename / enter name</span></div>
-            <div className="shortcut-row"><kbd>1-N</kbd><span>Select match alternative (N in prefs)</span></div>
-            <div className="shortcut-row"><kbd>↑</kbd> / <kbd>↓</kbd><span>Previous/next face</span></div>
-            <div className="shortcut-row"><kbd>X</kbd><span>Skip to next file</span></div>
-            <div className="shortcut-row"><kbd>Esc</kbd><span>Discard changes / blur input</span></div>
-          </div>
-
-          {/* File Queue */}
-          <div className="shortcuts-section">
-            <h3>File Queue</h3>
-            <div className="shortcut-row"><kbd>Cmd</kbd>+<kbd>O</kbd><span>Open files</span></div>
-            <div className="shortcut-row"><kbd>↑</kbd> / <kbd>↓</kbd><span>Navigate queue</span></div>
-            <div className="shortcut-row"><kbd>Enter</kbd><span>Load selected file</span></div>
-            <div className="shortcut-row"><kbd>Delete</kbd><span>Remove from queue</span></div>
-          </div>
-
-          {/* General */}
-          <div className="shortcuts-section">
-            <h3>General</h3>
-            <div className="shortcut-row"><kbd>?</kbd><span>Show this help</span></div>
-            <div className="shortcut-row"><kbd>Cmd</kbd>+<kbd>R</kbd><span>Reload window</span></div>
-            <div className="shortcut-row"><kbd>Cmd</kbd>+<kbd>,</kbd><span>Preferences</span></div>
-          </div>
+          {SHORTCUT_SECTIONS.map(section => {
+            const isActive = section.modules.length > 0 && section.modules.includes(activeModule);
+            return (
+              <div
+                key={section.id}
+                className={`shortcuts-section ${isActive ? 'active-module' : ''}`}
+              >
+                <h3>{section.title}</h3>
+                {section.shortcuts.map((shortcut) => (
+                  <ShortcutRow key={shortcut.desc} shortcut={shortcut} />
+                ))}
+              </div>
+            );
+          })}
         </div>
         <div className="shortcuts-footer">
           Press <kbd>?</kbd> or <kbd>Esc</kbd> to close
@@ -1167,7 +1211,15 @@ export function FlexLayoutWorkspace() {
         onAction={handleAction}
       />
       {showShortcutsHelp && (
-        <ShortcutsHelpOverlay onClose={() => setShowShortcutsHelp(false)} />
+        <ShortcutsHelpOverlay
+          onClose={() => setShowShortcutsHelp(false)}
+          activeModule={(() => {
+            const activeTabset = model.getActiveTabset();
+            if (!activeTabset) return null;
+            const activeTab = activeTabset.getSelectedNode();
+            return activeTab?.getComponent() || null;
+          })()}
+        />
       )}
     </>
   );
