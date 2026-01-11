@@ -14,7 +14,7 @@ Konsoliderad lista över planerade förbättringar, kända brister och teknisk s
 
 ### Kort sikt
 
-- [ ] **Drag-and-drop polish** - Förbättra DnD-upplevelsen i FileQueueModule
+(Inga uppgifter just nu)
 
 ### Mellan sikt
 
@@ -119,6 +119,10 @@ Konsoliderad lista över planerade förbättringar, kända brister och teknisk s
   - Nya CSS-variabler: --btn-secondary-hover-bg, --btn-icon-hover-bg
   - Ljust läge: hover ljusnar (#e8d8b0) istället för mörknar
   - Border- och box-shadow-förbättringar
+- [x] **Drag-and-drop stöd** - Dra och släpp filer i fillistan
+  - Stöd för NEF, CR2, ARW, JPG, JPEG, PNG, TIFF
+  - Visuell feedback med färgad overlay
+  - Automatisk start om kön var tom
 
 ### 2026-01-11: Typ-annotationer i backend
 
