@@ -6,13 +6,16 @@ Provides REST endpoints and WebSocket streaming for face detection.
 """
 
 from contextlib import asynccontextmanager
+import os
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 import logging
 
-# Configure logging
+# Configure logging - level from env var ANSIKTEN_LOG_LEVEL (default: info)
+_log_level_str = os.environ.get('ANSIKTEN_LOG_LEVEL', 'info').upper()
+_log_level = getattr(logging, _log_level_str, logging.INFO)
 logging.basicConfig(
-    level=logging.INFO,
+    level=_log_level,
     format='[%(asctime)s] %(levelname)s - %(message)s',
     datefmt='%Y-%m-%d %H:%M:%S'
 )

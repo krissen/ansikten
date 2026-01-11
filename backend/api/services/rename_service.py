@@ -77,7 +77,7 @@ def extract_exif_datetime(file_path: Path) -> Optional[datetime]:
 
         if ext in ['.jpg', '.jpeg', '.tiff', '.tif']:
             with Image.open(file_path) as img:
-                exif_data = img._getexif()
+                exif_data = getattr(img, '_getexif', lambda: None)()
                 if exif_data:
                     for tag_id, value in exif_data.items():
                         tag = TAGS.get(tag_id, tag_id)
@@ -609,13 +609,19 @@ def collect_persons_for_files(
                 res = entry["review_results"][idx] if idx < len(entry["review_results"]) else None
                 labels = entry["labels_per_attempt"][idx]
                 if res == "ok" and labels:
-                    persons = []
+                    persons_with_idx = []
                     for lbl in labels:
                         label = lbl["label"] if isinstance(lbl, dict) else lbl
                         if "\n" in label:
-                            namn = label.split("\n", 1)[1]
+                            prefix, namn = label.split("\n", 1)
                             if namn.lower() not in ("ignorerad", "ign", "okänt", "okant"):
-                                persons.append(namn)
+                                try:
+                                    idx = int(prefix.lstrip("#"))
+                                except ValueError:
+                                    idx = 999
+                                persons_with_idx.append((idx, namn))
+                    persons_with_idx.sort(key=lambda x: x[0])
+                    persons = [p[1] for p in persons_with_idx]
                     if persons:
                         if fh:
                             stats_by_hash[fh] = persons
@@ -743,6 +749,7 @@ class RenameService:
             allow_renamed = config["allowAlreadyRenamed"]
 
         logger.info(f"[RenameService] Generating preview for {len(file_paths)} files")
+        logger.debug(f"[RenameService] Config: {effective_config}")
 
         # Validate all paths for security
         validated_paths = []
@@ -820,6 +827,7 @@ class RenameService:
 
             # Get persons for this file (keyed by full path to avoid basename collisions)
             persons = persons_map.get(file_path, [])
+            logger.debug(f"[RenameService] {fname}: persons={persons}")
             if not persons:
                 items.append({
                     "original_path": file_path,
@@ -834,6 +842,7 @@ class RenameService:
 
             # Build new filename using config
             new_name = build_new_filename_with_config(fname, persons, name_map, path, effective_config)
+            logger.debug(f"[RenameService] {fname} -> {new_name}")
             if not new_name:
                 items.append({
                     "original_path": file_path,
