@@ -123,6 +123,7 @@ class BackendService {
       console.log('[BackendService] Running in development mode');
       console.log('[BackendService] Python path:', pythonPath);
 
+      const logLevel = process.env.ANSIKTEN_LOG_LEVEL || 'info';
       return {
         executable: pythonPath,
         args: [
@@ -130,13 +131,14 @@ class BackendService {
           'api.server:app',
           '--host', this.host,
           '--port', this.port.toString(),
-          '--log-level', 'info'
+          '--log-level', logLevel
         ],
         cwd: backendDir,
         env: {
           ...process.env,
           PYTHONPATH: backendDir,
-          ANSIKTEN_PORT: this.port.toString()
+          ANSIKTEN_PORT: this.port.toString(),
+          ANSIKTEN_LOG_LEVEL: logLevel
         }
       };
     }

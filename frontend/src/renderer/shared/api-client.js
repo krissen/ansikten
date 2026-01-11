@@ -210,6 +210,15 @@ export class APIClient {
     }
   }
 
+  async setLogLevel(level) {
+    try {
+      await this.post('/api/v1/log-level', { level });
+      debug('APIClient', `Backend log level set to ${level}`);
+    } catch (err) {
+      debugWarn('APIClient', `Failed to set log level: ${err.message}`);
+    }
+  }
+
   /**
    * Connect to WebSocket for real-time updates
    * @returns {Promise<void>}

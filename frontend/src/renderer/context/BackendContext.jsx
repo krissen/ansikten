@@ -10,6 +10,7 @@
 import React, { createContext, useContext, useState, useEffect, useCallback, useMemo } from 'react';
 import { apiClient } from '../shared/api-client.js';
 import { debug, debugWarn, debugError } from '../shared/debug.js';
+import { preferences } from '../workspace/preferences.js';
 
 // Create the context
 export const BackendContext = createContext(null);
@@ -36,6 +37,9 @@ export function BackendProvider({ children }) {
       await apiClient.connectWebSocket();
       setIsConnected(true);
       debug('Backend', 'Connected to backend');
+      
+      const logLevel = preferences.get('ui.logLevel') || 'info';
+      apiClient.setLogLevel(logLevel);
     } catch (err) {
       debugError('Backend', 'Connection failed:', err);
       setConnectionError(err);
