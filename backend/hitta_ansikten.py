@@ -25,6 +25,8 @@ import time
 import unicodedata
 from datetime import datetime
 from pathlib import Path
+from types import FrameType
+from typing import Callable, Iterator
 
 import numpy as np
 
@@ -56,7 +58,7 @@ from cli_matching import (
 init_logging(replace_handlers=False)
 
 
-def safe_input(prompt_text, completer=None):
+def safe_input(prompt_text: str, completer: object | None = None) -> str:
     """
     Wrapper för både vanlig input och prompt_toolkit.prompt, med graceful exit.
     Om completer anges, används prompt_toolkit.prompt, annars vanlig input().
@@ -71,7 +73,8 @@ def safe_input(prompt_text, completer=None):
         print("\n⏹ Avbruten. Programmet avslutas.")
         sys.exit(0)
 
-def parse_inputs(args, supported_ext):
+
+def parse_inputs(args: list[str], supported_ext: set[str]) -> Iterator[Path]:
     seen = set()  # för att undvika dubbletter
     for arg in args:
         path = Path(arg)
@@ -103,15 +106,15 @@ def parse_inputs(args, supported_ext):
 
 
 def log_attempt_stats(
-    image_path,
-    attempts,
-    used_attempt_idx,
-    base_dir=None,
-    log_name="attempt_stats.jsonl",
-    review_results=None,
-    labels_per_attempt=None,
-    file_hash=None,
-):
+    image_path: Path | str,
+    attempts: list[dict],
+    used_attempt_idx: int | None,
+    base_dir: Path | str | None = None,
+    log_name: str = "attempt_stats.jsonl",
+    review_results: list[str] | None = None,
+    labels_per_attempt: list[list[dict]] | None = None,
+    file_hash: str | None = None,
+) -> None:
     """
     Spara attempts-statistik för en bild till en JSONL-fil i base_dir.
     :param image_path: Path till bilden.
@@ -143,7 +146,14 @@ def log_attempt_stats(
         f.write(json.dumps(log_entry, ensure_ascii=False) + "\n")
 
 
-def handle_manual_add(known_faces, image_path, file_hash, input_name_func, backend, labels=None):
+def handle_manual_add(
+    known_faces: dict[str, list],
+    image_path: Path | str | None,
+    file_hash: str | None,
+    input_name_func: Callable[[list[str], str], str],
+    backend: FaceBackend,
+    labels: list[dict] | None = None,
+) -> tuple[str, dict]:
     """
     Lägg till manuell person – även med file och hash.
     Om labels ges (lista), addera ett label-objekt, annars returnera namn och label.
@@ -176,7 +186,14 @@ def handle_manual_add(known_faces, image_path, file_hash, input_name_func, backe
     return namn, label_obj
 
 
-def add_hard_negative(hard_negatives, person, encoding, backend, image_path=None, file_hash=None):
+def add_hard_negative(
+    hard_negatives: dict[str, list],
+    person: str,
+    encoding: np.ndarray,
+    backend: FaceBackend,
+    image_path: Path | str | None = None,
+    file_hash: str | None = None,
+) -> None:
     """Add a hard negative example for a person with full metadata."""
     if person not in hard_negatives:
         hard_negatives[person] = []
@@ -293,9 +310,16 @@ def get_validated_user_input(
 
 
 def user_review_encodings(
-    face_encodings, known_faces, ignored_faces, hard_negatives, config, backend,
-    image_path=None, preview_path=None, file_hash=None
-):
+    face_encodings: list[np.ndarray],
+    known_faces: dict[str, list],
+    ignored_faces: list[dict],
+    hard_negatives: dict[str, list],
+    config: dict,
+    backend: FaceBackend,
+    image_path: Path | str | None = None,
+    preview_path: Path | str | None = None,
+    file_hash: str | None = None,
+) -> tuple[str, list[dict]]:
     """
     Terminal-review av hittade ansikten
     """
@@ -520,7 +544,12 @@ def user_review_encodings(
     return "ok", labels
 
 
-def face_detection_attempt(rgb, model, upsample, backend: FaceBackend):
+def face_detection_attempt(
+    rgb: np.ndarray,
+    model: str,
+    upsample: int,
+    backend: FaceBackend,
+) -> tuple[list[tuple[int, int, int, int]], list[np.ndarray]]:
     """
     Detect faces using configured backend.
 
@@ -543,7 +572,10 @@ def face_detection_attempt(rgb, model, upsample, backend: FaceBackend):
 
     return face_locations, face_encodings
 
-def input_name(known_names, prompt_txt="Ange namn (eller 'i' för ignorera, n = försök igen, x = skippa bild) › "):
+def input_name(
+    known_names: list[str],
+    prompt_txt: str = "Ange namn (eller 'i' för ignorera, n = försök igen, x = skippa bild) › ",
+) -> str:
     """
     Ber användaren om ett namn med autocomplete.
     Reserverade kommandon (i, a, r, n, o, m, x) returneras som är för vidare hantering.
@@ -559,7 +591,12 @@ def input_name(known_names, prompt_txt="Ange namn (eller 'i' för ignorera, n = 
         sys.exit(0)
 
 
-def remove_encodings_for_file(known_faces, ignored_faces, hard_negatives, identifier):
+def remove_encodings_for_file(
+    known_faces: dict[str, list],
+    ignored_faces: list[dict],
+    hard_negatives: dict[str, list],
+    identifier: str | list[str],
+) -> int:
     """
     Tar bort ALLA encodings (via hash) som mappats från just denna fil.
     identifier kan vara filnamn (str), hash (str), eller lista av dessa.
@@ -617,15 +654,15 @@ def remove_encodings_for_file(known_faces, ignored_faces, hard_negatives, identi
     return removed
 
 def preprocess_image(
-    image_path,
-    known_faces,
-    ignored_faces,
-    hard_negatives,
-    config,
-    backend,
-    max_attempts=3,
-    attempts_so_far=None
-):
+    image_path: Path | str,
+    known_faces: dict[str, list],
+    ignored_faces: list[dict],
+    hard_negatives: dict[str, list],
+    config: dict,
+    backend: FaceBackend,
+    max_attempts: int = 3,
+    attempts_so_far: list[dict] | None = None,
+) -> list[dict]:
     """
     Förbehandlar en bild och returnerar en lista av attempt-resultat.
     Om attempts_so_far anges (lista), används befintliga attempts och endast saknade attempts (index >= len(attempts_so_far)) körs.
@@ -704,8 +741,15 @@ def preprocess_image(
     return attempt_results
 
 
-def main_process_image_loop(image_path, known_faces, ignored_faces, hard_negatives,
-                            config, backend, attempt_results):
+def main_process_image_loop(
+    image_path: Path | str,
+    known_faces: dict[str, list],
+    ignored_faces: list[dict],
+    hard_negatives: dict[str, list],
+    config: dict,
+    backend: FaceBackend,
+    attempt_results: list[dict],
+) -> str:
     """
     Review-loop för EN attempt (sista) för en redan preprocessad bild.
 
@@ -829,7 +873,14 @@ def main_process_image_loop(image_path, known_faces, ignored_faces, hard_negativ
         return "no_faces"
     return "retry"
 
-def process_image(image_path, known_faces, ignored_faces, hard_negatives, config, backend):
+def process_image(
+    image_path: Path | str,
+    known_faces: dict[str, list],
+    ignored_faces: list[dict],
+    hard_negatives: dict[str, list],
+    config: dict,
+    backend: FaceBackend,
+) -> str:
     """Single-image processing wrapper."""
     attempt_results = preprocess_image(image_path, known_faces, ignored_faces,
                                        hard_negatives, config, backend, max_attempts=1)
@@ -838,7 +889,7 @@ def process_image(image_path, known_faces, ignored_faces, hard_negatives, config
                                    config, backend, attempt_results)
 
 
-def extract_prefix_suffix(fname):
+def extract_prefix_suffix(fname: str) -> tuple[str | None, str | None]:
     """
     Returnera (prefix, suffix) där prefix = YYMMDD_HHMMSS eller YYMMDD_HHMMSS-2,
     suffix = .NEF
@@ -848,12 +899,17 @@ def extract_prefix_suffix(fname):
         return None, None
     return m.group(1), m.group(2)
 
-def is_unrenamed(fname):
+def is_unrenamed(fname: str) -> bool:
     """Returnera True om filnamn är YYMMDD_HHMMSS.NEF eller YYMMDD_HHMMSS-1.NEF etc."""
     prefix, suffix = extract_prefix_suffix(fname)
     return bool(prefix and suffix)
 
-def collect_persons_for_files(filelist, known_faces, processed_files=None, attempt_log=None):
+def collect_persons_for_files(
+    filelist: list[Path | str],
+    known_faces: dict[str, list],
+    processed_files: list[dict] | None = None,
+    attempt_log: list[dict] | None = None,
+) -> dict[str, list[str]]:
     """
     Returnera dict: { filename: [namn, ...] }
     1) Primärt: encodings.pkl – direkt filmatchning (och/eller hash om fil ej hittas)
@@ -933,7 +989,7 @@ def collect_persons_for_files(filelist, known_faces, processed_files=None, attem
         result[fname] = persons
     return result
 
-def normalize_name(name):
+def normalize_name(name: str) -> str:
     """
     Normalize name by removing diacritics and sanitizing for safe filename use.
 
@@ -949,14 +1005,14 @@ def normalize_name(name):
 
     return n
 
-def split_fornamn_efternamn(namn):
+def split_fornamn_efternamn(namn: str) -> tuple[str, str]:
     # "Edvin Twedmark" => "Edvin", "Twedmark"
     parts = namn.strip().split()
     if len(parts) < 2:
         return parts[0], ""
     return parts[0], " ".join(parts[1:])
 
-def resolve_fornamn_dubletter(all_persons):
+def resolve_fornamn_dubletter(all_persons: list[str]) -> dict[str, str]:
     """
     all_persons: lista av alla personnamn (kan förekomma flera gånger)
     Returnerar dict namn → kortnamn (bara förnamn, eller förnamn+efternamnsbokstav om flera delar efternamn).
@@ -986,7 +1042,7 @@ def resolve_fornamn_dubletter(all_persons):
             kortnamn[namn] = fornamn + (efternamn[:prefixlen] if efternamn else "")
     return kortnamn
 
-def build_new_filename(fname, personer, namnmap):
+def build_new_filename(fname: str, personer: list[str], namnmap: dict[str, str]) -> str | None:
     """
     Build new filename with person names.
 
@@ -1012,7 +1068,7 @@ def build_new_filename(fname, personer, namnmap):
 
     return new_name
 
-def is_file_processed(path, processed_files):
+def is_file_processed(path: Path | str, processed_files: list[dict]) -> bool:
     """Kolla om filen redan är processad, via namn ELLER hash."""
     path_name = Path(path).name if not isinstance(path, str) else path
     path_hash = None
@@ -1037,7 +1093,14 @@ def is_file_processed(path, processed_files):
                 return True
     return False
 
-def rename_files(filelist, known_faces, processed_files, simulate=True, allow_renamed=False, only_processed=False):
+def rename_files(
+    filelist: list[Path | str],
+    known_faces: dict[str, list],
+    processed_files: list[dict],
+    simulate: bool = True,
+    allow_renamed: bool = False,
+    only_processed: bool = False,
+) -> None:
     # Filtrera enligt regler
     out_files = []
     for f in filelist:
@@ -1078,7 +1141,7 @@ def rename_files(filelist, known_faces, processed_files, simulate=True, allow_re
             print(f"{os.path.basename(orig)} → {os.path.basename(dest)}")
             os.rename(orig, dest)
 
-def cleanup_tmp_previews():
+def cleanup_tmp_previews() -> None:
     """Clean up temporary preview files from TEMP_DIR."""
     if not TEMP_DIR.exists():
         return
@@ -1089,13 +1152,14 @@ def cleanup_tmp_previews():
             logging.debug(f"Failed to remove temp file {path}: {e}")
             pass  # Ignorera ev. misslyckanden
 
+
 # === Graceful Exit ===
-def signal_handler(sig, frame):
+def signal_handler(sig: int, frame: FrameType | None) -> None:
     print("\n⏹ Avbruten. Programmet avslutas.")
     cleanup_tmp_previews()
     sys.exit(0)
 
-def print_help():
+def print_help() -> None:
     print(
         """
 hitta_ansikten.py - Ansiktsigenkänning och filnamnsbatchning
@@ -1141,7 +1205,7 @@ Notera:
     )
 
 
-def add_to_processed_files(path, processed_files):
+def add_to_processed_files(path: Path, processed_files: list[dict]) -> None:
     """Lägg till en ny fil sist i listan, med både hash och namn."""
     try:
         sha1 = hashlib.sha1()
@@ -1154,14 +1218,14 @@ def add_to_processed_files(path, processed_files):
     processed_files.append({"name": path.name, "hash": h})
 
 
-def _cache_file(path):
+def _cache_file(path: Path | str) -> Path:
     """Return the cache file path for a given image path."""
     CACHE_DIR.mkdir(exist_ok=True)
     h = hashlib.sha1(str(path).encode()).hexdigest()
     return CACHE_DIR / f"{h}.pkl"
 
 
-def save_preprocessed_cache(path, attempt_results):
+def save_preprocessed_cache(path: Path | str, attempt_results: list[dict]) -> list[dict]:
     """Persist preprocessing results so a run can resume after restart.
 
     Preview images are copied to the cache directory so they exist on restart.
@@ -1190,7 +1254,7 @@ def save_preprocessed_cache(path, attempt_results):
     return cached
 
 
-def load_preprocessed_cache(queue):
+def load_preprocessed_cache(queue: multiprocessing.Queue) -> None:
     """Load any cached preprocessing results into the queue."""
     if not CACHE_DIR.exists():
         return
@@ -1216,7 +1280,7 @@ def load_preprocessed_cache(queue):
             logging.warning(f"[CACHE] Failed to load {file}: {e}")
 
 
-def remove_preprocessed_cache(path):
+def remove_preprocessed_cache(path: Path | str) -> None:
     """Remove cached preprocessing data for a path."""
     cache_path = _cache_file(path)
     if cache_path.exists():
@@ -1230,10 +1294,15 @@ def remove_preprocessed_cache(path):
             pass
 
 def preprocess_worker(
-    known_faces, ignored_faces, hard_negatives, images_to_process,
-    config, max_possible_attempts,
-    preprocessed_queue, preprocess_done
-):
+    known_faces: dict[str, list],
+    ignored_faces: list[dict],
+    hard_negatives: dict[str, list],
+    images_to_process: list[Path],
+    config: dict,
+    max_possible_attempts: int,
+    preprocessed_queue: multiprocessing.Queue,
+    preprocess_done: multiprocessing.Event,
+) -> None:
     """
     Worker process for preprocessing images in background.
 
@@ -1306,7 +1375,7 @@ def preprocess_worker(
         logging.debug("[PREPROCESS worker] Done")
 
 # === Entry point ===
-def main():
+def main() -> None:
     init_logging(replace_handlers=True)
     
     if any(arg in ("-h", "--help") for arg in sys.argv[1:]):

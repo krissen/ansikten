@@ -4,6 +4,7 @@ import os
 import sys
 from collections import Counter, defaultdict
 from pathlib import Path
+from typing import Any
 
 from faceid_db import ARCHIVE_DIR
 from faceid_db import ATTEMPT_LOG_PATH as ATTEMPT_FILE
@@ -12,7 +13,7 @@ from faceid_db import extract_face_labels, load_database
 
 # ================== Laddning och grundstatistik ====================
 
-def load_stats(logfile):
+def load_stats(logfile: str | Path) -> list[dict[str, Any]]:
     stats = []
     with open(logfile, "r") as f:
         for line in f:
@@ -22,7 +23,7 @@ def load_stats(logfile):
                 pass
     return stats
 
-def load_multiple_stats(files):
+def load_multiple_stats(files: list[str | Path]) -> list[dict[str, Any]]:
     stats = []
     for f in files:
         label = Path(f).stem
@@ -36,7 +37,7 @@ def load_multiple_stats(files):
                     pass
     return stats
 
-def find_all_stats_files():
+def find_all_stats_files() -> list[Path]:
     files = []
     if ATTEMPT_FILE.exists():
         files.append(ATTEMPT_FILE)
@@ -46,11 +47,11 @@ def find_all_stats_files():
 
 # ================== Statistik- och hjälpfunktioner ====================
 
-def count_faces_per_name():
+def count_faces_per_name() -> dict[str, int]:
     known_faces, _, _, _ = load_database()
     return {name: len(entries) for name, entries in known_faces.items()}
 
-def calc_ignored_fraction(stats):
+def calc_ignored_fraction(stats: list[dict[str, Any]]) -> tuple[int, int, float]:
     total = 0
     ignored = 0
     for entry in stats:
@@ -66,7 +67,7 @@ def calc_ignored_fraction(stats):
     frac = (ignored / total) if total else 0
     return ignored, total, frac
 
-def attempt_stats_table(stats):
+def attempt_stats_table(stats: list[dict[str, Any]]) -> Any:
     attempt_info = defaultdict(lambda: {"used": 0, "faces": 0, "time": 0.0, "total": 0})
     for entry in stats:
         attempts = entry.get("attempts", [])
@@ -123,7 +124,7 @@ def attempt_stats_table(stats):
         )
     return table
 
-def faces_grid_panel(stats=None):
+def faces_grid_panel(stats: list[dict[str, Any]] | None = None) -> Any:
     from rich.panel import Panel
     from rich.table import Table
 
@@ -163,7 +164,7 @@ def faces_grid_panel(stats=None):
     )
 
 
-def latest_images_with_names(stats, n=5):
+def latest_images_with_names(stats: list[dict[str, Any]], n: int = 5) -> str:
     lines = []
     last = sorted(stats, key=lambda x: x.get("timestamp", ""), reverse=True)[:n]
     for entry in last:
@@ -178,7 +179,7 @@ def latest_images_with_names(stats, n=5):
         lines.append(f"{fname:<35} {namestr}")
     return "\n".join(lines)
 
-def pie_chart_attempts(stats):
+def pie_chart_attempts(stats: list[dict[str, Any]]) -> str:
     from math import ceil
     attempt_use = Counter()
     total = 0
@@ -211,7 +212,7 @@ def pie_chart_attempts(stats):
     return chart
 
 # ================== Rich Dashboard (Live) ====================
-def get_recent_log_lines(n=3, logfile=LOG_FILE):
+def get_recent_log_lines(n: int = 3, logfile: str | Path = LOG_FILE) -> str:
     # Byt till rätt sökväg om nödvändigt
     try:
         with open(logfile, "r") as f:
@@ -220,7 +221,7 @@ def get_recent_log_lines(n=3, logfile=LOG_FILE):
     except Exception:
         return "(Kunde inte läsa loggfilen)"
 
-def render_dashboard(stats):
+def render_dashboard(stats: list[dict[str, Any]]) -> Any:
     from rich.layout import Layout
     from rich.panel import Panel
     from rich.text import Text
@@ -258,7 +259,7 @@ def render_dashboard(stats):
     )
     return outer
 
-def dashboard_mode(attempt_file):
+def dashboard_mode(attempt_file: str | Path) -> None:
     try:
         from rich.console import Console
         from rich.live import Live
@@ -294,7 +295,7 @@ def dashboard_mode(attempt_file):
 
 # ================== CLI Entry-point ====================
 
-def analyze(stats, group_by_source=False):
+def analyze(stats: list[dict[str, Any]], group_by_source: bool = False) -> None:
     if group_by_source:
         sources = defaultdict(list)
         for entry in stats:
@@ -305,7 +306,7 @@ def analyze(stats, group_by_source=False):
     else:
         _analyze_single(stats)
 
-def _analyze_single(stats):
+def _analyze_single(stats: list[dict[str, Any]]) -> None:
     attempt_success = Counter()
     attempt_info = defaultdict(lambda: {"used": 0, "faces": 0, "time": 0.0, "total": 0})
     review_outcomes = Counter()
@@ -440,7 +441,7 @@ def _analyze_single(stats):
 
 # ================== CLI Main ====================
 
-def main():
+def main() -> None:
     if len(sys.argv) == 2 and sys.argv[1] in ["--dashboard", "dashboard"]:
         try:
             dashboard_mode(ATTEMPT_FILE)

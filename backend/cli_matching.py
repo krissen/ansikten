@@ -9,12 +9,32 @@ Contains:
 - Match status and label generation
 """
 
+from __future__ import annotations
+
 import logging
+from typing import TYPE_CHECKING, Any
 
 import numpy as np
+from numpy.typing import NDArray
+
+if TYPE_CHECKING:
+    from face_backends import FaceBackend
+
+# Type aliases
+EncodingEntry = dict[str, Any] | NDArray[np.float64]
+KnownFacesDB = dict[str, list[EncodingEntry]]
+IgnoredFacesDB = list[EncodingEntry]
+HardNegativesDB = dict[str, list[EncodingEntry]]
+FilteredKnownDB = dict[str, NDArray[np.float64]]
+FilteredIgnoredDB = NDArray[np.float64] | None
+FilteredHardNegsDB = dict[str, NDArray[np.float64]]
+ThresholdsDict = dict[str, float]
+ConfigDict = dict[str, Any]
+MatchResult = tuple[tuple[str | None, float | None], tuple[int | None, float | None]]
+MatchStatusResult = tuple[str, str]
 
 
-def _get_backend_thresholds(config, backend):
+def _get_backend_thresholds(config: ConfigDict, backend: FaceBackend) -> ThresholdsDict:
     """
     Get appropriate thresholds for current backend.
 
@@ -72,7 +92,9 @@ def _get_backend_thresholds(config, backend):
         }
 
 
-def validate_encoding_dimension(encoding, backend, context=""):
+def validate_encoding_dimension(
+    encoding: NDArray[np.float64] | None, backend: FaceBackend, context: str = ""
+) -> bool:
     """
     Validate that encoding dimension matches backend's expected dimension.
 
@@ -104,7 +126,12 @@ def validate_encoding_dimension(encoding, backend, context=""):
     return True
 
 
-def filter_database_by_backend(known_faces, ignored_faces, hard_negatives, backend):
+def filter_database_by_backend(
+    known_faces: KnownFacesDB,
+    ignored_faces: IgnoredFacesDB,
+    hard_negatives: HardNegativesDB,
+    backend: FaceBackend,
+) -> tuple[FilteredKnownDB, FilteredIgnoredDB, FilteredHardNegsDB]:
     """
     Pre-filter all database structures by backend for efficient batch processing.
 
@@ -181,7 +208,14 @@ def filter_database_by_backend(known_faces, ignored_faces, hard_negatives, backe
     return filtered_known, filtered_ignored, filtered_hard_negs
 
 
-def best_matches_filtered(encoding, filtered_known, filtered_ignored, filtered_hard_negs, config, backend):
+def best_matches_filtered(
+    encoding: NDArray[np.float64],
+    filtered_known: FilteredKnownDB,
+    filtered_ignored: FilteredIgnoredDB,
+    filtered_hard_negs: FilteredHardNegsDB,
+    config: ConfigDict,
+    backend: FaceBackend,
+) -> MatchResult:
     """
     Find best matching person using pre-filtered encodings (optimized version).
 
@@ -243,7 +277,14 @@ def best_matches_filtered(encoding, filtered_known, filtered_ignored, filtered_h
     return (best_name, best_name_dist), (best_ignore_idx, best_ignore_dist)
 
 
-def best_matches(encoding, known_faces, ignored_faces, hard_negatives, config, backend):
+def best_matches(
+    encoding: NDArray[np.float64],
+    known_faces: KnownFacesDB,
+    ignored_faces: IgnoredFacesDB,
+    hard_negatives: HardNegativesDB,
+    config: ConfigDict,
+    backend: FaceBackend,
+) -> MatchResult:
     """
     Find best matching person and ignore candidate using backend.
 
@@ -350,7 +391,16 @@ def best_matches(encoding, known_faces, ignored_faces, hard_negatives, config, b
     return (best_name, best_name_dist), (best_ignore_idx, best_ignore_dist)
 
 
-def get_face_match_status(i, best_name, best_name_dist, name_conf, best_ignore, best_ignore_dist, ign_conf, config):
+def get_face_match_status(
+    i: int,
+    best_name: str | None,
+    best_name_dist: float | None,
+    name_conf: int | None,
+    best_ignore: int | None,
+    best_ignore_dist: float | None,
+    ign_conf: int | None,
+    config: ConfigDict,
+) -> MatchStatusResult:
     """
     Determine face match status and generate label.
 
@@ -410,7 +460,16 @@ def get_face_match_status(i, best_name, best_name_dist, name_conf, best_ignore, 
         return "#%d\nOkänt" % (i + 1), "unknown"
 
 
-def get_match_label(i, best_name, best_name_dist, name_conf, best_ignore, best_ignore_dist, ign_conf, config):
+def get_match_label(
+    i: int,
+    best_name: str | None,
+    best_name_dist: float | None,
+    name_conf: int | None,
+    best_ignore: int | None,
+    best_ignore_dist: float | None,
+    ign_conf: int | None,
+    config: ConfigDict,
+) -> MatchStatusResult:
     """
     Wrapper for get_face_match_status - generates match label.
 
@@ -420,8 +479,14 @@ def get_match_label(i, best_name, best_name_dist, name_conf, best_ignore, best_i
     return get_face_match_status(i, best_name, best_name_dist, name_conf, best_ignore, best_ignore_dist, ign_conf, config)
 
 
-def label_preview_for_encodings(face_encodings, known_faces,
-                                ignored_faces, hard_negatives, config, backend):
+def label_preview_for_encodings(
+    face_encodings: list[NDArray[np.float64]],
+    known_faces: KnownFacesDB,
+    ignored_faces: IgnoredFacesDB,
+    hard_negatives: HardNegativesDB,
+    config: ConfigDict,
+    backend: FaceBackend,
+) -> list[str]:
     """
     Label face encodings with matches. Uses optimized filtering for batch processing.
 
