@@ -349,12 +349,14 @@ export function ReviewModule() {
   }, []);
 
   const undoLastAction = useCallback(() => {
-    if (undoStack.length === 0) return false;
+    if (undoStack.length === 0) return null;
 
     const lastAction = undoStack[undoStack.length - 1];
     setUndoStack(prev => prev.slice(0, -1));
 
     const { type, index, face } = lastAction;
+
+    debug('ReviewModule', 'Undo action:', type, 'face:', face.face_id);
 
     const updatedFaces = [...detectedFaces];
     updatedFaces[index] = { ...face };
@@ -371,7 +373,7 @@ export function ReviewModule() {
     setCurrentFaceIndex(index);
     emit('active-face-changed', { index });
 
-    return true;
+    return lastAction;
   }, [undoStack, detectedFaces, currentImagePath, emit]);
 
   /**
@@ -852,8 +854,12 @@ export function ReviewModule() {
       // Cmd+Z to undo last face action
       if (e.key === 'z' && (e.metaKey || e.ctrlKey) && !e.shiftKey && !isInput) {
         e.preventDefault();
-        if (undoLastAction()) {
-          showToast('Undo', 'info', 1500);
+        const undone = undoLastAction();
+        if (undone) {
+          const msg = undone.type === 'confirm'
+            ? `Undo: ${undone.face.person_name || 'confirm'}`
+            : 'Undo: ignore';
+          showToast(msg, 'info', 1500);
         }
         return;
       }
@@ -911,8 +917,12 @@ export function ReviewModule() {
   useModuleEvent('save-all-changes', saveAllChanges);
   useModuleEvent('discard-changes', discardChanges);
   useModuleEvent('undo-face-action', useCallback(() => {
-    if (undoLastAction()) {
-      showToast('Undo', 'info', 1500);
+    const undone = undoLastAction();
+    if (undone) {
+      const msg = undone.type === 'confirm'
+        ? `Undo: ${undone.face.person_name || 'confirm'}`
+        : 'Undo: ignore';
+      showToast(msg, 'info', 1500);
     }
   }, [undoLastAction, showToast]));
 
