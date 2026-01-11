@@ -162,6 +162,9 @@ const naturalSortCompare = (a, b) => {
 // Generate simple unique ID
 const generateId = () => Math.random().toString(36).substring(2, 9);
 
+// Supported file extensions for drag-and-drop
+const SUPPORTED_EXTENSIONS = new Set(['nef', 'cr2', 'arw', 'jpg', 'jpeg', 'png', 'tiff']);
+
 /**
  * FileQueueModule Component
  */
@@ -188,6 +191,10 @@ export function FileQueueModule() {
   const [showPreviewNames, setShowPreviewNames] = useState(false);
   const [previewData, setPreviewData] = useState(null); // { path: { newName, status, persons } }
   const [renameInProgress, setRenameInProgress] = useState(false);
+
+  // Drag-and-drop state
+  const [isDragOver, setIsDragOver] = useState(false);
+  const dragCounterRef = useRef(0); // Track nested drag enter/leave events
   const renameInProgressRef = useRef(false);
   renameInProgressRef.current = renameInProgress;
 
@@ -1564,6 +1571,64 @@ export function FileQueueModule() {
     }
   }, [addFiles, queue.length, loadFile]);
 
+  // Drag-and-drop handlers
+  const handleDragEnter = useCallback((e) => {
+    e.preventDefault();
+    e.stopPropagation();
+    dragCounterRef.current++;
+    if (e.dataTransfer.types.includes('Files')) {
+      setIsDragOver(true);
+    }
+  }, []);
+
+  const handleDragLeave = useCallback((e) => {
+    e.preventDefault();
+    e.stopPropagation();
+    dragCounterRef.current--;
+    if (dragCounterRef.current === 0) {
+      setIsDragOver(false);
+    }
+  }, []);
+
+  const handleDragOver = useCallback((e) => {
+    e.preventDefault();
+    e.stopPropagation();
+  }, []);
+
+  const handleDrop = useCallback((e) => {
+    e.preventDefault();
+    e.stopPropagation();
+    setIsDragOver(false);
+    dragCounterRef.current = 0;
+
+    const files = e.dataTransfer.files;
+    if (!files || files.length === 0) return;
+
+    // Filter for supported file types and extract paths
+    const validPaths = [];
+    for (const file of files) {
+      const ext = file.name.split('.').pop()?.toLowerCase();
+      if (ext && SUPPORTED_EXTENSIONS.has(ext)) {
+        // In Electron, file.path gives the full path
+        if (file.path) {
+          validPaths.push(file.path);
+        }
+      }
+    }
+
+    if (validPaths.length > 0) {
+      debug('FileQueue', `Dropped ${validPaths.length} valid files`);
+      addFiles(validPaths);
+
+      // Auto-start if queue was empty
+      if (queue.length === 0) {
+        setTimeout(() => startNextEligible(), 100);
+      }
+    } else {
+      showToast('No supported image files found', 'warning');
+    }
+  }, [addFiles, queue.length, startNextEligible, showToast]);
+
   useEffect(() => {
     const handleQueueFiles = ({ files, position, startQueue }) => {
       debug('FileQueue', `Received ${files.length} files from main process (position: ${position})`);
@@ -1686,7 +1751,15 @@ export function FileQueueModule() {
   const activeFile = currentIndex >= 0 ? queue[currentIndex] : null;
 
   return (
-    <div ref={moduleRef} className={`module-container file-queue-module ${hasSelection ? 'has-selection' : ''}`} tabIndex={0}>
+    <div
+      ref={moduleRef}
+      className={`module-container file-queue-module ${hasSelection ? 'has-selection' : ''} ${isDragOver ? 'drag-over' : ''}`}
+      tabIndex={0}
+      onDragEnter={handleDragEnter}
+      onDragLeave={handleDragLeave}
+      onDragOver={handleDragOver}
+      onDrop={handleDrop}
+    >
       {/* Header */}
       <div className="module-header">
         <span className="module-title">File Queue</span>
@@ -1871,6 +1944,16 @@ export function FileQueueModule() {
                 Start <Icon name="play" size={12} />
               </button>
             ) : null}
+          </div>
+        </div>
+      )}
+
+      {/* Drop overlay */}
+      {isDragOver && (
+        <div className="drop-overlay">
+          <div className="drop-overlay-content">
+            <Icon name="plus" size={48} />
+            <span>Drop files to add to queue</span>
           </div>
         </div>
       )}
