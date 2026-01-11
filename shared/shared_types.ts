@@ -41,3 +41,45 @@ export interface ImageStatus {
   timestamp: number;
   errorMessage?: string;
 }
+
+export interface MatchAlternative {
+  name: string;
+  distance: number;
+  confidence: number;
+  is_ignored?: boolean;
+}
+
+export interface DetectedFaceResult {
+  face_id: string;
+  bounding_box: BoundingBox;
+  confidence: number;
+  person_name?: string | null;
+  is_confirmed?: boolean;
+  match_case?: string | null;
+  ignore_distance?: number | null;
+  ignore_confidence?: number | null;
+  match_alternatives?: MatchAlternative[] | null;
+  encoding_hash?: string | null;
+}
+
+export interface DetectionResult {
+  image_path: string;
+  faces: DetectedFaceResult[];
+  processing_time_ms: number;
+  cached?: boolean;
+  file_hash?: string | null;
+}
+
+export interface ReviewedFace {
+  face_index: number;
+  face_id: string;
+  encoding_hash?: string | null;
+  person_name?: string | null;
+  is_ignored?: boolean;
+}
+
+export interface MarkReviewCompleteRequest {
+  image_path: string;
+  reviewed_faces: ReviewedFace[];
+  file_hash?: string | null;
+}

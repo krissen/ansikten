@@ -8,6 +8,18 @@
       "title": "Face Id",
       "type": "string"
     },
+    "encoding_hash": {
+      "anyOf": [
+        {
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Encoding Hash"
+    },
     "person_name": {
       "anyOf": [
         {

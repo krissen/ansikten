@@ -12,6 +12,7 @@
  */
 
 import { debug, debugWarn } from './debug.js';
+import { apiClient } from './api-client.js';
 
 class ThumbnailCache {
   constructor(maxSize = 100) {
@@ -45,14 +46,16 @@ class ThumbnailCache {
     }
 
     // Fetch and cache
-    const url = `http://127.0.0.1:5001/api/v1/face-thumbnail?` +
-      `image_path=${encodeURIComponent(imagePath)}` +
-      `&x=${bbox.x || 0}&y=${bbox.y || 0}` +
-      `&width=${bbox.width || 100}&height=${bbox.height || 100}` +
-      `&size=${size}`;
+    const url = new URL('/api/v1/face-thumbnail', apiClient.baseUrl);
+    url.searchParams.set('image_path', imagePath);
+    url.searchParams.set('x', bbox.x || 0);
+    url.searchParams.set('y', bbox.y || 0);
+    url.searchParams.set('width', bbox.width || 100);
+    url.searchParams.set('height', bbox.height || 100);
+    url.searchParams.set('size', size);
 
     try {
-      const response = await fetch(url);
+      const response = await fetch(url.toString());
       if (!response.ok) {
         throw new Error(`HTTP ${response.status}`);
       }

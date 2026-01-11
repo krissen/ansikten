@@ -400,6 +400,7 @@ def get_face_match_status(
     best_ignore_dist: float | None,
     ign_conf: int | None,
     config: ConfigDict,
+    backend: FaceBackend,
 ) -> MatchStatusResult:
     """
     Determine face match status and generate label.
@@ -413,13 +414,15 @@ def get_face_match_status(
         best_ignore_dist: Distance to best ignore match
         ign_conf: Confidence for ignore match (0-100)
         config: Config dict
+        backend: FaceBackend instance for threshold selection
 
     Returns:
         Tuple of (label_string, status_code)
         Status codes: "unknown", "uncertain_name", "uncertain_ign", "name", "ign"
     """
-    name_thr = config.get("match_threshold", 0.6)
-    ignore_thr = config.get("ignore_distance", 0.5)
+    thresholds = _get_backend_thresholds(config, backend)
+    name_thr = thresholds.get("match_threshold", 0.6)
+    ignore_thr = thresholds.get("ignore_distance", 0.5)
     margin = config.get("prefer_name_margin", 0.10)
     min_conf = config.get("min_confidence", 0.4)
 
@@ -469,6 +472,7 @@ def get_match_label(
     best_ignore_dist: float | None,
     ign_conf: int | None,
     config: ConfigDict,
+    backend: FaceBackend,
 ) -> MatchStatusResult:
     """
     Wrapper for get_face_match_status - generates match label.
@@ -476,7 +480,17 @@ def get_match_label(
     Returns:
         Tuple of (label_string, status_code)
     """
-    return get_face_match_status(i, best_name, best_name_dist, name_conf, best_ignore, best_ignore_dist, ign_conf, config)
+    return get_face_match_status(
+        i,
+        best_name,
+        best_name_dist,
+        name_conf,
+        best_ignore,
+        best_ignore_dist,
+        ign_conf,
+        config,
+        backend
+    )
 
 
 def label_preview_for_encodings(
@@ -514,6 +528,16 @@ def label_preview_for_encodings(
         )
         name_conf = int((1 - best_name_dist) * 100) if best_name_dist is not None else None
         ign_conf = int((1 - best_ignore_dist) * 100) if best_ignore_dist is not None else None
-        label, _ = get_match_label(i, best_name, best_name_dist, name_conf, best_ignore, best_ignore_dist, ign_conf, config)
+        label, _ = get_match_label(
+            i,
+            best_name,
+            best_name_dist,
+            name_conf,
+            best_ignore,
+            best_ignore_dist,
+            ign_conf,
+            config,
+            backend
+        )
         labels.append(label)
     return labels

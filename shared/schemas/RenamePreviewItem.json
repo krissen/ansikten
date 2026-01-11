@@ -42,6 +42,14 @@
       ],
       "default": null,
       "title": "Conflict With"
+    },
+    "sidecars": {
+      "default": [],
+      "items": {
+        "type": "string"
+      },
+      "title": "Sidecars",
+      "type": "array"
     }
   },
   "required": [

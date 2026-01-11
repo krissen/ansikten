@@ -134,6 +134,33 @@
           ],
           "default": null,
           "title": "Includeignoredfaces"
+        },
+        "renameSidecars": {
+          "anyOf": [
+            {
+              "type": "boolean"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Renamesidecars"
+        },
+        "sidecarExtensions": {
+          "anyOf": [
+            {
+              "items": {
+                "type": "string"
+              },
+              "type": "array"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Sidecarextensions"
         }
       },
       "title": "RenameConfig",

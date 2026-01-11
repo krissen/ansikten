@@ -56,38 +56,45 @@ Check backend status and component readiness.
 
 ## Face Detection
 
-### `POST /api/detect-faces`
+### `POST /detect-faces`
 
 Detect faces in an image.
 
 **Request:**
 ```json
 {
-  "imagePath": "/path/to/image.NEF",
-  "maxAlternatives": 5
+  "image_path": "/path/to/image.NEF",
+  "force_reprocess": false
 }
 ```
 
 **Response:**
 ```json
 {
-  "status": "completed",
+  "image_path": "/path/to/image.NEF",
   "faces": [
     {
-      "bbox": { "x": 100, "y": 150, "width": 200, "height": 200 },
-      "personName": "Anna",
+      "face_id": "face_0_abcd1234",
+      "bounding_box": { "x": 100, "y": 150, "width": 200, "height": 200 },
       "confidence": 0.85,
-      "alternatives": [
-        { "name": "Anna", "distance": 0.35 },
-        { "name": "Bert", "distance": 0.52 }
-      ]
+      "person_name": "Anna",
+      "is_confirmed": false,
+      "match_case": "name",
+      "ignore_distance": 0.42,
+      "ignore_confidence": 58,
+      "match_alternatives": [
+        { "name": "Anna", "distance": 0.35, "confidence": 78, "is_ignored": false }
+      ],
+      "encoding_hash": "sha1..."
     }
   ],
-  "imagePath": "/path/to/image.NEF"
+  "processing_time_ms": 123.4,
+  "cached": false,
+  "file_hash": "sha1..."
 }
 ```
 
-### `GET /api/face-thumbnail`
+### `GET /face-thumbnail`
 
 Get cropped face thumbnail.
 
@@ -103,66 +110,97 @@ Get cropped face thumbnail.
 
 **Response:** JPEG image binary
 
-### `POST /api/confirm-identity`
+### `POST /confirm-identity`
 
 Confirm face identity and save to database.
 
 **Request:**
 ```json
 {
-  "imagePath": "/path/to/image.NEF",
-  "faceIndex": 0,
-  "personName": "Anna",
-  "bbox": { "x": 100, "y": 150, "width": 200, "height": 200 }
+  "face_id": "face_0_abcd1234",
+  "person_name": "Anna",
+  "image_path": "/path/to/image.NEF",
+  "suggested_name": "Ann"
 }
 ```
 
 **Response:**
 ```json
 {
-  "status": "ok",
-  "message": "Identity confirmed for Anna"
+  "status": "success",
+  "person_name": "Anna",
+  "encodings_count": 12
 }
 ```
 
-### `POST /api/ignore-face`
+### `POST /ignore-face`
 
 Mark face as ignored.
 
 **Request:**
 ```json
 {
-  "imagePath": "/path/to/image.NEF",
-  "faceIndex": 0,
-  "bbox": { "x": 100, "y": 150, "width": 200, "height": 200 }
+  "face_id": "face_0_abcd1234",
+  "image_path": "/path/to/image.NEF"
 }
 ```
 
-### `POST /api/mark-review-complete`
+**Response:**
+```json
+{
+  "status": "success",
+  "ignored_count": 42
+}
+```
+
+### `POST /mark-review-complete`
 
 Mark file review as complete, log to attempt_stats.
 
 **Request:**
 ```json
 {
-  "imagePath": "/path/to/image.NEF",
-  "faces": [
-    { "name": "Anna", "action": "confirmed" },
-    { "name": null, "action": "ignored" }
-  ]
+  "image_path": "/path/to/image.NEF",
+  "reviewed_faces": [
+    {
+      "face_index": 0,
+      "face_id": "face_0_abcd1234",
+      "encoding_hash": "sha1...",
+      "person_name": "Anna",
+      "is_ignored": false
+    },
+    {
+      "face_index": 1,
+      "face_id": "face_1_efgh5678",
+      "encoding_hash": "sha1...",
+      "person_name": null,
+      "is_ignored": true
+    }
+  ],
+  "file_hash": "sha1..."
 }
 ```
 
-### `POST /api/reload-database`
+**Response:**
+```json
+{
+  "status": "success",
+  "message": "Review logged for 2 faces",
+  "labels_count": 2
+}
+```
+
+### `POST /reload-database`
 
 Reload face database from disk.
 
 **Response:**
 ```json
 {
-  "status": "ok",
-  "peopleCount": 42,
-  "encodingsCount": 156
+  "status": "success",
+  "people_count": 42,
+  "ignored_count": 12,
+  "cache_cleared": 10
 }
 ```
 

@@ -9,7 +9,7 @@
  * Used by: DatabaseManagement (6+ forms), and other form-heavy components
  */
 
-import { useState, useCallback, useMemo } from 'react';
+import { useState, useCallback, useMemo, useEffect, useRef } from 'react';
 
 /**
  * Hook for managing form state with reset capability
@@ -130,30 +130,109 @@ export function useFormState(initialState) {
  * forms.resetAll()
  */
 export function useMultipleForms(formsConfig) {
-  const formNames = Object.keys(formsConfig);
+  const formNames = useMemo(() => Object.keys(formsConfig), [formsConfig]);
+  const initialStatesRef = useRef(formsConfig);
+  const [formsState, setFormsState] = useState(() => ({ ...formsConfig }));
 
-  // Create individual form hooks for each form
-  const formStates = {};
-  for (const name of formNames) {
-    // eslint-disable-next-line react-hooks/rules-of-hooks
-    formStates[name] = useFormState(formsConfig[name]);
-  }
+  useEffect(() => {
+    initialStatesRef.current = formsConfig;
+    setFormsState((prev) => {
+      let next = prev;
+      formNames.forEach((name) => {
+        if (!(name in prev)) {
+          if (next === prev) {
+            next = { ...prev };
+          }
+          next[name] = formsConfig[name];
+        }
+      });
+      return next;
+    });
+  }, [formsConfig, formNames]);
 
-  /**
-   * Reset all forms to their initial states
-   */
+  const setValue = useCallback((formName, field, value) => {
+    setFormsState((prev) => ({
+      ...prev,
+      [formName]: {
+        ...prev[formName],
+        [field]: value
+      }
+    }));
+  }, []);
+
+  const setValues = useCallback((formName, updates) => {
+    setFormsState((prev) => ({
+      ...prev,
+      [formName]: {
+        ...prev[formName],
+        ...updates
+      }
+    }));
+  }, []);
+
+  const resetForm = useCallback((formName) => {
+    const initialState = initialStatesRef.current[formName] ?? formsConfig[formName];
+    setFormsState((prev) => ({
+      ...prev,
+      [formName]: initialState
+    }));
+  }, [formsConfig]);
+
   const resetAll = useCallback(() => {
-    for (const name of formNames) {
-      formStates[name].reset();
-    }
-  }, [formNames, formStates]);
+    setFormsState((prev) => {
+      const next = { ...prev };
+      formNames.forEach((name) => {
+        const initialState = initialStatesRef.current[name] ?? formsConfig[name];
+        if (initialState) {
+          next[name] = initialState;
+        }
+      });
+      return next;
+    });
+  }, [formNames, formsConfig]);
 
-  /**
-   * Check if any form has been modified
-   */
   const anyDirty = useMemo(() => {
-    return formNames.some(name => formStates[name].isDirty);
-  }, [formNames, formStates]);
+    return formNames.some((name) => {
+      const values = formsState[name] ?? formsConfig[name];
+      const initialState = initialStatesRef.current[name] ?? formsConfig[name];
+      return JSON.stringify(values) !== JSON.stringify(initialState);
+    });
+  }, [formNames, formsState, formsConfig]);
+
+  const formStates = useMemo(() => {
+    const result = {};
+    formNames.forEach((name) => {
+      const values = formsState[name] ?? formsConfig[name];
+      const initialState = initialStatesRef.current[name] ?? formsConfig[name];
+      const isDirty = JSON.stringify(values) !== JSON.stringify(initialState);
+
+      result[name] = {
+        values,
+        setValue: (field, value) => setValue(name, field, value),
+        setValues: (updates) => setValues(name, updates),
+        reset: () => resetForm(name),
+        isDirty,
+        getValue: (field) => values?.[field],
+        getInputProps: (field) => ({
+          value: values?.[field] ?? '',
+          onChange: (e) => setValue(name, field, e.target.value)
+        }),
+        getSelectProps: (field) => ({
+          value: values?.[field] ?? '',
+          onChange: (e) => setValue(name, field, e.target.value)
+        }),
+        getCheckboxProps: (field) => ({
+          checked: !!values?.[field],
+          onChange: (e) => setValue(name, field, e.target.checked)
+        }),
+        setValuesInternal: (nextValues) => setFormsState((prev) => ({
+          ...prev,
+          [name]: nextValues
+        }))
+      };
+    });
+    return result;
+  }, [formNames, formsState, formsConfig, setValue, setValues, resetForm]);
 
   return {
     ...formStates,
