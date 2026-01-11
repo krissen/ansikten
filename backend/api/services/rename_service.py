@@ -596,9 +596,10 @@ def collect_persons_for_files(
     if attempt_log is None:
         attempt_log = load_attempt_log()
 
-    # Build attempt_stats indexes: hash -> persons, basename -> persons (fallback)
     stats_by_hash: Dict[str, List[str]] = {}
     stats_by_name: Dict[str, List[str]] = {}
+    basename_count: Dict[str, int] = {}
+
     for entry in attempt_log:
         fn = Path(entry.get("filename", "")).name
         fh = entry.get("file_hash")
@@ -619,6 +620,7 @@ def collect_persons_for_files(
                         if fh:
                             stats_by_hash[fh] = persons
                         stats_by_name[fn] = persons
+                        basename_count[fn] = basename_count.get(fn, 0) + 1
 
     result: Dict[str, List[str]] = {}
     for f in filelist:
@@ -630,11 +632,10 @@ def collect_persons_for_files(
         if not encoding_persons and h:
             encoding_persons = hash_to_persons.get(h, [])
 
-        # Prefer hash-matched review data to avoid basename collisions
         review_persons = []
         if h and h in stats_by_hash:
             review_persons = stats_by_hash[h]
-        elif fname in stats_by_name:
+        elif fname in stats_by_name and basename_count.get(fname, 0) == 1:
             review_persons = stats_by_name[fname]
 
         if review_persons:
