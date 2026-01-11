@@ -593,22 +593,21 @@ def collect_persons_for_files(
         if isinstance(x, dict) and x.get('name')
     }
 
-    # Load attempts log
     if attempt_log is None:
         attempt_log = load_attempt_log()
 
-    # Build attempt_stats index: filename -> labels (in review order, includes manual faces)
-    # Keyed by basename since attempt_log stores basenames
-    stats_map: Dict[str, List[str]] = {}
+    # Build attempt_stats indexes: hash -> persons, basename -> persons (fallback)
+    stats_by_hash: Dict[str, List[str]] = {}
+    stats_by_name: Dict[str, List[str]] = {}
     for entry in attempt_log:
         fn = Path(entry.get("filename", "")).name
+        fh = entry.get("file_hash")
         if entry.get("used_attempt") is not None and entry.get("review_results"):
             idx = entry["used_attempt"]
             if idx < len(entry.get("labels_per_attempt", [])):
                 res = entry["review_results"][idx] if idx < len(entry["review_results"]) else None
                 labels = entry["labels_per_attempt"][idx]
                 if res == "ok" and labels:
-                    # Extract person names from labels: "#1\nName" or "#manuell\nName"
                     persons = []
                     for lbl in labels:
                         label = lbl["label"] if isinstance(lbl, dict) else lbl
@@ -617,37 +616,35 @@ def collect_persons_for_files(
                             if namn.lower() not in ("ignorerad", "ign", "okänt", "okant"):
                                 persons.append(namn)
                     if persons:
-                        stats_map[fn] = persons
+                        if fh:
+                            stats_by_hash[fh] = persons
+                        stats_by_name[fn] = persons
 
-    # Collect persons for each file - result keyed by FULL PATH
     result: Dict[str, List[str]] = {}
     for f in filelist:
         fpath = Path(f)
         fname = fpath.name
-        # Use full path for hash lookup to avoid basename collisions
         h = filehash_map.get(str(fpath)) or processed_name_to_hash.get(fname)
 
-        # Get names from encodings.pkl (by filename or hash)
         encoding_persons = file_to_persons.get(fname, [])
         if not encoding_persons and h:
             encoding_persons = hash_to_persons.get(h, [])
 
-        # Get names from attempt_stats (review order, includes manual faces)
-        review_persons = stats_map.get(fname, [])
+        # Prefer hash-matched review data to avoid basename collisions
+        review_persons = []
+        if h and h in stats_by_hash:
+            review_persons = stats_by_hash[h]
+        elif fname in stats_by_name:
+            review_persons = stats_by_name[fname]
 
-        # Merge strategy: review first (preserves order), then add missing from encodings
         if review_persons:
-            # Start with review order (includes manual faces)
             persons = list(review_persons)
-            # Add any encoding names not already in review (dedupe)
             for name in encoding_persons:
                 if name not in persons:
                     persons.append(name)
         else:
-            # No review data -> use encodings only
             persons = encoding_persons
 
-        # Key result by full path to avoid collisions
         result[str(fpath)] = persons
 
     return result

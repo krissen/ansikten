@@ -950,9 +950,11 @@ def collect_persons_for_files(
     if attempt_log is None:
         attempt_log = load_attempt_log()
 
-    stats_map = {}
+    stats_by_hash = {}
+    stats_by_name = {}
     for entry in attempt_log:
         fn = Path(entry.get("filename", "")).name
+        fh = entry.get("file_hash")
         if entry.get("used_attempt") is not None and entry.get("review_results"):
             idx = entry["used_attempt"]
             if idx < len(entry.get("labels_per_attempt", [])):
@@ -967,7 +969,9 @@ def collect_persons_for_files(
                             if namn.lower() not in ("ignorerad", "ign", "okänt", "okant"):
                                 persons.append(namn)
                     if persons:
-                        stats_map[fn] = persons
+                        if fh:
+                            stats_by_hash[fh] = persons
+                        stats_by_name[fn] = persons
 
     result = {}
     for f in filelist:
@@ -978,7 +982,11 @@ def collect_persons_for_files(
         if not encoding_persons and h:
             encoding_persons = hash_to_persons.get(h, [])
 
-        review_persons = stats_map.get(fname, [])
+        review_persons = []
+        if h and h in stats_by_hash:
+            review_persons = stats_by_hash[h]
+        elif fname in stats_by_name:
+            review_persons = stats_by_name[fname]
 
         if review_persons:
             persons = list(review_persons)
