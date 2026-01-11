@@ -540,10 +540,13 @@ def collect_persons_for_files(
     """
     Collect person names for each file from database and attempt log.
 
-    Uses 3-tier priority:
-    1. encodings.pkl - direct filename match
-    2. encodings.pkl - hash match
-    3. attempt_stats.jsonl - fallback
+    Uses merge strategy with review-order priority:
+    1. If attempt_stats has reviewed data -> start with those names (preserves review order)
+    2. Merge in names from encodings.pkl that aren't already present (dedupe)
+    3. If no attempt_stats -> fall back to encodings.pkl only
+
+    This ensures manual faces (only in attempt_stats) are included alongside
+    auto-detected faces (in encodings.pkl).
 
     Args:
         filelist: List of file paths
@@ -590,11 +593,11 @@ def collect_persons_for_files(
         if isinstance(x, dict) and x.get('name')
     }
 
-    # Load attempts log for fallback
+    # Load attempts log
     if attempt_log is None:
         attempt_log = load_attempt_log()
 
-    # Build attempts fallback: filename -> labels (in detection order)
+    # Build attempt_stats index: filename -> labels (in review order, includes manual faces)
     # Keyed by basename since attempt_log stores basenames
     stats_map: Dict[str, List[str]] = {}
     for entry in attempt_log:
@@ -605,7 +608,7 @@ def collect_persons_for_files(
                 res = entry["review_results"][idx] if idx < len(entry["review_results"]) else None
                 labels = entry["labels_per_attempt"][idx]
                 if res == "ok" and labels:
-                    # Extract person names from labels: "#1\nName"
+                    # Extract person names from labels: "#1\nName" or "#manuell\nName"
                     persons = []
                     for lbl in labels:
                         label = lbl["label"] if isinstance(lbl, dict) else lbl
@@ -624,16 +627,25 @@ def collect_persons_for_files(
         # Use full path for hash lookup to avoid basename collisions
         h = filehash_map.get(str(fpath)) or processed_name_to_hash.get(fname)
 
-        # 1. Try filename first (encodings.pkl stores basenames)
-        persons = file_to_persons.get(fname, [])
+        # Get names from encodings.pkl (by filename or hash)
+        encoding_persons = file_to_persons.get(fname, [])
+        if not encoding_persons and h:
+            encoding_persons = hash_to_persons.get(h, [])
 
-        # 2. Otherwise try hash (encodings.pkl)
-        if not persons and h:
-            persons = hash_to_persons.get(h, [])
+        # Get names from attempt_stats (review order, includes manual faces)
+        review_persons = stats_map.get(fname, [])
 
-        # 3. Otherwise try attempts log (fallback, uses basenames)
-        if not persons:
-            persons = stats_map.get(fname, [])
+        # Merge strategy: review first (preserves order), then add missing from encodings
+        if review_persons:
+            # Start with review order (includes manual faces)
+            persons = list(review_persons)
+            # Add any encoding names not already in review (dedupe)
+            for name in encoding_persons:
+                if name not in persons:
+                    persons.append(name)
+        else:
+            # No review data -> use encodings only
+            persons = encoding_persons
 
         # Key result by full path to avoid collisions
         result[str(fpath)] = persons

@@ -918,47 +918,38 @@ def collect_persons_for_files(
 ) -> dict[str, list[str]]:
     """
     Returnera dict: { filename: [namn, ...] }
-    1) Primärt: encodings.pkl – direkt filmatchning (och/eller hash om fil ej hittas)
-    2) Sekundärt: encodings.pkl – hashmatchning
-    3) Tertiärt: attempt_stats – som fallback
+    Merge-strategi: review-ordning först, sedan komplettera från encodings.
     """
     import hashlib
     from pathlib import Path
 
-    # --- Bygg index för encodings.pkl: filnamn→namn, hash→namn ---
-    file_to_persons = {}    # filnamn (basename) → [namn, ...]
-    hash_to_persons = {}    # hash → [namn, ...]
+    file_to_persons = {}
+    hash_to_persons = {}
 
-    # Först, indexera encodings.pkl på både 'file' och 'hash'
     for name, entries in known_faces.items():
         for entry in entries:
             if isinstance(entry, dict):
                 f = entry.get("file")
                 h = entry.get("hash")
                 if f:
-                    f = Path(f).name  # endast basename
+                    f = Path(f).name
                     file_to_persons.setdefault(f, []).append(name)
                 if h:
                     hash_to_persons.setdefault(h, []).append(name)
-            # gamla formatet (np.ndarray) kan ej kopplas
 
-    # --- Bygg hash-mapp för aktuella filer ---
-    filehash_map = {}  # fname (basename) → hash
+    filehash_map = {}
     for f in filelist:
         fpath = Path(f)
         h = get_file_hash(fpath)
         filehash_map[fpath.name] = h
 
-    # --- Index för processed_files (kan ge extra säkerhet) ---
     if processed_files is None:
         processed_files = []
     processed_name_to_hash = {Path(x['name']).name: x.get('hash') for x in processed_files if isinstance(x, dict) and x.get('name')}
 
-    # --- Ladda attempts-logg för fallback ---
     if attempt_log is None:
         attempt_log = load_attempt_log()
 
-    # --- Ladda attempts som fallback: filename→labels ---
     stats_map = {}
     for entry in attempt_log:
         fn = Path(entry.get("filename", "")).name
@@ -968,7 +959,6 @@ def collect_persons_for_files(
                 res = entry["review_results"][idx]
                 labels = entry["labels_per_attempt"][idx]
                 if res == "ok" and labels:
-                    # Personnamn ur label: "#1\nNamn"
                     persons = []
                     for lbl in labels:
                         label = lbl["label"] if isinstance(lbl, dict) else lbl
@@ -979,19 +969,25 @@ def collect_persons_for_files(
                     if persons:
                         stats_map[fn] = persons
 
-    # --- Samla personer för varje fil ---
     result = {}
     for f in filelist:
         fname = Path(f).name
         h = filehash_map.get(fname) or processed_name_to_hash.get(fname)
-        # 1. Försök filnamn (encodings.pkl)
-        persons = file_to_persons.get(fname, [])
-        # 2. Annars försök hash (encodings.pkl)
-        if not persons and h:
-            persons = hash_to_persons.get(h, [])
-        # 3. Annars försök attempts-logg (fallback)
-        if not persons:
-            persons = stats_map.get(fname, [])
+
+        encoding_persons = file_to_persons.get(fname, [])
+        if not encoding_persons and h:
+            encoding_persons = hash_to_persons.get(h, [])
+
+        review_persons = stats_map.get(fname, [])
+
+        if review_persons:
+            persons = list(review_persons)
+            for name in encoding_persons:
+                if name not in persons:
+                    persons.append(name)
+        else:
+            persons = encoding_persons
+
         result[fname] = persons
     return result
 
