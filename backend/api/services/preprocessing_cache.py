@@ -47,7 +47,7 @@ class PreprocessingCache:
     Manages preprocessing cache with LRU eviction.
 
     Directory structure:
-    ~/.cache/bildvisare/
+    ~/.cache/ansikten/
     ├── index.json           # Cache index with metadata
     ├── nef/                  # Converted JPGs
     │   └── {hash}.jpg
@@ -58,7 +58,7 @@ class PreprocessingCache:
             └── face_{n}.jpg
     """
 
-    DEFAULT_CACHE_DIR = Path.home() / '.cache' / 'bildvisare'
+    DEFAULT_CACHE_DIR = Path.home() / '.cache' / 'ansikten'
     DEFAULT_MAX_SIZE_MB = 1024  # 1 GB
     INDEX_SAVE_INTERVAL = 5.0  # Seconds between index saves
     PROCESSING_TIMEOUT = 20.0  # Seconds to wait for another thread

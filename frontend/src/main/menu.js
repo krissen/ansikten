@@ -62,16 +62,16 @@ function createApplicationMenu(mainWindow) {
 
   const template = [
     ...(isMac ? [{
-      label: 'Bildvisare',
+      label: 'Ansikten',
       submenu: [
         {
-          label: 'About Bildvisare',
+          label: 'About Ansikten',
           click: () => {
             dialog.showMessageBox(mainWindow, {
               type: 'info',
-              title: 'About Bildvisare',
-              message: 'Bildvisare',
-              detail: `Version: ${versionString}\n\nFace detection and annotation tool for event photography.\n\nhttps://github.com/krissen/hitta_ansikten`,
+              title: 'About Ansikten',
+              message: 'Ansikten',
+              detail: `Version: ${versionString}\n\nFace detection and annotation tool for event photography.\n\nhttps://github.com/krissen/ansikten`,
               buttons: ['OK']
             });
           }
@@ -85,7 +85,7 @@ function createApplicationMenu(mainWindow) {
         },
         { type: 'separator' },
         {
-          label: 'Hide Bildvisare',
+          label: 'Hide Ansikten',
           role: 'hide'
         },
         {
@@ -98,7 +98,7 @@ function createApplicationMenu(mainWindow) {
         },
         { type: 'separator' },
         {
-          label: 'Quit Bildvisare',
+          label: 'Quit Ansikten',
           role: 'quit'
         }
       ]
@@ -566,38 +566,38 @@ function createApplicationMenu(mainWindow) {
         {
           label: 'Documentation',
           click: async () => {
-            await shell.openExternal('https://github.com/krissen/hitta_ansikten#readme');
+            await shell.openExternal('https://github.com/krissen/ansikten#readme');
           }
         },
         {
           label: 'User Guide',
           click: async () => {
-            await shell.openExternal('https://github.com/krissen/hitta_ansikten/blob/main/docs/user/getting-started.md');
+            await shell.openExternal('https://github.com/krissen/ansikten/blob/main/docs/user/getting-started.md');
           }
         },
         {
           label: 'Report Issue',
           click: async () => {
-            await shell.openExternal('https://github.com/krissen/hitta_ansikten/issues/new');
+            await shell.openExternal('https://github.com/krissen/ansikten/issues/new');
           }
         },
         { type: 'separator' },
         {
           label: 'GitHub Repository',
           click: async () => {
-            await shell.openExternal('https://github.com/krissen/hitta_ansikten');
+            await shell.openExternal('https://github.com/krissen/ansikten');
           }
         },
         ...(!isMac ? [
           { type: 'separator' },
           {
-            label: 'About Bildvisare',
+            label: 'About Ansikten',
             click: () => {
               dialog.showMessageBox(mainWindow, {
                 type: 'info',
-                title: 'About Bildvisare',
-                message: 'Bildvisare',
-                detail: `Version: ${versionString}\n\nFace detection and annotation tool for event photography.\n\nhttps://github.com/krissen/hitta_ansikten`,
+                title: 'About Ansikten',
+                message: 'Ansikten',
+                detail: `Version: ${versionString}\n\nFace detection and annotation tool for event photography.\n\nhttps://github.com/krissen/ansikten`,
                 buttons: ['OK']
               });
             }

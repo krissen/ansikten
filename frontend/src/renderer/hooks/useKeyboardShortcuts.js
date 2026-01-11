@@ -30,8 +30,8 @@ function shouldIgnoreEvent(event) {
   }
 
   // Check for DevTools focus (Electron-specific)
-  if (typeof window.bildvisareAPI?.isDevToolsFocused === 'function') {
-    if (window.bildvisareAPI.isDevToolsFocused()) {
+  if (typeof window.ansiktenAPI?.isDevToolsFocused === 'function') {
+    if (window.ansiktenAPI.isDevToolsFocused()) {
       return true;
     }
   }

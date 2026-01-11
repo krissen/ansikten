@@ -1,7 +1,7 @@
 """
 FastAPI Backend Server
 
-Main entry point for the Bildvisare backend API.
+Main entry point for the Ansikten backend API.
 Provides REST endpoints and WebSocket streaming for face detection.
 """
 
@@ -28,8 +28,8 @@ async def lifespan(app: FastAPI):
     
     startup_start = time.perf_counter()
     startup_state = get_startup_state()
-    port = int(os.getenv('BILDVISARE_PORT', '5001'))
-    logger.info("Bildvisare Backend API starting up...")
+    port = int(os.getenv('ANSIKTEN_PORT', '5001'))
+    logger.info("Ansikten Backend API starting up...")
     logger.info(f"Server ready on http://127.0.0.1:{port}")
     
     def _load_database_sync():
@@ -142,12 +142,12 @@ async def lifespan(app: FastAPI):
     setup_startup_listener()
     
     yield
-    logger.info("Bildvisare Backend API shutting down...")
+    logger.info("Ansikten Backend API shutting down...")
 
 # Create FastAPI app
 app = FastAPI(
-    title="Bildvisare Backend API",
-    description="Face detection and annotation API for Bildvisare image viewer",
+    title="Ansikten Backend API",
+    description="Face detection and annotation API for Ansikten image viewer",
     version="1.0.0",
     lifespan=lifespan
 )
@@ -185,7 +185,7 @@ async def health_check():
 
     return {
         "status": overall,
-        "service": "bildvisare-backend",
+        "service": "ansikten-backend",
         "version": app.version,
         "components": {
             name: {
@@ -222,6 +222,6 @@ if __name__ == "__main__":
     import os
 
     # Get port from environment variable, default to 5001
-    port = int(os.getenv('BILDVISARE_PORT', '5001'))
+    port = int(os.getenv('ANSIKTEN_PORT', '5001'))
 
     uvicorn.run(app, host="127.0.0.1", port=port, log_level="info")
