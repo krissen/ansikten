@@ -260,7 +260,7 @@ Inställningar i `~/.local/share/faceid/config.json`:
 | `match_threshold` | `0.4` | Tröskel för matchning (lägre = striktare) |
 | `backend.type` | `"insightface"` | InsightFace (512-dim, cosine distance) |
 | `auto_ignore` | `false` | Auto-ignorera omatchade ansikten |
-| `image_viewer_app` | `"Bildvisare"` | Extern app för förhandsvisning |
+| `image_viewer_app` | `"Ansikten"` | Extern app för förhandsvisning |
 
 > **Not:** dlib-backend är deprecated sedan januari 2026. Om du har äldre dlib-encodings, använd `rensa_dlib.py` eller RefineFaces-modulen i GUI:t för att ta bort dem.
 

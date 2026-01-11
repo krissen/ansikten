@@ -1,12 +1,12 @@
 # -*- mode: python ; coding: utf-8 -*-
 """
-PyInstaller spec for Bildvisare backend server.
+PyInstaller spec for Ansikten backend server.
 
 Bundles the FastAPI backend into a standalone directory (--onedir mode).
 This is MUCH faster to start than --onefile since no extraction is needed.
 
-Run with: pyinstaller bildvisare-backend.spec
-Output: dist/bildvisare-backend/ (directory with executable + dependencies)
+Run with: pyinstaller ansikten-backend.spec
+Output: dist/ansikten-backend/ (directory with executable + dependencies)
 """
 
 import sys
@@ -126,7 +126,7 @@ exe = EXE(
     a.scripts,
     [],  # Don't bundle binaries here - let COLLECT handle them
     exclude_binaries=True,
-    name='bildvisare-backend',
+    name='ansikten-backend',
     debug=False,
     bootloader_ignore_signals=False,
     strip=False,
@@ -149,5 +149,5 @@ coll = COLLECT(
     strip=False,
     upx=False,  # Disabled for faster startup
     upx_exclude=[],
-    name='bildvisare-backend',
+    name='ansikten-backend',
 )

@@ -2,7 +2,7 @@
 Rename Service
 
 Handles file renaming based on confirmed face identities.
-Ported from hitta_ansikten.py rename functionality.
+Ported from the Ansikten CLI rename functionality.
 """
 
 import logging

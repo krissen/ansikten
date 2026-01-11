@@ -1,6 +1,6 @@
 # Contributing
 
-Guidelines for contributing to Hitta ansikten.
+Guidelines for contributing to Ansikten.
 
 ---
 

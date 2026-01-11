@@ -497,8 +497,8 @@ export function ImageViewer() {
   // ============================================
 
   const updateMenuState = useCallback((id, checked) => {
-    if (window.bildvisareAPI?.send) {
-      window.bildvisareAPI.send('update-menu-state', { id, checked });
+    if (window.ansiktenAPI?.send) {
+      window.ansiktenAPI.send('update-menu-state', { id, checked });
     }
   }, []);
 

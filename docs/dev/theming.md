@@ -1,6 +1,6 @@
 # Theming
 
-CSS variable system and styling guidelines for Hitta ansikten workspace.
+CSS variable system and styling guidelines for Ansikten workspace.
 
 ---
 

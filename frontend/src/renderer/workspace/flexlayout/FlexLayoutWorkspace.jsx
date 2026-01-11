@@ -27,7 +27,7 @@ import { RefineFacesModule } from '../../components/RefineFacesModule.jsx';
 
 
 // Storage key for layout persistence
-const STORAGE_KEY = 'bildvisare-flexlayout';
+const STORAGE_KEY = 'ansikten-flexlayout';
 
 const SHORTCUT_SECTIONS = [
   {
@@ -985,7 +985,7 @@ export function FlexLayoutWorkspace() {
     const openFileDialog = async () => {
       try {
         // Use multi-file dialog (same as + button in FileQueue)
-        const filePaths = await window.bildvisareAPI?.invoke('open-multi-file-dialog');
+        const filePaths = await window.ansiktenAPI?.invoke('open-multi-file-dialog');
         if (!filePaths || filePaths.length === 0) return;
 
         debug('FlexLayout', `Opening ${filePaths.length} file(s)`);
@@ -1009,12 +1009,12 @@ export function FlexLayoutWorkspace() {
 
   // Setup IPC listeners
   useEffect(() => {
-    if (!ready || !window.bildvisareAPI) return;
+    if (!ready || !window.ansiktenAPI) return;
 
     // Request initial file path (if app was launched with a file argument)
     const loadInitialFile = async () => {
       try {
-        const filePath = await window.bildvisareAPI.invoke('get-initial-file');
+        const filePath = await window.ansiktenAPI.invoke('get-initial-file');
         if (filePath) {
           debug('FlexLayout', 'Loading initial file:', filePath);
           moduleAPI.emit('load-image', { imagePath: filePath });
@@ -1033,7 +1033,7 @@ export function FlexLayoutWorkspace() {
         // File commands
         case 'open-file': {
           // Use multi-file dialog (same as Cmd+O and + button)
-          const filePaths = await window.bildvisareAPI?.invoke('open-multi-file-dialog');
+          const filePaths = await window.ansiktenAPI?.invoke('open-multi-file-dialog');
           if (filePaths && filePaths.length > 0) {
             if (window.fileQueue?.add) {
               window.fileQueue.add(filePaths);
@@ -1152,7 +1152,7 @@ export function FlexLayoutWorkspace() {
       }
     };
 
-    window.bildvisareAPI.on('menu-command', handleMenuCommand);
+    window.ansiktenAPI.on('menu-command', handleMenuCommand);
 
     return () => {
       // Cleanup if needed

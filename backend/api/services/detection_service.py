@@ -1,7 +1,7 @@
 """
 Detection Service
 
-Wraps existing face detection logic from hitta_ansikten.
+Wraps existing face detection logic from the Ansikten CLI.
 """
 
 import logging
@@ -720,7 +720,7 @@ class DetectionService:
         backend_info = self.backend.get_model_info()
         attempts = [{
             "face_count": len(reviewed_faces),
-            "source": "bildvisare",
+            "source": "ansikten",
             "backend": self.backend.backend_name,
             "backend_version": backend_info.get('model', 'unknown'),
             "upsample": 0,  # API never upsamples

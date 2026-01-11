@@ -1,5 +1,5 @@
 /**
- * Shared type definitions for hitta_ansikten monorepo.
+ * Shared type definitions for Ansikten monorepo.
  *
  * These types mirror the Python definitions in types.py.
  * Keep in sync when making changes.

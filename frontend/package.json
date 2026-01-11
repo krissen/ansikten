@@ -1,6 +1,6 @@
 {
-  "name": "bildvisare",
-  "productName": "Bildvisare",
+  "name": "ansikten",
+  "productName": "Ansikten",
   "version": "1.0.1",
   "description": "Face detection and annotation tool for image review",
   "main": "main.js",
@@ -26,7 +26,7 @@
   "license": "GPL-3.0",
   "repository": {
     "type": "git",
-    "url": "https://github.com/krissen/hitta_ansikten.git"
+    "url": "https://github.com/krissen/ansikten.git"
   },
   "type": "commonjs",
   "dependencies": {
@@ -43,8 +43,8 @@
     "jsdom": "^26.0.0"
   },
   "build": {
-    "appId": "se.krissen.bildvisare",
-    "productName": "Bildvisare",
+    "appId": "se.krissen.ansikten",
+    "productName": "Ansikten",
     "directories": {
       "output": "dist"
     },

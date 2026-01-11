@@ -13,8 +13,8 @@ class DevToolsFocusManager {
     this.listeners = [];
 
     // Listen for DevTools open/close state from main process
-    if (window.bildvisareAPI) {
-      window.bildvisareAPI.on('devtools-state-changed', (isOpen) => {
+    if (window.ansiktenAPI) {
+      window.ansiktenAPI.on('devtools-state-changed', (isOpen) => {
         this.isDevToolsOpen = isOpen;
         this.notifyListeners();
       });
