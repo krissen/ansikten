@@ -61,7 +61,7 @@ function ToastContainer({ toasts, onDismiss }) {
           key={t.id}
           className={`global-toast ${t.type} ${t.exiting ? 'exiting' : ''}`}
           onClick={() => onDismiss(t.id)}
-          title="Klicka för att stänga"
+          title="Click to dismiss"
         >
           {t.message}
         </div>
