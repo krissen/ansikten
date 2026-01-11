@@ -137,11 +137,17 @@
 .face-actions input:focus {
   outline: none;
   border-color: var(--color-info);
+  background: var(--color-info-bg);
+  box-shadow: 0 0 0 2px color-mix(in srgb, var(--color-info) 30%, transparent);
 }
 
 .face-actions input.name-match {
   border-color: var(--color-success);
   background: var(--color-success-bg);
+}
+
+.face-actions input.name-match:focus {
+  box-shadow: 0 0 0 2px color-mix(in srgb, var(--color-success) 30%, transparent);
 }
 
 .status-text {
