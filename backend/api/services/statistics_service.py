@@ -213,7 +213,7 @@ class StatisticsService:
         - filename: Image filename
         - timestamp: Processing timestamp
         - person_names: List of person names in image
-        - source: Where the review came from ('bildvisare' or 'cli')
+        - source: Where the review came from ('ansikten' or 'cli')
         """
         stats = load_attempt_log(all_files=False)
 
@@ -228,12 +228,12 @@ class StatisticsService:
             labels_per_attempt = entry.get("labels_per_attempt")
             attempts = entry.get("attempts", [])
 
-            # Determine source - check if this is a Bildvisare API entry
             source = "cli"
             if used is not None and attempts and used < len(attempts):
                 att = attempts[used]
-                if att.get("source") == "bildvisare" or att.get("resolution") == "api":
-                    source = "bildvisare"
+                # "bildvisare" kept for backward compatibility with legacy data
+                if att.get("source") in ("ansikten", "bildvisare") or att.get("resolution") == "api":
+                    source = "ansikten"
 
             if used is not None and labels_per_attempt and used < len(labels_per_attempt):
                 names = extract_face_labels(labels_per_attempt[used])

@@ -2,7 +2,7 @@
 
 const DEBUG = true;
 function dlog(...args) {
-  if (DEBUG) console.log("[bildvisare:renderer]", ...args);
+  if (DEBUG) console.log("[ansikten:renderer]", ...args);
 }
 dlog("Renderer running. window.location.search:", window.location.search);
 
@@ -78,11 +78,11 @@ waitOverlay.innerHTML = "<div>Waiting for conversion of original…</div>";
 waitOverlay.style.display = "none";
 document.body.appendChild(waitOverlay);
 
-window.bildvisareAPI.on("show-wait-overlay", (msg) => {
+window.ansiktenAPI.on("show-wait-overlay", (msg) => {
   waitOverlay.innerHTML = `<div>${msg || "Waiting for conversion of original…"}</div>`;
   waitOverlay.style.display = "flex";
 });
-window.bildvisareAPI.on("hide-wait-overlay", () => {
+window.ansiktenAPI.on("hide-wait-overlay", () => {
   waitOverlay.style.display = "none";
 });
 
@@ -168,7 +168,7 @@ if (!bildPath) {
     if (IS_SLAVE && detached) return; // Slave detached: no sync out
     if (suppressSync) return; // avoid loops
     // Proportional scroll (scrollLeft/total, scrollTop/total)
-    window.bildvisareAPI.send("sync-view", {
+    window.ansiktenAPI.send("sync-view", {
       zoom: zoomFactor,
       x: (container.scrollLeft || 0) / Math.max(1, naturalWidth * zoomFactor),
       y: (container.scrollTop || 0) / Math.max(1, naturalHeight * zoomFactor),
@@ -176,7 +176,7 @@ if (!bildPath) {
     });
   }
 
-  window.bildvisareAPI.on("apply-view", ({ zoom, x, y }) => {
+  window.ansiktenAPI.on("apply-view", ({ zoom, x, y }) => {
     if (IS_SLAVE && detached) return; // ignore sync if detached slave
     suppressSync = true;
     zoomMode = "manual";
@@ -238,7 +238,7 @@ if (!bildPath) {
     naturalWidth = img.naturalWidth;
     naturalHeight = img.naturalHeight;
     updateImageDisplay();
-    window.bildvisareAPI.send("bild-visad");
+    window.ansiktenAPI.send("bild-visad");
   };
 
   // PERFORMANCE: Debounce scroll events to avoid excessive IPC
@@ -346,7 +346,7 @@ if (!bildPath) {
   });
 
   // PERFORMANCE: Use fs.watch via IPC instead of polling
-  window.bildvisareAPI.onFileChanged((changedPath) => {
+  window.ansiktenAPI.onFileChanged((changedPath) => {
     if (changedPath === bildPath) {
       dlog("Image file changed, reloading:", bildPath);
       img.onload = function () {
@@ -360,7 +360,7 @@ if (!bildPath) {
         zoomMode = "auto";
         zoomFactor = 1;
         updateImageDisplay();
-        window.bildvisareAPI.send("bild-visad");
+        window.ansiktenAPI.send("bild-visad");
       };
       // SECURITY FIX: Use file:// protocol for Electron v36+ with contextIsolation
       const fileUrl = bildPath.startsWith('file://') ? bildPath : 'file://' + bildPath;
@@ -369,7 +369,7 @@ if (!bildPath) {
   });
 
   // Start watching the file
-  window.bildvisareAPI.watchFile(bildPath);
+  window.ansiktenAPI.watchFile(bildPath);
 
   zoomMode = "auto";
   zoomFactor = 1;

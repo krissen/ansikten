@@ -1,6 +1,6 @@
 # Release-guide
 
-Guide för att skapa och publicera nya versioner av Hitta ansikten.
+Guide för att skapa och publicera nya versioner av Ansikten.
 
 ---
 
@@ -59,7 +59,7 @@ git push origin v1.0.1
 
 ### 4. Övervaka bygget
 
-1. Gå till [GitHub Actions](https://github.com/krissen/hitta_ansikten/actions)
+1. Gå till [GitHub Actions](https://github.com/krissen/ansikten/actions)
 2. Klicka på "Release" workflow
 3. Vänta på att alla tre byggjobb (macOS, Windows, Linux) blir gröna
 
@@ -70,7 +70,7 @@ Byggtider (ungefärliga):
 
 ### 5. Publicera release
 
-1. Gå till [GitHub Releases](https://github.com/krissen/hitta_ansikten/releases)
+1. Gå till [GitHub Releases](https://github.com/krissen/ansikten/releases)
 2. Hitta draft-releasen (skapad automatiskt)
 3. Lägg till release notes
 4. Klicka "Publish release"
@@ -98,7 +98,7 @@ GitHub Actions genererar följande filer:
 # Kontrollera att requirements.txt är uppdaterad
 cd backend
 pip install -r requirements.txt
-pyinstaller bildvisare-backend.spec
+pyinstaller ansikten-backend.spec
 ```
 
 **Node-beroenden:**
@@ -144,8 +144,8 @@ Testa byggprocessen lokalt innan du pushar:
 # Backend
 cd backend
 pip install pyinstaller
-pyinstaller bildvisare-backend.spec
-ls dist/bildvisare-backend/
+pyinstaller ansikten-backend.spec
+ls dist/ansikten-backend/
 
 # Frontend
 cd frontend

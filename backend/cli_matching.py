@@ -1,5 +1,5 @@
 """
-cli_matching.py - Face matching utilities for hitta_ansikten CLI
+cli_matching.py - Face matching utilities for Ansikten CLI
 
 Contains:
 - Backend threshold management

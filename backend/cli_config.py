@@ -1,5 +1,5 @@
 """
-cli_config.py - Configuration and settings for hitta_ansikten CLI
+cli_config.py - Configuration and settings for Ansikten CLI
 
 Contains:
 - Default configuration
@@ -29,9 +29,9 @@ if TYPE_CHECKING:
 
 
 # === CONSTANTS === #
-# Use /private/tmp for macOS compatibility with Bildvisare security restrictions
-# Bildvisare whitelists /tmp and /private/tmp but not system temp (/var/folders/...)
-TEMP_DIR = Path("/private/tmp") / "hitta_ansikten"
+# Use /private/tmp for macOS compatibility with Ansikten security restrictions
+# Ansikten whitelists /tmp and /private/tmp but not system temp (/var/folders/...)
+TEMP_DIR = Path("/private/tmp") / "ansikten"
 TEMP_DIR.mkdir(exist_ok=True, parents=True)
 ORDINARY_PREVIEW_PATH = str(TEMP_DIR / "preview.jpg")
 MAX_ATTEMPTS = 2
@@ -76,8 +76,8 @@ DEFAULT_CONFIG = {
     # === Utseende: etiketter & fönster ===
     # Skalningsfaktor för etikett-textstorlek
     "font_size_factor": 45,
-    # App som används för att visa bilder, t.ex. "Bildvisare" eller "feh"
-    "image_viewer_app": "Bildvisare",
+    # App som används för att visa bilder, t.ex. "Ansikten" eller "feh"
+    "image_viewer_app": "Ansikten",
     # Sökväg för temporär förhandsvisningsbild (will use system temp dir)
     "temp_image_path": None,  # Computed at runtime using ORDINARY_PREVIEW_PATH
     # Bakgrundsfärg för etiketter i RGBA
@@ -137,7 +137,7 @@ def init_logging(
     replace_handlers: bool = False
 ) -> None:
     """
-    Initialize logging for hitta_ansikten.
+    Initialize logging for Ansikten.
 
     Args:
         level: Logging level

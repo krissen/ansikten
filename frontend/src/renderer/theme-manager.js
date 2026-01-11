@@ -1,5 +1,5 @@
 /**
- * Theme Manager for hitta_ansikten workspace
+ * Theme Manager for Ansikten workspace
  *
  * Manages light/dark/system theme preference with:
  * - Tri-state preference: 'light', 'dark', or 'system'

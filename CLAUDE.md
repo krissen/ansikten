@@ -6,7 +6,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Project Overview
 
-**Hitta ansikten** - Face recognition for event photography.
+**Ansikten** - Face recognition for event photography.
 
 - **Backend**: FastAPI server (`backend/api/`)
 - **Frontend**: Electron + React with FlexLayout (`frontend/`)
@@ -88,7 +88,7 @@ cd backend
 ```bash
 cd backend
 pip install pyinstaller
-pyinstaller bildvisare-backend.spec        # Creates dist/bildvisare-backend/
+pyinstaller ansikten-backend.spec          # Creates dist/ansikten-backend/
 
 cd frontend
 npm run build:mac                          # macOS .dmg
