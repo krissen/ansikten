@@ -210,11 +210,14 @@ export function ReviewModule() {
     const face = detectedFaces[index];
     if (!face || face.is_confirmed) return;
 
-    setDetectedFaces(prev => {
-      const updated = [...prev];
-      updated[index] = { ...updated[index], is_confirmed: true, person_name: personName.trim() };
-      return updated;
-    });
+    // Create updated faces array for both state and event
+    const updatedFaces = [...detectedFaces];
+    updatedFaces[index] = { ...updatedFaces[index], is_confirmed: true, person_name: personName.trim() };
+
+    setDetectedFaces(updatedFaces);
+
+    // Emit updated faces to sync ImageViewer
+    emit('faces-detected', { faces: updatedFaces, imagePath: currentImagePath });
 
     setPendingConfirmations(prev => {
       const existing = prev.findIndex(p => p.face_id === face.face_id);
@@ -239,17 +242,20 @@ export function ReviewModule() {
     if (!willAllBeDone) {
       navigateToFace(1, index);
     }
-  }, [detectedFaces, currentImagePath, navigateToFace]);
+  }, [detectedFaces, currentImagePath, navigateToFace, emit]);
 
   const doIgnoreFace = useCallback((index) => {
     const face = detectedFaces[index];
     if (!face || face.is_confirmed) return;
 
-    setDetectedFaces(prev => {
-      const updated = [...prev];
-      updated[index] = { ...updated[index], is_confirmed: true, is_rejected: true, person_name: '(ignored)' };
-      return updated;
-    });
+    // Create updated faces array for both state and event
+    const updatedFaces = [...detectedFaces];
+    updatedFaces[index] = { ...updatedFaces[index], is_confirmed: true, is_rejected: true, person_name: '(ignored)' };
+
+    setDetectedFaces(updatedFaces);
+
+    // Emit updated faces to sync ImageViewer
+    emit('faces-detected', { faces: updatedFaces, imagePath: currentImagePath });
 
     setPendingIgnores(prev => {
       if (prev.some(p => p.face_id === face.face_id)) return prev;
@@ -263,7 +269,7 @@ export function ReviewModule() {
     if (!willAllBeDone) {
       navigateToFace(1, index);
     }
-  }, [detectedFaces, currentImagePath, navigateToFace]);
+  }, [detectedFaces, currentImagePath, navigateToFace, emit]);
 
   const confirmFace = useCallback((index, personName) => {
     if (!personName?.trim()) return;
@@ -319,17 +325,20 @@ export function ReviewModule() {
 
     debug('ReviewModule', 'Unconfirming face at index:', index);
 
-    setDetectedFaces(prev => {
-      const updated = [...prev];
-      const originalFace = updated[index];
-      updated[index] = {
-        ...originalFace,
-        is_confirmed: false,
-        is_rejected: false,
-        person_name: originalFace._original_person_name || null
-      };
-      return updated;
-    });
+    // Create updated faces array for both state and event
+    const updatedFaces = [...detectedFaces];
+    const originalFace = updatedFaces[index];
+    updatedFaces[index] = {
+      ...originalFace,
+      is_confirmed: false,
+      is_rejected: false,
+      person_name: originalFace._original_person_name || null
+    };
+
+    setDetectedFaces(updatedFaces);
+
+    // Emit updated faces to sync ImageViewer
+    emit('faces-detected', { faces: updatedFaces, imagePath: currentImagePath });
 
     setPendingConfirmations(prev => prev.filter(p => p.face_id !== face.face_id));
     setPendingIgnores(prev => prev.filter(p => p.face_id !== face.face_id));
@@ -340,7 +349,7 @@ export function ReviewModule() {
     setTimeout(() => {
       inputRefs.current[index]?.focus();
     }, 50);
-  }, [detectedFaces, emit]);
+  }, [detectedFaces, currentImagePath, emit]);
 
   /**
    * Accept all suggestions - confirm/ignore all unconfirmed faces using their top suggestion
