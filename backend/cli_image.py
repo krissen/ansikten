@@ -235,7 +235,7 @@ def create_labeled_image(
 
 def export_and_show_original(image_path: str | Path, config: dict[str, Any]) -> None:
     """
-    Exporterar NEF-filen till högupplöst JPG och skriver en statusfil för Bildvisare-appen.
+    Exporterar NEF-filen till högupplöst JPG och skriver en statusfil för Ansikten-appen.
     """
     export_path = TEMP_DIR / "original.jpg"
 
@@ -301,19 +301,19 @@ def show_temp_image(
                 try:
                     if current_file and os.path.samefile(current_file, expected_path):
                         should_open = False
-                        logging.debug(f"[ANSIKTEN] Bildvisaren visar redan rätt fil: {expected_path}")
+                        logging.debug(f"[ANSIKTEN] Appen visar redan rätt fil: {expected_path}")
                     else:
                         should_open = True
-                        logging.debug(f"[ANSIKTEN] Bildvisaren kör men visar annan fil ({current_file}), öppnar {expected_path}")
+                        logging.debug(f"[ANSIKTEN] Appen kör men visar annan fil ({current_file}), öppnar {expected_path}")
                 except (OSError, ValueError):
                     should_open = True
                     logging.debug(f"[ANSIKTEN] Kan inte jämföra filer, öppnar {expected_path}")
 
             elif app_status == "exited":
-                logging.debug(f"[ANSIKTEN] Bildvisaren har avslutats, kommer öppna bild")
+                logging.debug(f"[ANSIKTEN] Appen har avslutats, kommer öppna bild")
                 should_open = True
             else:
-                logging.debug(f"[ANSIKTEN] Bildvisar-status: {app_status} inte behandlad, kommer öppna bild")
+                logging.debug(f"[ANSIKTEN] App-status: {app_status} inte behandlad, kommer öppna bild")
                 should_open = True
         except Exception as e:
             logging.debug(f"[ANSIKTEN] Misslyckades läsa statusfilen: {status_path} ({e}), kommer öppna bild")
@@ -334,8 +334,8 @@ def show_temp_image(
             proc = subprocess.Popen(cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
             logging.debug(f"[ANSIKTEN] Subprocess startad, PID: {proc.pid}")
         except Exception as e:
-            logging.error(f"[ANSIKTEN] Fel vid start av bildvisare: {e}")
-            print(f"⚠️  Could not open image viewer: {e}", file=sys.stderr)
+            logging.error(f"[ANSIKTEN] Fel vid start av extern bildvisare: {e}")
+            print(f"⚠️  Kunde inte öppna extern bildvisare: {e}", file=sys.stderr)
         last_shown[0] = expected_path
     else:
         logging.debug(f"[ANSIKTEN] Hoppar över open")

@@ -79,7 +79,7 @@ Konsoliderad lista över planerade förbättringar, kända brister och teknisk s
 
 - [x] **hitta_ansikten.py uppdelad** - Extraherade moduler (2614 → 1669 rader, 36% reduktion)
   - cli_config.py (287 rader): konstanter, config, logging, attempt settings
-  - cli_image.py (319 rader): RAW-läsning, preview-bilder, bildvisare
+  - cli_image.py (319 rader): RAW-läsning, preview-bilder, extern bildvisare
   - cli_matching.py (454 rader): tröskelvärden, matchning, labels
 - [x] **Frontend state-konsolidering** - Nya återanvändbara hooks
   - useOperationStatus: isLoading/status/showSuccess/showError mönster
