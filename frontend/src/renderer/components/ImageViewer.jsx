@@ -233,6 +233,14 @@ export function ImageViewer() {
 
     const activeHighlightColor = getComputedStyle(document.documentElement)
       .getPropertyValue('--face-active-highlight').trim() || '#00bcd4';
+    const confirmedColor = getComputedStyle(document.documentElement)
+      .getPropertyValue('--face-confirmed-color').trim() || '#4caf50';
+    const confirmedBg = getComputedStyle(document.documentElement)
+      .getPropertyValue('--face-confirmed-bg').trim() || 'rgba(76, 175, 80, 0.9)';
+    const ignoredColor = getComputedStyle(document.documentElement)
+      .getPropertyValue('--face-ignored-color').trim() || '#9e9e9e';
+    const ignoredBg = getComputedStyle(document.documentElement)
+      .getPropertyValue('--face-ignored-bg').trim() || 'rgba(158, 158, 158, 0.9)';
 
     // Calculate placements with collision avoidance
     const placedBoxes = [];
@@ -321,15 +329,24 @@ export function ImageViewer() {
       const isActiveFace = originalIndex === activeFaceIndex;
       let strokeColor, textBgColor;
 
-      if (matchCase === 'ign' || matchCase === 'uncertain_ign') {
-        strokeColor = '#9e9e9e';
-        textBgColor = 'rgba(158, 158, 158, 0.9)';
+      // Prioritize confirmed status over match_case/confidence
+      if (face.is_confirmed && face.is_rejected) {
+        // Confirmed as ignored
+        strokeColor = ignoredColor;
+        textBgColor = ignoredBg;
+      } else if (face.is_confirmed && !face.is_rejected) {
+        // Confirmed with a name
+        strokeColor = confirmedColor;
+        textBgColor = confirmedBg;
+      } else if (matchCase === 'ign' || matchCase === 'uncertain_ign') {
+        strokeColor = ignoredColor;
+        textBgColor = ignoredBg;
       } else if (matchCase === 'uncertain_name') {
         strokeColor = '#ffc107';
         textBgColor = 'rgba(255, 193, 7, 0.9)';
       } else if (confidence >= 0.65) {
-        strokeColor = '#4caf50';
-        textBgColor = 'rgba(76, 175, 80, 0.9)';
+        strokeColor = confirmedColor;
+        textBgColor = confirmedBg;
       } else if (confidence >= 0.50) {
         strokeColor = '#2196f3';
         textBgColor = 'rgba(33, 150, 243, 0.9)';
@@ -362,8 +379,8 @@ export function ImageViewer() {
         const labelCenterY = labelPos.y + labelHeight / 2;
         const edgePoint = getBoxEdgeIntersection(faceBox, labelCenterX, labelCenterY);
 
-        // Connecting line
-        ctx.strokeStyle = '#ffeb3b';
+        // Connecting line (same color as bounding box)
+        ctx.strokeStyle = strokeColor;
         ctx.lineWidth = 2;
         ctx.beginPath();
         ctx.moveTo(edgePoint.x, edgePoint.y);
