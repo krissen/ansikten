@@ -9,16 +9,23 @@ Contains:
 - Logging initialization
 """
 
+from __future__ import annotations
+
 import hashlib
 import json
 import logging
 from datetime import datetime
 from pathlib import Path
+from typing import TYPE_CHECKING, Any
 
 from faceid_db import (
     ARCHIVE_DIR, ATTEMPT_SETTINGS_SIG, BASE_DIR,
     CONFIG_PATH, LOGGING_PATH
 )
+
+if TYPE_CHECKING:
+    from face_backends import FaceBackend
+    import numpy as np
 
 
 # === CONSTANTS === #
@@ -124,7 +131,11 @@ DEFAULT_CONFIG = {
 }
 
 
-def init_logging(level=logging.INFO, logfile=LOGGING_PATH, replace_handlers=False):
+def init_logging(
+    level: int = logging.INFO,
+    logfile: Path = LOGGING_PATH,
+    replace_handlers: bool = False
+) -> None:
     """
     Initialize logging for hitta_ansikten.
 
@@ -158,7 +169,7 @@ def init_logging(level=logging.INFO, logfile=LOGGING_PATH, replace_handlers=Fals
         logger.addHandler(handler)
 
 
-def load_config():
+def load_config() -> dict[str, Any]:
     """Load configuration from file or create default."""
     BASE_DIR.mkdir(parents=True, exist_ok=True)
     if CONFIG_PATH.exists():
@@ -172,7 +183,10 @@ def load_config():
     return DEFAULT_CONFIG
 
 
-def get_attempt_setting_defs(config, backend=None):
+def get_attempt_setting_defs(
+    config: dict[str, Any],
+    backend: FaceBackend | None = None
+) -> list[dict[str, Any]]:
     """
     Returnerar alla attempt settings utan rgb_img.
 
@@ -206,7 +220,13 @@ def get_attempt_setting_defs(config, backend=None):
     ]
 
 
-def get_attempt_settings(config, rgb_down, rgb_mid, rgb_full, backend=None):
+def get_attempt_settings(
+    config: dict[str, Any],
+    rgb_down: np.ndarray,
+    rgb_mid: np.ndarray,
+    rgb_full: np.ndarray,
+    backend: FaceBackend | None = None
+) -> list[dict[str, Any]]:
     """
     Kopplar rgb_img enligt scale_label.
 
@@ -228,12 +248,15 @@ def get_attempt_settings(config, rgb_down, rgb_mid, rgb_full, backend=None):
     return settings
 
 
-def get_max_possible_attempts(config, backend=None):
+def get_max_possible_attempts(
+    config: dict[str, Any],
+    backend: FaceBackend | None = None
+) -> int:
     """Returns max number of attempts for current backend."""
     return len(get_attempt_setting_defs(config, backend))
 
 
-def get_settings_signature(attempt_settings):
+def get_settings_signature(attempt_settings: list[dict[str, Any]]) -> str:
     """Generate a signature hash for attempt settings (for cache invalidation)."""
     # Serialiserbar och ordningsoberoende
     as_json = json.dumps([
@@ -243,7 +266,7 @@ def get_settings_signature(attempt_settings):
     return hashlib.md5(as_json.encode("utf-8")).hexdigest()
 
 
-def archive_stats_if_needed(current_sig, force=False):
+def archive_stats_if_needed(current_sig: str, force: bool = False) -> None:
     """Archive attempt stats file if settings signature has changed."""
     sig_path = ATTEMPT_SETTINGS_SIG
     log_path = BASE_DIR / "attempt_stats.jsonl"
@@ -265,7 +288,7 @@ def archive_stats_if_needed(current_sig, force=False):
         sig_path.write_text(current_sig)
 
 
-def hash_encoding(enc):
+def hash_encoding(enc: dict[str, Any] | np.ndarray | None) -> str | None:
     """
     Hash an encoding, handling both dict and ndarray formats.
 

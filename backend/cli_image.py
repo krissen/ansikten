@@ -16,15 +16,18 @@ import sys
 import tempfile
 import time
 from pathlib import Path
+from typing import Any
 
 import numpy as np
 import rawpy
 from PIL import Image, ImageDraw, ImageFont
+from PIL.ImageFont import FreeTypeFont
+from numpy.typing import NDArray
 
 from cli_config import TEMP_DIR
 
 
-def load_and_resize_raw(image_path, max_dim=None):
+def load_and_resize_raw(image_path: str | Path, max_dim: int | None = None) -> NDArray[np.uint8]:
     """
     Läser och eventuellt nedskalar RAW-bild till max_dim (längsta sida).
     Om max_dim=None returneras full originalstorlek.
@@ -39,7 +42,11 @@ def load_and_resize_raw(image_path, max_dim=None):
     return rgb
 
 
-def box_overlaps_with_buffer(b1, b2, buffer=40):
+def box_overlaps_with_buffer(
+    b1: tuple[int, int, int, int],
+    b2: tuple[int, int, int, int],
+    buffer: int = 40,
+) -> bool:
     """Check if two boxes overlap with a buffer zone."""
     l1, t1, r1, b1_ = b1
     l2, t2, r2, b2_ = b2
@@ -49,7 +56,12 @@ def box_overlaps_with_buffer(b1, b2, buffer=40):
                 t1 - buffer >= b2_ + buffer)
 
 
-def robust_word_wrap(label_text, max_label_width, draw, font):
+def robust_word_wrap(
+    label_text: str,
+    max_label_width: int,
+    draw: ImageDraw.ImageDraw,
+    font: FreeTypeFont,
+) -> list[str]:
     """Wrap text to fit within max_label_width."""
     lines = []
     text = label_text
@@ -65,7 +77,13 @@ def robust_word_wrap(label_text, max_label_width, draw, font):
     return lines
 
 
-def create_labeled_image(rgb_image, face_locations, labels, config, suffix=""):
+def create_labeled_image(
+    rgb_image: NDArray[np.uint8],
+    face_locations: list[tuple[int, int, int, int]],
+    labels: list[str],
+    config: dict[str, Any],
+    suffix: str = "",
+) -> str:
     """
     Create a preview image with face boxes and labels.
 
@@ -215,7 +233,7 @@ def create_labeled_image(rgb_image, face_locations, labels, config, suffix=""):
         return tmp.name
 
 
-def export_and_show_original(image_path, config):
+def export_and_show_original(image_path: str | Path, config: dict[str, Any]) -> None:
     """
     Exporterar NEF-filen till högupplöst JPG och skriver en statusfil för Bildvisare-appen.
     """
@@ -245,7 +263,12 @@ def export_and_show_original(image_path, config):
         print(f"⚠️  Kunde inte exportera bild: {e}")
 
 
-def show_temp_image(preview_path, config, image_path=None, last_shown=[None]):
+def show_temp_image(
+    preview_path: str,
+    config: dict[str, Any],
+    image_path: str | Path | None = None,
+    last_shown: list[str | None] = [None],  # noqa: B006
+) -> None:
     """
     Display a preview image in the configured viewer app.
     """

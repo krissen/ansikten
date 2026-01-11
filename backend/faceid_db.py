@@ -5,7 +5,9 @@ import logging
 import pickle
 import re
 from datetime import datetime
+from io import BufferedReader
 from pathlib import Path
+from typing import Any
 
 import numpy as np
 from xdg.BaseDirectory import xdg_data_home
@@ -42,7 +44,7 @@ class RestrictedUnpickler(pickle.Unpickler):
         ('collections', 'defaultdict'),
     }
 
-    def find_class(self, module, name):
+    def find_class(self, module: str, name: str) -> type:
         """Only allow whitelisted classes to be unpickled."""
         if (module, name) in self.ALLOWED_CLASSES:
             return super().find_class(module, name)
@@ -51,7 +53,7 @@ class RestrictedUnpickler(pickle.Unpickler):
         raise pickle.UnpicklingError(f"Forbidden class: {module}.{name}")
 
 
-def safe_pickle_load(file_handle):
+def safe_pickle_load(file_handle: BufferedReader) -> Any:
     """Safely load pickle file using RestrictedUnpickler."""
     return RestrictedUnpickler(file_handle).load()
 
@@ -76,7 +78,7 @@ MAX_ATTEMPT_ENTRIES = 10000      # Max entries in attempt_stats.jsonl
 MAX_LOG_SIZE_MB = 10             # Max size of hitta_ansikten.log in MB
 
 
-def normalize_encoding_entry(entry, default_backend="dlib"):
+def normalize_encoding_entry(entry: np.ndarray | dict[str, Any], default_backend: str = "dlib") -> dict[str, Any] | None:
     """
     Normalize encoding entry to dict format with backend metadata.
 
@@ -137,7 +139,7 @@ def normalize_encoding_entry(entry, default_backend="dlib"):
         return None
 
 
-def load_database():
+def load_database() -> tuple[dict[str, list[dict[str, Any]]], list[dict[str, Any]], dict[str, list[dict[str, Any]]], list[dict[str, Any]]]:
     """
     Load database with file locking to ensure consistency.
 
@@ -238,7 +240,12 @@ def load_database():
     return known_faces, ignored_faces, hard_negatives, processed_files
 
 
-def save_database(known_faces, ignored_faces, hard_negatives, processed_files):
+def save_database(
+    known_faces: dict[str, list[dict[str, Any]]],
+    ignored_faces: list[dict[str, Any]],
+    hard_negatives: dict[str, list[dict[str, Any]]],
+    processed_files: list[dict[str, Any]]
+) -> None:
     """
     Save database with atomic writes and file locking to prevent corruption.
 
@@ -290,7 +297,7 @@ def save_database(known_faces, ignored_faces, hard_negatives, processed_files):
     atomic_jsonl_write(processed_files, PROCESSED_PATH)
 
 
-def load_attempt_log(all_files=False):
+def load_attempt_log(all_files: bool = False) -> list[dict[str, Any]]:
     """Returnerar samtliga entries från attempt-logg (ev. även arkiv)"""
     log = []
     files = [ATTEMPT_LOG_PATH]
@@ -310,7 +317,7 @@ def load_attempt_log(all_files=False):
     return log
 
 
-def load_processed_files():
+def load_processed_files() -> list[dict[str, Any]]:
     """Returnerar lista av dicts {"name":..., "hash":...}"""
     _, _, _, processed_files = load_database()
     if processed_files and isinstance(processed_files[0], str):
@@ -318,7 +325,7 @@ def load_processed_files():
     return processed_files
 
 
-def extract_face_labels(labels):
+def extract_face_labels(labels: list[str | dict[str, Any]]) -> list[str]:
     """Tar ut alla personnamn från en labels_per_attempt-lista."""
     persons = []
     for label in labels:
@@ -332,7 +339,7 @@ def extract_face_labels(labels):
     return persons
 
 
-def get_file_hash(path):
+def get_file_hash(path: Path | str) -> str | None:
     """
     Compute SHA1 hash of a file using chunked reading.
 
@@ -356,7 +363,7 @@ def get_file_hash(path):
         return None
 
 
-def rotate_logs():
+def rotate_logs() -> None:
     """
     Rotate log files to prevent unbounded growth.
 

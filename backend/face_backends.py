@@ -6,7 +6,6 @@ Supports both dlib (via face_recognition) and InsightFace.
 """
 
 from abc import ABC, abstractmethod
-from typing import Tuple, List
 import numpy as np
 import logging
 
@@ -36,7 +35,7 @@ class FaceBackend(ABC):
         pass
 
     @abstractmethod
-    def detect_faces(self, rgb_image: np.ndarray, model: str, upsample: int) -> Tuple[List, List[np.ndarray]]:
+    def detect_faces(self, rgb_image: np.ndarray, model: str, upsample: int) -> tuple[list, list[np.ndarray]]:
         """
         Detect faces in image.
 
@@ -92,7 +91,7 @@ class FaceBackend(ABC):
 class DlibBackend(FaceBackend):
     """Backend using dlib via face_recognition library."""
 
-    def __init__(self):
+    def __init__(self) -> None:
         """Initialize dlib backend."""
         try:
             import face_recognition
@@ -114,7 +113,7 @@ class DlibBackend(FaceBackend):
     def distance_metric(self) -> str:
         return "euclidean"
 
-    def detect_faces(self, rgb_image: np.ndarray, model: str, upsample: int) -> Tuple[List, List[np.ndarray]]:
+    def detect_faces(self, rgb_image: np.ndarray, model: str, upsample: int) -> tuple[list, list[np.ndarray]]:
         """
         Detect faces using dlib's HOG or CNN detector.
 
@@ -162,7 +161,7 @@ class DlibBackend(FaceBackend):
 class InsightFaceBackend(FaceBackend):
     """Backend using InsightFace library."""
 
-    def __init__(self, model_name: str = 'buffalo_l', ctx_id: int = -1, det_size: tuple = (640, 640)):
+    def __init__(self, model_name: str = 'buffalo_l', ctx_id: int = -1, det_size: tuple[int, int] = (640, 640)) -> None:
         """
         Initialize InsightFace backend.
 
@@ -267,7 +266,7 @@ class InsightFaceBackend(FaceBackend):
     def distance_metric(self) -> str:
         return "cosine"
 
-    def detect_faces(self, rgb_image: np.ndarray, model: str, upsample: int) -> Tuple[List, List[np.ndarray]]:
+    def detect_faces(self, rgb_image: np.ndarray, model: str, upsample: int) -> tuple[list, list[np.ndarray]]:
         """
         Detect faces using InsightFace's RetinaFace detector.
 
@@ -444,7 +443,7 @@ def create_backend(config: dict) -> FaceBackend:
         raise
 
 
-def get_available_backends() -> List[str]:
+def get_available_backends() -> list[str]:
     """
     Returns list of available backend names.
 

@@ -18,20 +18,20 @@ IGNORED_PATH = BASE_DIR / "ignored.pkl"
 
 
 # === Ladda ignorerade ansikten ===
-def load_ignored():
+def load_ignored() -> list:
     if IGNORED_PATH.exists():
         with open(IGNORED_PATH, "rb") as f:
             return safe_pickle_load(f)
     return []
 
 
-def save_ignored(ignored_faces):
+def save_ignored(ignored_faces: list) -> None:
     with open(IGNORED_PATH, "wb") as f:
         pickle.dump(ignored_faces, f)
 
 
 # === Ladda metadata ===
-def load_metadata():
+def load_metadata() -> list[dict]:
     metadata_path = BASE_DIR / "metadata.json"
     if not metadata_path.exists():
         return []
@@ -40,7 +40,7 @@ def load_metadata():
 
 
 # === Rensa ignorerade ansikten för valda filer ===
-def redo_glob(glob_pattern):
+def redo_glob(glob_pattern: str) -> None:
     ignored = load_ignored()
     meta = load_metadata()
     match_encodings = []
