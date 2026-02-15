@@ -88,12 +88,16 @@ class BackendService {
       // Development: Use system Python with uvicorn
       const backendDir = path.join(__dirname, '../../../backend');
 
-      // Try to find Python in common locations
+      // Try to find Python in common locations (convention-based)
+      const venvPython = process.platform === 'win32'
+        ? path.join(backendDir, '.venv', 'Scripts', 'python.exe')
+        : path.join(backendDir, '.venv', 'bin', 'python3');
+
       const pythonPaths = [
         process.env.ANSIKTEN_PYTHON,  // Custom path via env var
-        '/Users/krisniem/.local/share/miniforge3/envs/ansikten/bin/python3',  // Dev default
-        'python3',  // System Python
-        'python',   // Fallback
+        venvPython,                    // Project venv in backend/.venv
+        'python3',                     // System Python
+        'python',                      // Fallback
       ].filter(Boolean);
 
       const { execSync } = require('child_process');
