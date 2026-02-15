@@ -646,9 +646,11 @@ def collect_persons_for_files(
 
         if review_persons:
             persons = list(review_persons)
-            for name in encoding_persons:
-                if name not in persons:
-                    persons.append(name)
+            merged = [n for n in encoding_persons if n not in persons]
+            if merged:
+                logger.info(f"[Rename] Merged {merged} from encodings for {fname}")
+            for name in merged:
+                persons.append(name)
         else:
             persons = encoding_persons
 
