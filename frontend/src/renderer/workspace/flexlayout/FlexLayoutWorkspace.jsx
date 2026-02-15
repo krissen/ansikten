@@ -337,7 +337,7 @@ export function FlexLayoutWorkspace() {
     // Ensure critical global settings are always applied
     // (saved layouts may not have newer settings)
     const criticalSettings = {
-      tabEnableRenderOnDemand: false,  // Keep all tabs mounted for event handling
+      tabEnableRenderOnDemand: true,   // Unmount hidden tabs to save CPU
       splitterSize: 4,                  // Consistent splitter appearance
       tabSetMinWidth: 100,              // Prevent panels from becoming too small
       tabSetMinHeight: 100,
@@ -527,7 +527,7 @@ export function FlexLayoutWorkspace() {
       );
     }
 
-    return <ModuleComponent />;
+    return <ModuleComponent node={node} />;
   }, []);
 
   // Get tabset position in layout (using bounding rect)
