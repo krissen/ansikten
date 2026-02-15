@@ -195,6 +195,9 @@ function addToBuffer(level, message, source = 'frontend') {
     logBuffer.shift();
   }
 
+  // Notify listeners (LogViewer uses this instead of polling)
+  window.dispatchEvent(new CustomEvent('debug-buffer-changed'));
+
   // Send to file if enabled
   const formattedMessage = `${timestamp} [${level.toUpperCase()}] ${message}`;
   sendToFile(level, formattedMessage);
