@@ -34,12 +34,12 @@ cd ansikten
 
 ```bash
 # Skapa virtuell miljö (rekommenderas)
-python -m venv venv
-source venv/bin/activate  # Linux/macOS
-# eller: venv\Scripts\activate  # Windows
+python3 -m venv .venv
+source .venv/bin/activate  # Linux/macOS
+# eller: .venv\Scripts\activate  # Windows
 
-# Installera beroenden
-pip install -r requirements.txt
+# Installera beroenden (från pyproject.toml)
+pip install -e "."
 ```
 
 #### Face Recognition Backend

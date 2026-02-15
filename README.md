@@ -21,7 +21,8 @@ The tool is designed for sports events, school activities, or any context where 
 
 ```bash
 cd backend
-pip install -r requirements.txt
+python3 -m venv .venv && source .venv/bin/activate
+pip install -e "."
 
 # Process images
 ./hitta_ansikten.py 2024*.NEF
