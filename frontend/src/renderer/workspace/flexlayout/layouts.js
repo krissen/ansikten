@@ -19,7 +19,7 @@ export const reviewLayout = {
     borderMinSize: 100,
     splitterSize: 4,
     enableEdgeDock: true,
-    tabEnableRenderOnDemand: false  // Keep all tabs mounted for event handling
+    tabEnableRenderOnDemand: true  // Unmount hidden tabs to save CPU
   },
   layout: {
     type: 'row',
@@ -33,6 +33,7 @@ export const reviewLayout = {
             type: 'tab',
             name: 'Review',
             component: 'review-module',
+            enableRenderOnDemand: false,
             config: { moduleId: 'review-module' }
           }
         ]
@@ -73,7 +74,7 @@ export const reviewWithLogsLayout = {
     borderMinSize: 100,
     splitterSize: 4,
     enableEdgeDock: true,
-    tabEnableRenderOnDemand: false  // Keep all tabs mounted for event handling
+    tabEnableRenderOnDemand: true  // Unmount hidden tabs to save CPU
   },
   layout: {
     type: 'row',
@@ -139,7 +140,7 @@ export const comparisonLayout = {
     borderMinSize: 100,
     splitterSize: 4,
     enableEdgeDock: true,
-    tabEnableRenderOnDemand: false  // Keep all tabs mounted for event handling
+    tabEnableRenderOnDemand: true  // Unmount hidden tabs to save CPU
   },
   layout: {
     type: 'row',
@@ -193,7 +194,7 @@ export const fullReviewLayout = {
     borderMinSize: 100,
     splitterSize: 4,
     enableEdgeDock: true,
-    tabEnableRenderOnDemand: false  // Keep all tabs mounted for event handling
+    tabEnableRenderOnDemand: true  // Unmount hidden tabs to save CPU
   },
   layout: {
     type: 'row',
@@ -282,7 +283,7 @@ export const queueReviewLayout = {
     borderMinSize: 100,
     splitterSize: 4,
     enableEdgeDock: true,
-    tabEnableRenderOnDemand: false  // Keep all tabs mounted for event handling
+    tabEnableRenderOnDemand: true  // Unmount hidden tabs to save CPU
   },
   layout: {
     type: 'row',
@@ -296,6 +297,7 @@ export const queueReviewLayout = {
             type: 'tab',
             name: 'File Queue',
             component: 'file-queue',
+            enableRenderOnDemand: false,
             config: { moduleId: 'file-queue' }
           }
         ]
@@ -308,6 +310,7 @@ export const queueReviewLayout = {
             type: 'tab',
             name: 'Review',
             component: 'review-module',
+            enableRenderOnDemand: false,
             config: { moduleId: 'review-module' }
           }
         ]
@@ -342,7 +345,7 @@ export const databaseLayout = {
     borderMinSize: 100,
     splitterSize: 4,
     enableEdgeDock: true,
-    tabEnableRenderOnDemand: false  // Keep all tabs mounted for event handling
+    tabEnableRenderOnDemand: true  // Unmount hidden tabs to save CPU
   },
   layout: {
     type: 'row',
