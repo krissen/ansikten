@@ -54,12 +54,12 @@ sudo apt-get install -y cmake build-essential
 cd backend
 
 # Create virtual environment
-python3 -m venv venv
-source venv/bin/activate  # Linux/macOS
-# or: venv\Scripts\activate  # Windows
+python3 -m venv .venv
+source .venv/bin/activate  # Linux/macOS
+# or: .venv\Scripts\activate  # Windows
 
-# Install dependencies
-pip install -r requirements.txt
+# Install dependencies (from pyproject.toml)
+pip install -e ".[dev]"
 ```
 
 ### Frontend
