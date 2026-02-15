@@ -82,6 +82,27 @@ class ReloadDatabaseResponse(BaseModel):
     cache_cleared: int
 
 
+class BatchConfirmItem(BaseModel):
+    face_id: str
+    person_name: str
+    image_path: str
+    suggested_name: Optional[str] = None
+
+class BatchIgnoreItem(BaseModel):
+    face_id: str
+    image_path: str
+
+class BatchConfirmRequest(BaseModel):
+    confirmations: List[BatchConfirmItem] = []
+    ignores: List[BatchIgnoreItem] = []
+
+class BatchConfirmResponse(BaseModel):
+    status: str
+    confirmed_count: int
+    ignored_count: int
+    errors: List[dict] = []
+
+
 class ReviewedFace(BaseModel):
     face_index: int
     face_id: str
@@ -295,6 +316,27 @@ async def ignore_face(request: IgnoreFaceRequest):
         raise HTTPException(status_code=400, detail=str(e))
     except Exception as e:
         logger.error(f"[Detection] Error ignoring face: {e}", exc_info=True)
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@router.post("/batch-confirm", response_model=BatchConfirmResponse)
+async def batch_confirm(request: BatchConfirmRequest):
+    """
+    Batch confirm/ignore multiple faces with a single database save.
+
+    More efficient than individual confirm/ignore calls when processing
+    all faces in an image at once.
+    """
+    logger.info(f"[Detection] Batch confirm: {len(request.confirmations)} confirms, {len(request.ignores)} ignores")
+
+    try:
+        result = await get_detection_service().batch_confirm(
+            [c.model_dump() for c in request.confirmations],
+            [i.model_dump() for i in request.ignores]
+        )
+        return BatchConfirmResponse(**result)
+    except Exception as e:
+        logger.error(f"[Detection] Error in batch confirm: {e}", exc_info=True)
         raise HTTPException(status_code=500, detail=str(e))
 
 
