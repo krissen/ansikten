@@ -4,11 +4,14 @@ Detection Service
 Wraps existing face detection logic from the Ansikten CLI.
 """
 
+import asyncio
 import logging
 import os
 import sys
 import time
 import hashlib
+from collections import OrderedDict
+from concurrent.futures import ThreadPoolExecutor
 from typing import List, Dict, Any, Optional, Tuple
 from pathlib import Path
 from datetime import datetime
@@ -27,6 +30,14 @@ from .preprocessing_cache import get_cache as get_preprocessing_cache
 
 logger = logging.getLogger(__name__)
 
+# Thread pool for offloading blocking I/O (hash computation, image loading, face detection)
+_executor = ThreadPoolExecutor(max_workers=2, thread_name_prefix="detection")
+
+# Cache size limits (LRU eviction)
+MAX_DETECTION_CACHE = 100
+MAX_ENCODING_CACHE = 1000
+MAX_IMAGE_CACHE = 10
+
 class DetectionService:
     """Face detection service wrapper"""
 
@@ -43,16 +54,76 @@ class DetectionService:
         self.known_faces, self.ignored_faces, self.hard_negatives, self.processed_files = load_database()
         logger.info(f"[DetectionService] Loaded database: {len(self.known_faces)} people, {len(self.ignored_faces)} ignored faces")
 
-        # Cache for detection results (keyed by file hash)
-        self.cache: Dict[str, Dict[str, Any]] = {}
+        # LRU caches using OrderedDict (move_to_end on access, popitem(last=False) to evict)
+        # Detection results cache (keyed by file hash)
+        self.cache: OrderedDict[str, Dict[str, Any]] = OrderedDict()
 
-        # Cache for face encodings (keyed by face_id for confirm/ignore operations)
-        self.encoding_cache: Dict[str, Tuple[np.ndarray, Dict[str, int]]] = {}
+        # Face encoding cache (keyed by face_id) — stores (encoding, bbox, file_hash)
+        self.encoding_cache: OrderedDict[str, Tuple[np.ndarray, Dict[str, int], Optional[str]]] = OrderedDict()
 
-        # Cache for loaded images (keyed by image path) - for fast thumbnail generation
-        # Stores (rgb_array, timestamp) tuples, expires after 1800 seconds
-        self.image_cache: Dict[str, Tuple[np.ndarray, float]] = {}
+        # Image cache (keyed by image path) — stores (rgb_array, timestamp)
+        self.image_cache: OrderedDict[str, Tuple[np.ndarray, float]] = OrderedDict()
         self.image_cache_ttl = 1800  # 30 minutes
+
+        # Debounced save state
+        self._save_pending = False
+        self._save_lock = asyncio.Lock()
+        self._save_task: Optional[asyncio.Task] = None
+
+    @staticmethod
+    def _lru_put(cache: OrderedDict, key, value, max_size: int):
+        """Insert into an OrderedDict with LRU eviction."""
+        if key in cache:
+            cache.move_to_end(key)
+        cache[key] = value
+        while len(cache) > max_size:
+            cache.popitem(last=False)
+
+    async def _schedule_save(self):
+        """Debounce database saves — coalesces rapid confirm/ignore calls."""
+        async with self._save_lock:
+            if self._save_pending:
+                return  # Already scheduled
+            self._save_pending = True
+
+        async def _do_save():
+            await asyncio.sleep(0.5)  # 500 ms debounce
+            loop = asyncio.get_event_loop()
+            await loop.run_in_executor(
+                _executor,
+                save_database,
+                self.known_faces,
+                self.ignored_faces,
+                self.hard_negatives,
+                self.processed_files,
+            )
+            async with self._save_lock:
+                self._save_pending = False
+            logger.debug("[DetectionService] Debounced save completed")
+
+        self._save_task = asyncio.create_task(_do_save())
+
+    async def _flush_save(self):
+        """Force immediate save (used for final operations like mark_review_complete)."""
+        # Cancel pending debounced save if any
+        if self._save_task and not self._save_task.done():
+            self._save_task.cancel()
+            try:
+                await self._save_task
+            except asyncio.CancelledError:
+                pass
+        async with self._save_lock:
+            self._save_pending = False
+
+        loop = asyncio.get_event_loop()
+        await loop.run_in_executor(
+            _executor,
+            save_database,
+            self.known_faces,
+            self.ignored_faces,
+            self.hard_negatives,
+            self.processed_files,
+        )
 
     def reload_database(self) -> Dict[str, Any]:
         """
@@ -124,7 +195,7 @@ class DetectionService:
             img = Image.open(image_path)
             return np.array(img.convert('RGB'))
 
-    def _detect_and_match_faces(self, rgb: np.ndarray, max_dimension: int = 4500) -> Tuple[List[Dict[str, Any]], Dict[str, Any]]:
+    def _detect_and_match_faces(self, rgb: np.ndarray, max_dimension: int = 4500, file_hash: Optional[str] = None) -> Tuple[List[Dict[str, Any]], Dict[str, Any]]:
         """Detect faces and match against database. Returns (faces, detection_meta)."""
         import cv2
 
@@ -193,8 +264,8 @@ class DetectionService:
             full_encoding_hash = hashlib.sha1(encoding.tobytes()).hexdigest()
             face_id = f"face_{i}_{full_encoding_hash[:16]}"
 
-            # Cache encoding for later confirm/ignore operations
-            self.encoding_cache[face_id] = (encoding, bbox)
+            # Cache encoding for later confirm/ignore operations (includes file_hash to avoid rehashing)
+            self._lru_put(self.encoding_cache, face_id, (encoding, bbox, file_hash), MAX_ENCODING_CACHE)
 
             # Calculate ignore confidence
             ignore_confidence = None
@@ -397,19 +468,23 @@ class DetectionService:
         if not path.exists():
             raise FileNotFoundError(f"Image not found: {image_path}")
 
-        # Check cache
-        file_hash = self._get_file_hash(path)
+        # Check cache (hash computed in thread pool to avoid blocking event loop)
+        loop = asyncio.get_event_loop()
+        file_hash = await loop.run_in_executor(_executor, self._get_file_hash, path)
         if not force_reprocess and file_hash in self.cache:
             logger.info(f"[DetectionService] Using cached result for: {image_path}")
+            self.cache.move_to_end(file_hash)
             cached_result = self.cache[file_hash]
             cached_result["cached"] = True
             return cached_result
 
-        # Load image
-        rgb = self._load_image(path)
+        # Load image in thread pool
+        rgb = await loop.run_in_executor(_executor, self._load_image, path)
 
-        # Detect and match faces
-        faces, detection_meta = self._detect_and_match_faces(rgb)
+        # Detect and match faces in thread pool
+        faces, detection_meta = await loop.run_in_executor(
+            _executor, self._detect_and_match_faces, rgb, 4500, file_hash
+        )
 
         # Build result
         processing_time = (time.time() - start_time) * 1000  # milliseconds
@@ -417,12 +492,12 @@ class DetectionService:
             "faces": faces,
             "processing_time_ms": processing_time,
             "cached": False,
-            "file_hash": file_hash,  # Include hash for reuse in mark-review-complete
-            "detection_meta": detection_meta  # Include scale info for statistics
+            "file_hash": file_hash,
+            "detection_meta": detection_meta
         }
 
-        # Cache result
-        self.cache[file_hash] = result
+        # Cache result with LRU eviction
+        self._lru_put(self.cache, file_hash, result, MAX_DETECTION_CACHE)
         logger.info(f"[DetectionService] Detected {len(faces)} faces in {processing_time:.1f}ms")
 
         return result
@@ -440,29 +515,27 @@ class DetectionService:
             JPEG thumbnail bytes
         """
         import io
-        import time
 
         # Check image cache first
         path = Path(image_path)
         cache_key = str(path)
         current_time = time.time()
+        loop = asyncio.get_event_loop()
 
         if cache_key in self.image_cache:
             rgb, timestamp = self.image_cache[cache_key]
-            # Check if cache entry is still valid
             if current_time - timestamp < self.image_cache_ttl:
+                self.image_cache.move_to_end(cache_key)
                 logger.debug(f"[DetectionService] Using cached image for thumbnail: {path.name}")
             else:
-                # Cache expired, remove it
                 logger.debug(f"[DetectionService] Cache expired for: {path.name}")
                 del self.image_cache[cache_key]
-                rgb = self._load_image(path)
-                self.image_cache[cache_key] = (rgb, current_time)
+                rgb = await loop.run_in_executor(_executor, self._load_image, path)
+                self._lru_put(self.image_cache, cache_key, (rgb, current_time), MAX_IMAGE_CACHE)
         else:
-            # Load image and cache it
             logger.debug(f"[DetectionService] Loading and caching image for thumbnail: {path.name}")
-            rgb = self._load_image(path)
-            self.image_cache[cache_key] = (rgb, current_time)
+            rgb = await loop.run_in_executor(_executor, self._load_image, path)
+            self._lru_put(self.image_cache, cache_key, (rgb, current_time), MAX_IMAGE_CACHE)
 
         # Extract bounding box coordinates
         x = bounding_box['x']
@@ -487,7 +560,6 @@ class DetectionService:
         dst_y2 = dst_y1 + (src_y2 - src_y1)
 
         # Create black canvas of requested size
-        import numpy as np
         cropped = np.zeros((height, width, 3), dtype=np.uint8)
 
         # Copy the valid region if there's any overlap
@@ -534,8 +606,9 @@ class DetectionService:
         if face_id.startswith("manual_"):
             logger.info(f"[DetectionService] Manual face confirmed: {person_name}")
 
+            loop = asyncio.get_event_loop()
             path = Path(image_path)
-            file_hash = get_file_hash(path) if path.exists() else None
+            file_hash = await loop.run_in_executor(_executor, get_file_hash, path) if path.exists() else None
             backend_info = self.backend.get_model_info()
 
             entry = {
@@ -554,7 +627,7 @@ class DetectionService:
                 self.known_faces[person_name] = []
             self.known_faces[person_name].append(entry)
 
-            save_database(self.known_faces, self.ignored_faces, self.hard_negatives, self.processed_files)
+            await self._schedule_save()
             logger.info(f"[DetectionService] Saved manual face for {person_name} (total: {len(self.known_faces[person_name])})")
 
             return {
@@ -563,15 +636,20 @@ class DetectionService:
                 "encodings_count": len(self.known_faces[person_name])
             }
 
-        # Get encoding from cache
+        # Get encoding + cached file_hash from cache
         if face_id not in self.encoding_cache:
             raise ValueError(f"Face ID not found in cache: {face_id}. Detection may have expired.")
 
-        encoding, bbox = self.encoding_cache[face_id]
+        encoding, bbox, cached_hash = self.encoding_cache[face_id]
+        self.encoding_cache.move_to_end(face_id)
 
-        # Get file hash
-        path = Path(image_path)
-        file_hash = get_file_hash(path) if path.exists() else None
+        # Use cached hash if available, otherwise compute
+        if cached_hash:
+            file_hash = cached_hash
+        else:
+            loop = asyncio.get_event_loop()
+            path = Path(image_path)
+            file_hash = await loop.run_in_executor(_executor, get_file_hash, path) if path.exists() else None
 
         # Compute encoding hash
         encoding_hash = hashlib.sha1(encoding.tobytes()).hexdigest()
@@ -612,7 +690,7 @@ class DetectionService:
             self.hard_negatives[suggested_name].append(hard_neg_entry)
             logger.info(f"[DetectionService] Added hard negative for {suggested_name} (corrected to {person_name})")
 
-        save_database(self.known_faces, self.ignored_faces, self.hard_negatives, self.processed_files)
+        await self._schedule_save()
 
         logger.info(f"[DetectionService] Saved encoding for {person_name} (total: {len(self.known_faces[person_name])})")
 
@@ -636,23 +714,27 @@ class DetectionService:
         logger.info(f"[DetectionService] Ignoring face {face_id}")
 
         # Handle manual faces (no encoding to add to ignored list)
-        # Manual faces are included in mark_review_complete for rename functionality
         if face_id.startswith("manual_"):
             logger.info(f"[DetectionService] Manual face ignored (no encoding to save)")
             return {
                 "status": "success",
-                "ignored_count": len(self.ignored_faces)  # Return current count unchanged
+                "ignored_count": len(self.ignored_faces)
             }
 
-        # Get encoding from cache
+        # Get encoding + cached file_hash from cache
         if face_id not in self.encoding_cache:
             raise ValueError(f"Face ID not found in cache: {face_id}. Detection may have expired.")
 
-        encoding, bbox = self.encoding_cache[face_id]
+        encoding, bbox, cached_hash = self.encoding_cache[face_id]
+        self.encoding_cache.move_to_end(face_id)
 
-        # Get file hash
-        path = Path(image_path)
-        file_hash = get_file_hash(path) if path.exists() else None
+        # Use cached hash if available, otherwise compute
+        if cached_hash:
+            file_hash = cached_hash
+        else:
+            loop = asyncio.get_event_loop()
+            path = Path(image_path)
+            file_hash = await loop.run_in_executor(_executor, get_file_hash, path) if path.exists() else None
 
         # Compute encoding hash
         encoding_hash = hashlib.sha1(encoding.tobytes()).hexdigest()
@@ -675,14 +757,157 @@ class DetectionService:
         # Add to ignored_faces
         self.ignored_faces.append(entry)
 
-        # Save database
-        save_database(self.known_faces, self.ignored_faces, self.hard_negatives, self.processed_files)
+        # Debounced save
+        await self._schedule_save()
 
         logger.info(f"[DetectionService] Added face to ignored list (total: {len(self.ignored_faces)})")
 
         return {
             "status": "success",
             "ignored_count": len(self.ignored_faces)
+        }
+
+    def _confirm_identity_nosave(
+        self,
+        face_id: str,
+        person_name: str,
+        image_path: str,
+        suggested_name: Optional[str] = None
+    ) -> Dict[str, Any]:
+        """In-memory confirm without saving to disk. Returns result dict."""
+        if face_id.startswith("manual_"):
+            backend_info = self.backend.get_model_info()
+            entry = {
+                "encoding": None,
+                "file": str(image_path),
+                "hash": None,
+                "backend": self.backend.backend_name,
+                "backend_version": backend_info.get("version", "unknown"),
+                "created_at": datetime.now().isoformat(),
+                "encoding_hash": None,
+                "bounding_box": None,
+                "is_manual": True
+            }
+            if person_name not in self.known_faces:
+                self.known_faces[person_name] = []
+            self.known_faces[person_name].append(entry)
+            return {"status": "success", "person_name": person_name,
+                    "encodings_count": len(self.known_faces[person_name])}
+
+        if face_id not in self.encoding_cache:
+            raise ValueError(f"Face ID not found in cache: {face_id}. Detection may have expired.")
+
+        encoding, bbox, cached_hash = self.encoding_cache[face_id]
+        self.encoding_cache.move_to_end(face_id)
+        file_hash = cached_hash
+        encoding_hash = hashlib.sha1(encoding.tobytes()).hexdigest()
+        backend_info = self.backend.get_model_info()
+
+        entry = {
+            "encoding": encoding,
+            "file": str(image_path),
+            "hash": file_hash,
+            "backend": self.backend.backend_name,
+            "backend_version": backend_info.get("version", "unknown"),
+            "created_at": datetime.now().isoformat(),
+            "encoding_hash": encoding_hash,
+            "bounding_box": bbox
+        }
+
+        if person_name not in self.known_faces:
+            self.known_faces[person_name] = []
+        self.known_faces[person_name].append(entry)
+
+        if suggested_name and suggested_name != person_name:
+            if suggested_name not in self.hard_negatives:
+                self.hard_negatives[suggested_name] = []
+            hard_neg_entry = {
+                "encoding": encoding,
+                "file": str(image_path),
+                "hash": file_hash,
+                "backend": self.backend.backend_name,
+                "backend_version": backend_info.get("version", "unknown"),
+                "created_at": datetime.now().isoformat(),
+                "encoding_hash": encoding_hash
+            }
+            self.hard_negatives[suggested_name].append(hard_neg_entry)
+
+        return {"status": "success", "person_name": person_name,
+                "encodings_count": len(self.known_faces[person_name])}
+
+    def _ignore_face_nosave(self, face_id: str, image_path: str) -> Dict[str, Any]:
+        """In-memory ignore without saving to disk. Returns result dict."""
+        if face_id.startswith("manual_"):
+            return {"status": "success", "ignored_count": len(self.ignored_faces)}
+
+        if face_id not in self.encoding_cache:
+            raise ValueError(f"Face ID not found in cache: {face_id}. Detection may have expired.")
+
+        encoding, bbox, cached_hash = self.encoding_cache[face_id]
+        self.encoding_cache.move_to_end(face_id)
+        file_hash = cached_hash
+        encoding_hash = hashlib.sha1(encoding.tobytes()).hexdigest()
+        backend_info = self.backend.get_model_info()
+
+        entry = {
+            "encoding": encoding,
+            "file": str(image_path),
+            "hash": file_hash,
+            "backend": self.backend.backend_name,
+            "backend_version": backend_info.get("version", "unknown"),
+            "created_at": datetime.now().isoformat(),
+            "encoding_hash": encoding_hash,
+            "bounding_box": bbox
+        }
+        self.ignored_faces.append(entry)
+        return {"status": "success", "ignored_count": len(self.ignored_faces)}
+
+    async def batch_confirm(
+        self,
+        confirmations: List[Dict[str, Any]],
+        ignores: List[Dict[str, Any]]
+    ) -> Dict[str, Any]:
+        """
+        Batch confirm/ignore faces with a single database save.
+
+        Args:
+            confirmations: List of {face_id, person_name, image_path, suggested_name?}
+            ignores: List of {face_id, image_path}
+
+        Returns:
+            Summary with confirmed_count, ignored_count, errors
+        """
+        confirmed = 0
+        ignored = 0
+        errors = []
+
+        for c in confirmations:
+            try:
+                self._confirm_identity_nosave(
+                    c["face_id"], c["person_name"], c["image_path"],
+                    c.get("suggested_name")
+                )
+                confirmed += 1
+            except Exception as e:
+                errors.append({"face_id": c["face_id"], "error": str(e)})
+
+        for ig in ignores:
+            try:
+                self._ignore_face_nosave(ig["face_id"], ig["image_path"])
+                ignored += 1
+            except Exception as e:
+                errors.append({"face_id": ig["face_id"], "error": str(e)})
+
+        # Single save for entire batch
+        await self._flush_save()
+
+        logger.info(f"[DetectionService] Batch: confirmed={confirmed}, ignored={ignored}, errors={len(errors)}")
+
+        return {
+            "status": "success",
+            "confirmed_count": confirmed,
+            "ignored_count": ignored,
+            "errors": errors
         }
 
     async def mark_review_complete(
@@ -708,10 +933,11 @@ class DetectionService:
         """
         logger.info(f"[DetectionService] Marking review complete for {image_path}")
 
-        # Use provided hash or compute if needed
+        # Use provided hash or compute in thread pool
         if file_hash is None:
+            loop = asyncio.get_event_loop()
             path = Path(image_path)
-            file_hash = get_file_hash(path) if path.exists() else None
+            file_hash = await loop.run_in_executor(_executor, get_file_hash, path) if path.exists() else None
         else:
             logger.debug(f"[DetectionService] Using provided file_hash: {file_hash[:8]}...")
 
@@ -752,15 +978,19 @@ class DetectionService:
             "time_seconds": round(processing_time_ms / 1000, 3),
         }]
 
-        # Log to attempt_stats.jsonl
-        log_attempt_stats(
-            image_path=image_path,
-            attempts=attempts,
-            used_attempt_idx=0,
-            base_dir=BASE_DIR,
-            review_results=["ok"],
-            labels_per_attempt=[labels],
-            file_hash=file_hash
+        # Log to attempt_stats.jsonl (blocking I/O — run in thread pool)
+        loop = asyncio.get_event_loop()
+        await loop.run_in_executor(
+            _executor,
+            lambda: log_attempt_stats(
+                image_path=image_path,
+                attempts=attempts,
+                used_attempt_idx=0,
+                base_dir=BASE_DIR,
+                review_results=["ok"],
+                labels_per_attempt=[labels],
+                file_hash=file_hash
+            )
         )
 
         logger.info(f"[DetectionService] Logged {len(labels)} face labels to attempt_stats.jsonl")
@@ -770,8 +1000,15 @@ class DetectionService:
         entry = {"name": file_name, "hash": file_hash}
         if entry not in self.processed_files:
             self.processed_files.append(entry)
-            save_database(self.known_faces, self.ignored_faces, self.hard_negatives, self.processed_files)
+            await self._flush_save()  # Immediate save — review is finalized
             logger.info(f"[DetectionService] Added {file_name} to processed_files")
+
+        # Invalidate statistics cache so dashboard picks up new data
+        try:
+            from .statistics_service import statistics_service
+            statistics_service.invalidate_cache()
+        except Exception:
+            pass  # Non-critical
 
         return {
             "status": "success",

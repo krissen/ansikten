@@ -4,6 +4,7 @@ import json
 import logging
 import pickle
 import re
+from concurrent.futures import ThreadPoolExecutor
 from datetime import datetime
 from io import BufferedReader
 from pathlib import Path
@@ -240,6 +241,38 @@ def load_database() -> tuple[dict[str, list[dict[str, Any]]], list[dict[str, Any
     return known_faces, ignored_faces, hard_negatives, processed_files
 
 
+def _atomic_pickle_write(data, target_path):
+    """Write pickle file atomically with exclusive lock."""
+    temp_path = target_path.with_suffix('.tmp')
+    try:
+        with open(temp_path, "wb") as f:
+            fcntl.flock(f.fileno(), fcntl.LOCK_EX)
+            pickle.dump(data, f)
+        temp_path.replace(target_path)
+    except Exception as e:
+        if temp_path.exists():
+            temp_path.unlink()
+        raise e
+
+
+def _atomic_jsonl_write(entries, target_path):
+    """Write JSONL file atomically with exclusive lock."""
+    temp_path = target_path.with_suffix('.tmp')
+    try:
+        with open(temp_path, "w", encoding="utf-8") as f:
+            fcntl.flock(f.fileno(), fcntl.LOCK_EX)
+            for entry in entries:
+                if isinstance(entry, dict):
+                    f.write(json.dumps(entry, ensure_ascii=False) + "\n")
+                else:
+                    f.write(json.dumps({"name": entry, "hash": None}, ensure_ascii=False) + "\n")
+        temp_path.replace(target_path)
+    except Exception as e:
+        if temp_path.exists():
+            temp_path.unlink()
+        raise e
+
+
 def save_database(
     known_faces: dict[str, list[dict[str, Any]]],
     ignored_faces: list[dict[str, Any]],
@@ -251,50 +284,21 @@ def save_database(
 
     Uses atomic write pattern (write to temp file, then rename) to ensure
     database files are never left in a partially-written state.
+    Writes the four files in parallel for better throughput.
     """
     BASE_DIR.mkdir(parents=True, exist_ok=True)
 
-    def atomic_pickle_write(data, target_path):
-        """Write pickle file atomically with exclusive lock."""
-        temp_path = target_path.with_suffix('.tmp')
-        try:
-            with open(temp_path, "wb") as f:
-                # Acquire exclusive lock to prevent concurrent writes
-                fcntl.flock(f.fileno(), fcntl.LOCK_EX)
-                pickle.dump(data, f)
-                # Lock released automatically on close
-            # Atomic rename - replaces target atomically
-            temp_path.replace(target_path)
-        except Exception as e:
-            # Clean up temp file on error
-            if temp_path.exists():
-                temp_path.unlink()
-            raise e
-
-    def atomic_jsonl_write(entries, target_path):
-        """Write JSONL file atomically with exclusive lock."""
-        temp_path = target_path.with_suffix('.tmp')
-        try:
-            with open(temp_path, "w", encoding="utf-8") as f:
-                # Acquire exclusive lock
-                fcntl.flock(f.fileno(), fcntl.LOCK_EX)
-                for entry in entries:
-                    if isinstance(entry, dict):
-                        f.write(json.dumps(entry, ensure_ascii=False) + "\n")
-                    else:
-                        f.write(json.dumps({"name": entry, "hash": None}, ensure_ascii=False) + "\n")
-            # Atomic rename
-            temp_path.replace(target_path)
-        except Exception as e:
-            if temp_path.exists():
-                temp_path.unlink()
-            raise e
-
-    # Write all database files atomically
-    atomic_pickle_write(known_faces, ENCODING_PATH)
-    atomic_pickle_write(ignored_faces, IGNORED_PATH)
-    atomic_pickle_write(hard_negatives, HARDNEG_PATH)
-    atomic_jsonl_write(processed_files, PROCESSED_PATH)
+    # Write all database files in parallel
+    with ThreadPoolExecutor(max_workers=4) as pool:
+        futures = [
+            pool.submit(_atomic_pickle_write, known_faces, ENCODING_PATH),
+            pool.submit(_atomic_pickle_write, ignored_faces, IGNORED_PATH),
+            pool.submit(_atomic_pickle_write, hard_negatives, HARDNEG_PATH),
+            pool.submit(_atomic_jsonl_write, processed_files, PROCESSED_PATH),
+        ]
+        # Raise first exception if any write failed
+        for f in futures:
+            f.result()
 
 
 def load_attempt_log(all_files: bool = False) -> list[dict[str, Any]]:
