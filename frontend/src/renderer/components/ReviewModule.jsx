@@ -85,7 +85,7 @@ function useDropdownPosition(open, anchorEl, { maxHeight = 200, gap = 4 } = {}) 
 /**
  * ReviewModule Component
  */
-export function ReviewModule() {
+export function ReviewModule({ node }) {
   const { api } = useBackend();
   const emit = useEmitEvent();
   const showToast = useToast();
@@ -720,10 +720,8 @@ export function ReviewModule() {
    */
   useEffect(() => {
     const handleKeyboard = (e) => {
-      const reviewModuleVisible = document.querySelector('.review-module') !== null;
-      if (!reviewModuleVisible) {
-        return;
-      }
+      // Skip keyboard handling when this tab is hidden in FlexLayout
+      if (node && !node.isVisible()) return;
 
       const activeEl = document.activeElement;
       const isInput = e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA' || e.target.isContentEditable;

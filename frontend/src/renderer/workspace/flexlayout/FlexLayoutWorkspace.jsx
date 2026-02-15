@@ -527,7 +527,7 @@ export function FlexLayoutWorkspace() {
       );
     }
 
-    return <ModuleComponent />;
+    return <ModuleComponent node={node} />;
   }, []);
 
   // Get tabset position in layout (using bounding rect)

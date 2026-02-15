@@ -202,7 +202,7 @@ const SUPPORTED_EXTENSIONS = new Set(['nef', 'cr2', 'arw', 'jpg', 'jpeg', 'png',
 /**
  * FileQueueModule Component
  */
-export function FileQueueModule() {
+export function FileQueueModule({ node }) {
   const { api, isConnected } = useBackend();
   const emit = useEmitEvent();
   const globalShowToast = useToast();
@@ -1726,6 +1726,9 @@ export function FileQueueModule() {
   // Keyboard shortcuts
   useEffect(() => {
     const handleKeyDown = (e) => {
+      // Skip keyboard handling when this tab is hidden in FlexLayout
+      if (node && !node.isVisible()) return;
+
       if (e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA') return;
 
       // Cmd/Ctrl+A - select all files (prevent text selection)
