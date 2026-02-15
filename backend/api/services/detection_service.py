@@ -767,6 +767,149 @@ class DetectionService:
             "ignored_count": len(self.ignored_faces)
         }
 
+    def _confirm_identity_nosave(
+        self,
+        face_id: str,
+        person_name: str,
+        image_path: str,
+        suggested_name: Optional[str] = None
+    ) -> Dict[str, Any]:
+        """In-memory confirm without saving to disk. Returns result dict."""
+        if face_id.startswith("manual_"):
+            backend_info = self.backend.get_model_info()
+            entry = {
+                "encoding": None,
+                "file": str(image_path),
+                "hash": None,
+                "backend": self.backend.backend_name,
+                "backend_version": backend_info.get("version", "unknown"),
+                "created_at": datetime.now().isoformat(),
+                "encoding_hash": None,
+                "bounding_box": None,
+                "is_manual": True
+            }
+            if person_name not in self.known_faces:
+                self.known_faces[person_name] = []
+            self.known_faces[person_name].append(entry)
+            return {"status": "success", "person_name": person_name,
+                    "encodings_count": len(self.known_faces[person_name])}
+
+        if face_id not in self.encoding_cache:
+            raise ValueError(f"Face ID not found in cache: {face_id}. Detection may have expired.")
+
+        encoding, bbox, cached_hash = self.encoding_cache[face_id]
+        self.encoding_cache.move_to_end(face_id)
+        file_hash = cached_hash
+        encoding_hash = hashlib.sha1(encoding.tobytes()).hexdigest()
+        backend_info = self.backend.get_model_info()
+
+        entry = {
+            "encoding": encoding,
+            "file": str(image_path),
+            "hash": file_hash,
+            "backend": self.backend.backend_name,
+            "backend_version": backend_info.get("version", "unknown"),
+            "created_at": datetime.now().isoformat(),
+            "encoding_hash": encoding_hash,
+            "bounding_box": bbox
+        }
+
+        if person_name not in self.known_faces:
+            self.known_faces[person_name] = []
+        self.known_faces[person_name].append(entry)
+
+        if suggested_name and suggested_name != person_name:
+            if suggested_name not in self.hard_negatives:
+                self.hard_negatives[suggested_name] = []
+            hard_neg_entry = {
+                "encoding": encoding,
+                "file": str(image_path),
+                "hash": file_hash,
+                "backend": self.backend.backend_name,
+                "backend_version": backend_info.get("version", "unknown"),
+                "created_at": datetime.now().isoformat(),
+                "encoding_hash": encoding_hash
+            }
+            self.hard_negatives[suggested_name].append(hard_neg_entry)
+
+        return {"status": "success", "person_name": person_name,
+                "encodings_count": len(self.known_faces[person_name])}
+
+    def _ignore_face_nosave(self, face_id: str, image_path: str) -> Dict[str, Any]:
+        """In-memory ignore without saving to disk. Returns result dict."""
+        if face_id.startswith("manual_"):
+            return {"status": "success", "ignored_count": len(self.ignored_faces)}
+
+        if face_id not in self.encoding_cache:
+            raise ValueError(f"Face ID not found in cache: {face_id}. Detection may have expired.")
+
+        encoding, bbox, cached_hash = self.encoding_cache[face_id]
+        self.encoding_cache.move_to_end(face_id)
+        file_hash = cached_hash
+        encoding_hash = hashlib.sha1(encoding.tobytes()).hexdigest()
+        backend_info = self.backend.get_model_info()
+
+        entry = {
+            "encoding": encoding,
+            "file": str(image_path),
+            "hash": file_hash,
+            "backend": self.backend.backend_name,
+            "backend_version": backend_info.get("version", "unknown"),
+            "created_at": datetime.now().isoformat(),
+            "encoding_hash": encoding_hash,
+            "bounding_box": bbox
+        }
+        self.ignored_faces.append(entry)
+        return {"status": "success", "ignored_count": len(self.ignored_faces)}
+
+    async def batch_confirm(
+        self,
+        confirmations: List[Dict[str, Any]],
+        ignores: List[Dict[str, Any]]
+    ) -> Dict[str, Any]:
+        """
+        Batch confirm/ignore faces with a single database save.
+
+        Args:
+            confirmations: List of {face_id, person_name, image_path, suggested_name?}
+            ignores: List of {face_id, image_path}
+
+        Returns:
+            Summary with confirmed_count, ignored_count, errors
+        """
+        confirmed = 0
+        ignored = 0
+        errors = []
+
+        for c in confirmations:
+            try:
+                self._confirm_identity_nosave(
+                    c["face_id"], c["person_name"], c["image_path"],
+                    c.get("suggested_name")
+                )
+                confirmed += 1
+            except Exception as e:
+                errors.append({"face_id": c["face_id"], "error": str(e)})
+
+        for ig in ignores:
+            try:
+                self._ignore_face_nosave(ig["face_id"], ig["image_path"])
+                ignored += 1
+            except Exception as e:
+                errors.append({"face_id": ig["face_id"], "error": str(e)})
+
+        # Single save for entire batch
+        await self._flush_save()
+
+        logger.info(f"[DetectionService] Batch: confirmed={confirmed}, ignored={ignored}, errors={len(errors)}")
+
+        return {
+            "status": "success",
+            "confirmed_count": confirmed,
+            "ignored_count": ignored,
+            "errors": errors
+        }
+
     async def mark_review_complete(
         self,
         image_path: str,

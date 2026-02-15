@@ -536,15 +536,11 @@ export function ReviewModule() {
     setStatus(`Saving ${totalChanges} changes...`);
 
     try {
-      // Save confirmations
-      for (const confirmation of pendingConfirmations) {
-        await api.post('/api/v1/confirm-identity', confirmation);
-      }
-
-      // Save ignores
-      for (const ignore of pendingIgnores) {
-        await api.post('/api/v1/ignore-face', ignore);
-      }
+      // Batch save: single request instead of N individual calls
+      await api.post('/api/v1/batch-confirm', {
+        confirmations: pendingConfirmations,
+        ignores: pendingIgnores
+      });
 
       setPendingConfirmations([]);
       setPendingIgnores([]);
