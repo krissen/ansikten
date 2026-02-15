@@ -5,6 +5,7 @@ __pycache__/
 *.so
 venv/
 .venv/
+*.egg-info/
 
 # PyInstaller
 build/
