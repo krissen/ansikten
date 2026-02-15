@@ -35,7 +35,7 @@ class StatisticsService:
         # Cache for expensive calculations
         self.cache: Dict[str, Any] = {}
         self.cache_timestamps: Dict[str, float] = {}
-        self.cache_ttl = 2.0  # 2 second cache TTL
+        self.cache_ttl = 30.0  # 30 second cache TTL
 
     def _is_cache_valid(self, key: str) -> bool:
         """Check if cache entry is still valid"""
@@ -53,6 +53,12 @@ class StatisticsService:
         """Set cached value with timestamp"""
         self.cache[key] = value
         self.cache_timestamps[key] = time.time()
+
+    def invalidate_cache(self):
+        """Invalidate all cached data. Call after review completion."""
+        self.cache.clear()
+        self.cache_timestamps.clear()
+        logger.info("[StatisticsService] Cache invalidated")
 
     def count_faces_per_name(self, known_faces: Dict = None) -> Dict[str, int]:
         """Count number of face encodings per person"""
@@ -205,7 +211,7 @@ class StatisticsService:
             "ignored_fraction": round(ignored_frac, 3),
         }
 
-    async def get_recent_images(self, n: int = 3) -> List[Dict[str, Any]]:
+    async def get_recent_images(self, n: int = 3, stats: List[Dict] = None) -> List[Dict[str, Any]]:
         """
         Get most recent processed images with names
 
@@ -215,7 +221,8 @@ class StatisticsService:
         - person_names: List of person names in image
         - source: Where the review came from ('ansikten' or 'cli')
         """
-        stats = load_attempt_log(all_files=False)
+        if stats is None:
+            stats = load_attempt_log(all_files=False)
 
         # Sort by timestamp, get last n
         last = sorted(stats, key=lambda x: x.get("timestamp", ""), reverse=True)[:n]
@@ -404,7 +411,7 @@ class StatisticsService:
 
         attempt_stats = await self.get_attempt_stats(stats)
         top_faces = await self.get_top_faces(stats, known_faces)
-        recent_images = await self.get_recent_images(n=3)
+        recent_images = await self.get_recent_images(n=3, stats=stats)
         recent_logs = await self.get_recent_logs(n=3)
 
         summary = {

@@ -1003,6 +1003,13 @@ class DetectionService:
             await self._flush_save()  # Immediate save — review is finalized
             logger.info(f"[DetectionService] Added {file_name} to processed_files")
 
+        # Invalidate statistics cache so dashboard picks up new data
+        try:
+            from .statistics_service import statistics_service
+            statistics_service.invalidate_cache()
+        except Exception:
+            pass  # Non-critical
+
         return {
             "status": "success",
             "message": f"Review logged for {len(labels)} faces",
