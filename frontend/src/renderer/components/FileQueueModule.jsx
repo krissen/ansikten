@@ -253,6 +253,9 @@ export function FileQueueModule({ node }) {
   const processedFilesRef = useRef(new Set());
   processedFilesRef.current = processedFiles;
 
+  // Queued manual load: stores index to load once processedFiles are ready
+  const pendingManualLoadRef = useRef(-1);
+
   // Get preprocessing manager (singleton)
   const preprocessingManager = useRef(null);
   if (!preprocessingManager.current) {
@@ -321,6 +324,17 @@ export function FileQueueModule({ node }) {
       preprocessingManager.current.setHashChecker((hash) => processedHashesRef.current.has(hash));
     }
   }, [processedFilesLoaded]);
+
+  // Execute queued manual load once processed files are ready
+  useEffect(() => {
+    if (processedFilesLoaded && pendingManualLoadRef.current >= 0) {
+      const idx = pendingManualLoadRef.current;
+      pendingManualLoadRef.current = -1;
+      debug('FileQueue', 'Executing queued manual load at index', idx);
+      loadFileRef.current?.(idx);
+    }
+  }, [processedFilesLoaded]);
+
   const statsFetchedRef = useRef(new Set());
   useEffect(() => {
     if (!processedFilesLoaded || processedFiles.size === 0) return;
@@ -1079,7 +1093,9 @@ export function FileQueueModule({ node }) {
     }
 
     if (!processedFilesLoadedRef.current) {
-      debug('FileQueue', 'loadFile: BLOCKED - processed files not loaded yet');
+      debug('FileQueue', 'loadFile: Queuing load - processed files not loaded yet');
+      pendingManualLoadRef.current = index;
+      showToast('Laddar fillista...', 'info', 2000);
       return;
     }
 
@@ -1110,15 +1126,9 @@ export function FileQueueModule({ node }) {
       return;
     }
 
-    const workspace = window.workspace;
-    let hasImageViewer = false;
-
-    if (workspace?.model) {
-      workspace.model.visitNodes(node => {
-        if (node.getComponent?.() === 'image-viewer') {
-          hasImageViewer = true;
-        }
-      });
+    // Ensure image viewer tab is visible/focused
+    if (window.workspace?.openModule) {
+      window.workspace.openModule('image-viewer');
     }
 
     if (fixModeRef.current && item.isAlreadyProcessed) {
