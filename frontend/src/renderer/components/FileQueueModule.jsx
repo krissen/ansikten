@@ -223,6 +223,11 @@ export function FileQueueModule({ node }) {
   const [selectedFiles, setSelectedFiles] = useState(new Set()); // Checkbox-selected file IDs
   const [focusedIndex, setFocusedIndex] = useState(-1); // Clicked-on item (visual highlight only)
 
+  // Filter state
+  const [filterText, setFilterText] = useState('');
+  const [showFilter, setShowFilter] = useState(false);
+  const filterInputRef = useRef(null);
+
   // Rename state
   const [showPreviewNames, setShowPreviewNames] = useState(false);
   const [previewData, setPreviewData] = useState(null); // { path: { newName, status, persons } }
@@ -271,6 +276,7 @@ export function FileQueueModule({ node }) {
   const currentFileRef = useRef(null);
   const queueRef = useRef(queue); // Keep current queue in ref for callbacks
   queueRef.current = queue; // Sync on every render (not just in useEffect)
+  const visibleIdsRef = useRef(null); // Current filter-visible IDs for action scoping
   const fixModeRef = useRef(fixMode);
   fixModeRef.current = fixMode;
 
@@ -1015,13 +1021,18 @@ export function FileQueueModule({ node }) {
   const clearCompleted = useCallback(() => {
     const currentFixMode = fixModeRef.current;
     const currentQueue = queueRef.current;
+    const currentVisibleIds = visibleIdsRef.current;
+
+    const isDone = (item) => {
+      if (item.status === 'completed') return true;
+      if (!currentFixMode && item.isAlreadyProcessed) return true;
+      return false;
+    };
 
     // Check if active file will be removed
     const activeFile = currentQueue.find(item => item.filePath === currentFileRef.current);
-    const activeWillBeRemoved = activeFile && (
-      activeFile.status === 'completed' ||
-      (!currentFixMode && activeFile.isAlreadyProcessed)
-    );
+    const activeWillBeRemoved = activeFile && isDone(activeFile) &&
+      (!currentVisibleIds || currentVisibleIds.has(activeFile.id));
 
     if (activeWillBeRemoved) {
       emit('clear-image');
@@ -1029,9 +1040,10 @@ export function FileQueueModule({ node }) {
     }
 
     setQueue(prev => prev.filter(item => {
-      if (item.status === 'completed') return false;
-      if (!currentFixMode && item.isAlreadyProcessed) return false;
-      return true;
+      if (!isDone(item)) return true;
+      // When filter is active, only clear visible completed items
+      if (currentVisibleIds && !currentVisibleIds.has(item.id)) return true;
+      return false;
     }));
     setCurrentIndex(-1);
     setSelectedFiles(new Set());
@@ -1392,10 +1404,13 @@ export function FileQueueModule({ node }) {
     const currentFixMode = fixModeRef.current;
     const hasSelection = selectedFiles.size > 0;
 
+    const currentVisibleIds = visibleIdsRef.current;
     const eligiblePaths = queue
       .filter(q => {
         const isEligible = q.status === 'completed' || (!currentFixMode && q.isAlreadyProcessed);
-        return hasSelection ? (isEligible && selectedFiles.has(q.id)) : isEligible;
+        if (hasSelection) return isEligible && selectedFiles.has(q.id);
+        if (currentVisibleIds) return isEligible && currentVisibleIds.has(q.id);
+        return isEligible;
       })
       .map(q => q.filePath);
 
@@ -1747,12 +1762,53 @@ export function FileQueueModule({ node }) {
   }, [currentIndex]);
 
   // Keyboard shortcuts
+  const openFilter = useCallback(() => {
+    setShowFilter(true);
+    // Focus input on next tick (after React renders)
+    requestAnimationFrame(() => filterInputRef.current?.focus());
+  }, []);
+
+  const closeFilter = useCallback(() => {
+    setShowFilter(false);
+    setFilterText('');
+  }, []);
+
   useEffect(() => {
     const handleKeyDown = (e) => {
       // Skip keyboard handling when this tab is hidden in FlexLayout
       if (node && !node.isVisible()) return;
 
+      // Escape closes filter when filter input is focused
+      if (e.key === 'Escape' && showFilter) {
+        e.preventDefault();
+        closeFilter();
+        moduleRef.current?.focus();
+        return;
+      }
+
+      // Allow Cmd+F anywhere in the module to open filter
+      if (e.key === 'f' && (e.metaKey || e.ctrlKey)) {
+        const module = moduleRef.current;
+        const hasFocus = module && (
+          module === document.activeElement ||
+          module.contains(document.activeElement)
+        );
+        if (hasFocus) {
+          e.preventDefault();
+          e.stopPropagation();
+          openFilter();
+          return;
+        }
+      }
+
       if (e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA') return;
+
+      // / (slash) - open filter (vim-style search)
+      if (e.key === '/') {
+        e.preventDefault();
+        openFilter();
+        return;
+      }
 
       // Cmd/Ctrl+A - select all files (prevent text selection)
       if (e.key === 'a' && (e.metaKey || e.ctrlKey)) {
@@ -1794,7 +1850,7 @@ export function FileQueueModule({ node }) {
 
     document.addEventListener('keydown', handleKeyDown);
     return () => document.removeEventListener('keydown', handleKeyDown);
-  }, [advanceToNext, currentIndex, loadFile, queue, selectedFiles.size, selectAll, deselectAll]);
+  }, [advanceToNext, currentIndex, loadFile, queue, selectedFiles.size, selectAll, deselectAll, showFilter, openFilter, closeFilter]);
 
   // Calculate stats
   // When fix-mode is OFF, already-processed files count as "done" (they're skipped)
@@ -1808,8 +1864,23 @@ export function FileQueueModule({ node }) {
   const hasSelection = selectedFiles.size > 0;
 
   const displayOrder = useMemo(() => {
-    return queue.map((item, i) => ({ item, originalIndex: i }));
-  }, [queue]);
+    const all = queue.map((item, i) => ({ item, originalIndex: i }));
+    if (!filterText) return all;
+
+    // Convert glob-style pattern to case-insensitive match:
+    // strip leading/trailing *, then substring match
+    const pattern = filterText.replace(/^\*+|\*+$/g, '').toLowerCase();
+    if (!pattern) return all;
+
+    return all.filter(({ item }) => item.fileName.toLowerCase().includes(pattern));
+  }, [queue, filterText]);
+
+  // Set of IDs currently visible after filtering — used for action scoping
+  const visibleIds = useMemo(() => {
+    if (!filterText) return null; // null = no filter active, all visible
+    return new Set(displayOrder.map(({ item }) => item.id));
+  }, [displayOrder, filterText]);
+  visibleIdsRef.current = visibleIds;
 
   const activeFile = currentIndex >= 0 ? queue[currentIndex] : null;
 
@@ -1910,6 +1981,45 @@ export function FileQueueModule({ node }) {
         )}
       </div>
 
+      {/* Filter bar */}
+      {showFilter && (
+        <div className="file-queue-filter-bar">
+          <span className="filter-icon">/</span>
+          <input
+            ref={filterInputRef}
+            type="text"
+            className="filter-input"
+            placeholder="Filter files..."
+            value={filterText}
+            onChange={(e) => setFilterText(e.target.value)}
+            onKeyDown={(e) => {
+              if (e.key === 'Escape') {
+                e.preventDefault();
+                e.stopPropagation();
+                closeFilter();
+                moduleRef.current?.focus();
+              }
+              if (e.key === 'Enter') {
+                e.preventDefault();
+                filterInputRef.current?.blur();
+              }
+            }}
+          />
+          {filterText && (
+            <span className="filter-count">
+              {displayOrder.length}/{queue.length}
+            </span>
+          )}
+          <button
+            className="btn-icon filter-close"
+            onClick={closeFilter}
+            title="Clear filter (Esc)"
+          >
+            <Icon name="close" size={12} />
+          </button>
+        </div>
+      )}
+
       {/* Current file status bar */}
       {activeFile && (
         <div className="current-file-bar" onClick={() => {
@@ -1991,16 +2101,24 @@ export function FileQueueModule({ node }) {
           <div className="file-queue-controls">
             {(() => {
               const hasSelection = selectedFiles.size > 0;
-              const renameCount = hasSelection
-                ? queue.filter(q => selectedFiles.has(q.id) && (q.status === 'completed' || (!fixMode && q.isAlreadyProcessed))).length
-                : completedCount;
-              const renameLabel = hasSelection ? `Rename (${renameCount} selected)` : `Rename (${renameCount})`;
+              const isEligible = q => q.status === 'completed' || (!fixMode && q.isAlreadyProcessed);
+              let renameCount, renameLabel;
+              if (hasSelection) {
+                renameCount = queue.filter(q => selectedFiles.has(q.id) && isEligible(q)).length;
+                renameLabel = `Rename (${renameCount} selected)`;
+              } else if (visibleIds) {
+                renameCount = queue.filter(q => visibleIds.has(q.id) && isEligible(q)).length;
+                renameLabel = `Rename (${renameCount} filtered)`;
+              } else {
+                renameCount = completedCount;
+                renameLabel = `Rename (${renameCount})`;
+              }
               return renameCount > 0 && (
                 <button
                   className="btn-secondary"
                   onClick={handleRename}
                   disabled={renameInProgress}
-                  title={hasSelection ? "Rename selected files" : "Rename files based on detected faces"}
+                  title={hasSelection ? "Rename selected files" : visibleIds ? "Rename filtered files" : "Rename files based on detected faces"}
                 >
                   {renameInProgress ? 'Renaming...' : renameLabel}
                 </button>

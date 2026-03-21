@@ -163,6 +163,51 @@
   opacity: 1;
 }
 
+/* Filter bar */
+.file-queue-filter-bar {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  padding: 3px 8px;
+  background: var(--bg-secondary);
+  border-bottom: 1px solid var(--border-primary);
+  flex-shrink: 0;
+}
+
+.file-queue-filter-bar .filter-icon {
+  color: var(--text-tertiary);
+  font-size: var(--font-sm);
+  font-family: monospace;
+  flex-shrink: 0;
+}
+
+.file-queue-filter-bar .filter-input {
+  flex: 1;
+  min-width: 0;
+  background: var(--bg-primary);
+  border: 1px solid var(--border-primary);
+  border-radius: 3px;
+  padding: 2px 6px;
+  font-size: var(--font-sm);
+  color: var(--text-primary);
+  outline: none;
+}
+
+.file-queue-filter-bar .filter-input:focus {
+  border-color: var(--accent-primary);
+}
+
+.file-queue-filter-bar .filter-count {
+  color: var(--text-tertiary);
+  font-size: var(--font-xs);
+  flex-shrink: 0;
+}
+
+.file-queue-filter-bar .filter-close {
+  flex-shrink: 0;
+  padding: 2px;
+}
+
 /* Status icons */
 .status-icon {
   flex-shrink: 0;
