@@ -125,6 +125,11 @@
   color: var(--text-tertiary);
 }
 
+.file-item.focused {
+  background: var(--bg-hover);
+  border-color: var(--border-primary);
+}
+
 .file-item.selected {
   background: var(--accent-primary-alpha-20);
   border-color: var(--accent-primary);
