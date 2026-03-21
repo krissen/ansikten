@@ -107,14 +107,18 @@ export function useKeyHold(key, callbacks, options = {}) {
   const doubleTapTimeoutRef = useRef(null);
   const pendingSingleTapRef = useRef(null);
   const justDoubleTappedRef = useRef(false); // Prevent extra tap after double-tap
+  const activeCodeRef = useRef(null); // Track physical key for reliable keyup matching
 
   useEffect(() => {
     const handleKeyDown = (event) => {
       if (shouldIgnoreEvent(event)) return;
       if (event.key !== key) return;
       if (event.repeat) return; // Ignore OS key repeat
+      // Ignore Cmd/Ctrl combos — let menu accelerators handle those
+      if (event.metaKey || event.ctrlKey) return;
 
       event.preventDefault();
+      activeCodeRef.current = event.code; // Store physical key (e.g. 'Equal' for +/=)
 
       const now = Date.now();
 
@@ -181,7 +185,11 @@ export function useKeyHold(key, callbacks, options = {}) {
     };
 
     const handleKeyUp = (event) => {
-      if (event.key !== key) return;
+      // Match by physical key code (event.code) instead of event.key to handle
+      // cases where modifier release changes the key identity (e.g. releasing
+      // Shift before '=' turns '+' keyup into '=' keyup)
+      if (!activeCodeRef.current || event.code !== activeCodeRef.current) return;
+      activeCodeRef.current = null;
 
       // Clear hold timers
       if (holdTimeoutRef.current) {
@@ -240,7 +248,7 @@ export function useKeyHold(key, callbacks, options = {}) {
 
       // Cleanup timers
       if (holdTimeoutRef.current) clearTimeout(holdTimeoutRef.current);
-      if (repeatIntervalRef.current) clearInterval(repeatIntervalRef.current);
+      if (repeatIntervalRef.current) cancelAnimationFrame(repeatIntervalRef.current);
       if (doubleTapTimeoutRef.current) clearTimeout(doubleTapTimeoutRef.current);
     };
   }, [key, holdDelay, repeatInterval, doubleTapDelay]); // Only re-subscribe when key or timing options change
