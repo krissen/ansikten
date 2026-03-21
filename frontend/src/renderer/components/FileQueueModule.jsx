@@ -10,7 +10,7 @@
  */
 
 import React, { useState, useEffect, useCallback, useRef, useMemo } from 'react';
-import { useModuleEvent, useEmitEvent } from '../hooks/useModuleEvent.js';
+import { useModuleEvent, useEmitEvent, useModuleAPI } from '../hooks/useModuleEvent.js';
 import { useBackend } from '../context/BackendContext.jsx';
 import { useToast } from '../context/ToastContext.jsx';
 import { debug, debugWarn, debugError } from '../shared/debug.js';
@@ -205,6 +205,7 @@ const SUPPORTED_EXTENSIONS = new Set(['nef', 'cr2', 'arw', 'jpg', 'jpeg', 'png',
 export function FileQueueModule({ node }) {
   const { api, isConnected } = useBackend();
   const emit = useEmitEvent();
+  const { hasListeners, waitForListeners } = useModuleAPI();
   const globalShowToast = useToast();
 
   // Queue state
@@ -1131,6 +1132,17 @@ export function FileQueueModule({ node }) {
       window.workspace.openModule('image-viewer');
     }
 
+    // Wait for ImageViewer to mount and register its load-image handler.
+    // openModule may create or activate the tab, but React renders async —
+    // emitting before the component mounts loses the event.
+    if (!hasListeners('load-image')) {
+      debug('FileQueue', 'Waiting for load-image listener (ImageViewer mounting)...');
+      const ready = await waitForListeners('load-image', 2000, 10);
+      if (!ready) {
+        debugWarn('FileQueue', 'Timeout waiting for ImageViewer - emitting anyway');
+      }
+    }
+
     if (fixModeRef.current && item.isAlreadyProcessed) {
       try {
         debug('FileQueue', 'Undoing file for fix mode:', item.fileName);
@@ -1156,7 +1168,7 @@ export function FileQueueModule({ node }) {
     debug('FileQueue', 'Emitting load-image for:', item.filePath, { skipAutoDetect });
     emit('load-image', { imagePath: item.filePath, skipAutoDetect });
     emitQueueStatus(index);
-  }, [api, loadProcessedFiles, emit, showToast, emitQueueStatus]);
+  }, [api, loadProcessedFiles, emit, hasListeners, waitForListeners, showToast, emitQueueStatus]);
 
   loadFileRef.current = loadFile;
 
