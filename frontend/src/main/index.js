@@ -125,6 +125,16 @@ function parseCommandLineArgs(argv) {
   return result;
 }
 
+// Supported image extensions — filter out sidecars (xmp) and other non-image files
+const SUPPORTED_IMAGE_EXTENSIONS = new Set([
+  '.nef', '.cr2', '.arw', '.jpg', '.jpeg', '.png', '.tiff',
+]);
+
+function isSupportedImageFile(filePath) {
+  const ext = path.extname(filePath).toLowerCase();
+  return SUPPORTED_IMAGE_EXTENSIONS.has(ext);
+}
+
 // Expand globs and resolve paths
 async function expandFilePaths(patterns) {
   const files = [];
@@ -150,7 +160,7 @@ async function expandFilePaths(patterns) {
         for (const entry of entries) {
           if (regex.test(entry)) {
             const fullPath = path.join(dir, entry);
-            if (fs.statSync(fullPath).isFile()) {
+            if (fs.statSync(fullPath).isFile() && isSupportedImageFile(fullPath)) {
               files.push(fullPath);
             }
           }
@@ -162,12 +172,14 @@ async function expandFilePaths(patterns) {
         );
       }
     } else {
-      // Direct path - must be a file (not directory)
+      // Direct path - must be a supported image file (not directory or sidecar)
       const resolved = path.resolve(expandedPattern);
       try {
         const stat = fs.statSync(resolved);
-        if (stat.isFile()) {
+        if (stat.isFile() && isSupportedImageFile(resolved)) {
           files.push(resolved);
+        } else if (stat.isFile()) {
+          console.log(`[Main] Skipping unsupported file: ${resolved}`);
         } else if (stat.isDirectory()) {
           console.log(`[Main] Skipping directory: ${resolved}`);
         }
@@ -560,7 +572,9 @@ ipcMain.handle("expand-glob", async (event, pattern) => {
     if (glob) {
       const files = [];
       for await (const file of glob(expandedPattern)) {
-        files.push(file);
+        if (isSupportedImageFile(file)) {
+          files.push(file);
+        }
       }
       return files.sort();
     }
@@ -584,7 +598,7 @@ ipcMain.handle("expand-glob", async (event, pattern) => {
       .readdirSync(dir)
       .filter((f) => regex.test(f))
       .map((f) => path.join(dir, f))
-      .filter((f) => fs.statSync(f).isFile())
+      .filter((f) => fs.statSync(f).isFile() && isSupportedImageFile(f))
       .sort();
 
     return files;
