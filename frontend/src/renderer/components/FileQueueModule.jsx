@@ -196,7 +196,7 @@ const naturalSortCompare = (a, b) => {
  */
 const generateId = () => Math.random().toString(36).substring(2, 9);
 
-// Supported file extensions for drag-and-drop
+// Supported image file extensions
 const SUPPORTED_EXTENSIONS = new Set(['nef', 'cr2', 'arw', 'jpg', 'jpeg', 'png', 'tiff']);
 
 /**
@@ -882,7 +882,23 @@ export function FileQueueModule({ node }) {
 
     const effectivePosition = position === 'default' ? getInsertModePreference() : position;
 
-    const newItems = filePaths.map(filePath => {
+    // Filter out unsupported file types (e.g. XMP sidecars from glob expansion)
+    const supportedPaths = filePaths.filter(fp => {
+      const ext = fp.split('.').pop()?.toLowerCase();
+      return ext && SUPPORTED_EXTENSIONS.has(ext);
+    });
+    const skippedCount = filePaths.length - supportedPaths.length;
+    if (skippedCount > 0) {
+      debug('FileQueue', `Filtered out ${skippedCount} unsupported file(s)`);
+    }
+    if (supportedPaths.length === 0) {
+      if (skippedCount > 0) {
+        showToast(`No supported image files (skipped ${skippedCount} non-image files)`, 'warning', 3000);
+      }
+      return;
+    }
+
+    const newItems = supportedPaths.map(filePath => {
       const fileName = filePath.split('/').pop();
       const alreadyProcessed = currentProcessedFiles.has(fileName);
       debug('FileQueue', '>>> addFiles item', { fileName, alreadyProcessed });
