@@ -6,6 +6,12 @@ This changelog is initialized from git commit history after `v1.0.0` and can be 
 
 ## [Unreleased]
 
+### Fixed
+- Fixed Cmd+/Cmd- zoom never stopping: `useKeyHold` now ignores Cmd/Ctrl combos (handled by menu accelerators) and matches keyup by physical key code to avoid stuck animation loops when Shift is released before the base key.
+- Fixed menu zoom clicks (Zoom In/Out, Reset, Auto-Fit) having no effect due to stale closures captured at mount time in `useModuleEvent` handlers.
+- Fixed first double-click in file queue showing an empty image viewer: `loadFile` now waits for ImageViewer's `load-image` listener before emitting, handling the async gap when `tabEnableRenderOnDemand` causes deferred mounting.
+- Fixed `useKeyHold` cleanup using `clearInterval` instead of `cancelAnimationFrame` for rAF-based animation loops.
+
 ### Changed
 - Replaced conda/hardcoded Python paths with convention-based venv discovery (`backend/.venv/`).
 - Migrated dependency management from `requirements.txt` to `pyproject.toml` (PEP 621).
