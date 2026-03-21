@@ -15,6 +15,7 @@ This changelog is initialized from git commit history after `v1.0.0` and can be 
 - Fixed first double-click in file queue showing an empty image viewer: `loadFile` now waits for ImageViewer's `load-image` listener before emitting, handling the async gap when `tabEnableRenderOnDemand` causes deferred mounting.
 - Fixed `useKeyHold` cleanup using `clearInterval` instead of `cancelAnimationFrame` for rAF-based animation loops.
 - Separated focused state from checkbox selection in file queue: plain click highlights an item without checking its checkbox; checkboxes require explicit click, Cmd+Click, or Shift+Click.
+- Fixed non-image files (XMP sidecars, etc.) being added to queue from glob patterns. File extension filtering now applied in `addFiles()`, `expandFilePaths()`, and the `expand-glob` IPC handler.
 
 ### Changed
 - Replaced conda/hardcoded Python paths with convention-based venv discovery (`backend/.venv/`).
