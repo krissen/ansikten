@@ -220,7 +220,8 @@ export function FileQueueModule({ node }) {
   const [processedFilesLoaded, setProcessedFilesLoaded] = useState(false);
   const [preprocessingStatus, setPreprocessingStatus] = useState({});
   const [preprocessingPaused, setPreprocessingPaused] = useState(false);
-  const [selectedFiles, setSelectedFiles] = useState(new Set()); // Selected file IDs
+  const [selectedFiles, setSelectedFiles] = useState(new Set()); // Checkbox-selected file IDs
+  const [focusedIndex, setFocusedIndex] = useState(-1); // Clicked-on item (visual highlight only)
 
   // Rename state
   const [showPreviewNames, setShowPreviewNames] = useState(false);
@@ -1246,9 +1247,9 @@ export function FileQueueModule({ node }) {
       return;
     }
 
-    // Single click: Select the file (clear others, select this one)
+    // Single click: Focus the item (visual highlight only, no checkbox)
     lastSelectedIndexRef.current = index;
-    setSelectedFiles(new Set([item.id]));
+    setFocusedIndex(index);
   }, [queue, toggleFileSelection]);
 
   // Handle double-click to load file
@@ -1935,6 +1936,7 @@ export function FileQueueModule({ node }) {
               item={item}
               index={originalIndex}
               isActive={originalIndex === currentIndex}
+              isFocused={originalIndex === focusedIndex}
               isSelected={selectedFiles.has(item.id)}
               onClick={(e) => handleItemClick(originalIndex, e)}
               onDoubleClick={() => handleItemDoubleClick(originalIndex)}
@@ -2033,7 +2035,7 @@ export function FileQueueModule({ node }) {
 /**
  * FileQueueItem Component
  */
-function FileQueueItem({ item, index, isActive, isSelected, onClick, onDoubleClick, onToggleSelect, onRemove, onForceReprocess, fixMode, preprocessingStatus, showPreview, previewInfo }) {
+function FileQueueItem({ item, index, isActive, isFocused, isSelected, onClick, onDoubleClick, onToggleSelect, onRemove, onForceReprocess, fixMode, preprocessingStatus, showPreview, previewInfo }) {
   const [showTooltip, setShowTooltip] = useState(false);
   const [tooltipPos, setTooltipPos] = useState({ x: 0, y: 0 });
   const [namesDisplay, setNamesDisplay] = useState('');
@@ -2226,7 +2228,7 @@ function FileQueueItem({ item, index, isActive, isSelected, onClick, onDoubleCli
   return (
     <div
       ref={itemRef}
-      className={`file-item ${item.status} ${isActive ? 'active' : ''} ${isSelected ? 'selected' : ''} ${item.isAlreadyProcessed ? 'already-processed' : ''} ${shouldShowPreview ? 'with-preview' : ''}`}
+      className={`file-item ${item.status} ${isActive ? 'active' : ''} ${isFocused ? 'focused' : ''} ${isSelected ? 'selected' : ''} ${item.isAlreadyProcessed ? 'already-processed' : ''} ${shouldShowPreview ? 'with-preview' : ''}`}
       onClick={onClick}
       onDoubleClick={onDoubleClick}
       onMouseEnter={handleMouseEnter}
