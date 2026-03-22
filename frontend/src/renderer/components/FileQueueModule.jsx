@@ -18,6 +18,7 @@ import { apiClient } from '../shared/api-client.js';
 import { getPreprocessingManager, PreprocessingStatus } from '../services/preprocessing/index.js';
 import { Icon } from './Icon.jsx';
 import { isFileEligible as isFileEligiblePure, findNextEligibleIndex } from './fileQueueEligibility.js';
+import { compileFilter } from './filterExpression.js';
 import { formatNamesToFit, measureTextWidth } from '../shared/nameFormatter.js';
 import './FileQueueModule.css';
 
@@ -1883,13 +1884,19 @@ export function FileQueueModule({ node }) {
     const all = queue.map((item, i) => ({ item, originalIndex: i }));
     if (!filterText) return all;
 
-    // Convert glob-style pattern to case-insensitive match:
-    // strip leading/trailing *, then substring match
-    const pattern = filterText.replace(/^\*+|\*+$/g, '').toLowerCase();
-    if (!pattern) return all;
+    const matcher = compileFilter(filterText);
 
-    return all.filter(({ item }) => item.fileName.toLowerCase().includes(pattern));
-  }, [queue, filterText]);
+    return all.filter(({ item }) => {
+      // Build searchable text: filename + detected/confirmed person names
+      const pp = preprocessingStatus[item.filePath];
+      const names = previewData?.[item.filePath]?.persons
+        || item.reviewedFaces?.map(f => f.personName).filter(Boolean)
+        || pp?.persons
+        || [];
+      const searchText = [item.fileName, ...names].join(' ');
+      return matcher(searchText);
+    });
+  }, [queue, filterText, preprocessingStatus, previewData]);
 
   // Set of IDs currently visible after filtering — used for action scoping
   const visibleIds = useMemo(() => {
@@ -2005,7 +2012,7 @@ export function FileQueueModule({ node }) {
             ref={filterInputRef}
             type="text"
             className="filter-input"
-            placeholder="Filter files..."
+            placeholder="Filter...  a|b = or  a&b = and"
             value={filterText}
             onChange={(e) => setFilterText(e.target.value)}
             onKeyDown={(e) => {
