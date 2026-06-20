@@ -6,6 +6,8 @@ This changelog is initialized from git commit history after `v1.0.0` and can be 
 
 ## [Unreleased]
 
+## [1.2.0] - 2026-06-20
+
 ### Added
 - Added file queue filter bar (`/` or `Cmd+F`): filter the file list by filename pattern, with match count indicator. Actions like rename and clear-done scope to filtered items when no checkbox selection exists.
 
