@@ -58,7 +58,7 @@ function main() {
   } catch (err) {
     console.error('\nPyInstaller build failed.');
     console.error('Make sure you have activated your Python environment and installed dependencies:');
-    console.error('  pip install -r requirements.txt pyinstaller\n');
+    console.error('  pip install -e ".[build]"\n');
     process.exit(1);
   }
 

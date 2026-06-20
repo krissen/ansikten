@@ -29,14 +29,13 @@ jobs:
         with:
           python-version: ${{ env.PYTHON_VERSION }}
           cache: 'pip'
-          cache-dependency-path: backend/requirements.txt
+          cache-dependency-path: backend/pyproject.toml
 
       - name: Install Python dependencies
         working-directory: backend
         run: |
           pip install --upgrade pip
-          pip install -r requirements.txt
-          pip install pyinstaller
+          pip install ".[build]"
 
       - name: Build backend with PyInstaller
         working-directory: backend
@@ -101,14 +100,13 @@ jobs:
         with:
           python-version: ${{ env.PYTHON_VERSION }}
           cache: 'pip'
-          cache-dependency-path: backend/requirements.txt
+          cache-dependency-path: backend/pyproject.toml
 
       - name: Install Python dependencies
         working-directory: backend
         run: |
           pip install --upgrade pip
-          pip install -r requirements.txt
-          pip install pyinstaller
+          pip install ".[build]"
 
       - name: Build backend with PyInstaller
         working-directory: backend
@@ -173,7 +171,7 @@ jobs:
         with:
           python-version: ${{ env.PYTHON_VERSION }}
           cache: 'pip'
-          cache-dependency-path: backend/requirements.txt
+          cache-dependency-path: backend/pyproject.toml
 
       - name: Install system dependencies
         run: |
@@ -184,8 +182,7 @@ jobs:
         working-directory: backend
         run: |
           pip install --upgrade pip
-          pip install -r requirements.txt
-          pip install pyinstaller
+          pip install ".[build]"
 
       - name: Build backend with PyInstaller
         working-directory: backend

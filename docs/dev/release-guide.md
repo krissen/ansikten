@@ -41,9 +41,15 @@ npm run build:workspace
 npx electron .
 ```
 
-### 2. Uppdatera changelog (valfritt)
+### 2. Roadmap -> Changelog (obligatoriskt)
 
-Om du har en CHANGELOG.md, uppdatera den med ändringar sedan senaste release.
+Arbetsprincip för planering och releaseförberedelse:
+
+1. Planera framtida arbete i `docs/dev/roadmap.md`
+2. När arbete är klart inför release, flytta relevanta punkter från roadmap till `CHANGELOG.md`
+3. Finslipa `CHANGELOG.md` så den beskriver ändringarna sedan senaste tag
+
+Det här håller roadmap framåtblickande och changelog release-fokuserad.
 
 ### 3. Skapa och pusha tag
 
@@ -95,9 +101,9 @@ GitHub Actions genererar följande filer:
 
 **Python-beroenden:**
 ```bash
-# Kontrollera att requirements.txt är uppdaterad
+# Kontrollera att pyproject.toml är uppdaterad
 cd backend
-pip install -r requirements.txt
+pip install -e ".[build]"
 pyinstaller ansikten-backend.spec
 ```
 
@@ -177,3 +183,4 @@ Workflow-filen: `.github/workflows/release.yml`
 
 - [Building](building.md) - Detaljerad byggdokumentation
 - [Contributing](contributing.md) - Bidragsguide
+- [Roadmap](roadmap.md) - Planerad utveckling framåt

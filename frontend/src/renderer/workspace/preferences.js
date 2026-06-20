@@ -18,7 +18,7 @@ export class PreferencesManager {
       backend: {
         autoStart: true,
         port: 5001, // Changed from 5000 to avoid macOS Control Center conflict
-        pythonPath: '/Users/krisniem/.local/share/miniforge3/envs/hitta_ansikten/bin/python3'
+        pythonPath: ''  // Empty = auto-detect (backend/.venv or ANSIKTEN_PYTHON)
       },
       ui: {
         theme: 'system', // 'dark' | 'light' | 'system'

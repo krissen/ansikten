@@ -85,7 +85,7 @@ function useDropdownPosition(open, anchorEl, { maxHeight = 200, gap = 4 } = {}) 
 /**
  * ReviewModule Component
  */
-export function ReviewModule() {
+export function ReviewModule({ node }) {
   const { api } = useBackend();
   const emit = useEmitEvent();
   const showToast = useToast();
@@ -110,6 +110,10 @@ export function ReviewModule() {
   const inputRefs = useRef({});
   const cardRefs = useRef({});
   const detectAbortRef = useRef(null);
+  const detectedFacesRef = useRef(detectedFaces);
+
+  // Keep detectedFacesRef in sync with state (for use in timeout callbacks)
+  useEffect(() => { detectedFacesRef.current = detectedFaces; }, [detectedFaces]);
 
   /**
    * Load people names for autocomplete
@@ -536,15 +540,11 @@ export function ReviewModule() {
     setStatus(`Saving ${totalChanges} changes...`);
 
     try {
-      // Save confirmations
-      for (const confirmation of pendingConfirmations) {
-        await api.post('/api/v1/confirm-identity', confirmation);
-      }
-
-      // Save ignores
-      for (const ignore of pendingIgnores) {
-        await api.post('/api/v1/ignore-face', ignore);
-      }
+      // Batch save: single request instead of N individual calls
+      await api.post('/api/v1/batch-confirm', {
+        confirmations: pendingConfirmations,
+        ignores: pendingIgnores
+      });
 
       setPendingConfirmations([]);
       setPendingIgnores([]);
@@ -664,6 +664,12 @@ export function ReviewModule() {
 
     if (allDone && hasChanges) {
       const timeout = setTimeout(async () => {
+        // Re-check with current ref — new faces may have been added since timeout was scheduled
+        const currentFaces = detectedFacesRef.current;
+        const stillAllDone = currentFaces.length > 0 &&
+          currentFaces.every(f => f.is_confirmed || f.is_rejected);
+        if (!stillAllDone) return;
+
         const saveSuccess = await saveAllChanges();
         if (!saveSuccess) {
           // Don't proceed if save failed - user needs to retry or discard
@@ -720,10 +726,8 @@ export function ReviewModule() {
    */
   useEffect(() => {
     const handleKeyboard = (e) => {
-      const reviewModuleVisible = document.querySelector('.review-module') !== null;
-      if (!reviewModuleVisible) {
-        return;
-      }
+      // Skip keyboard handling when this tab is hidden in FlexLayout
+      if (node && !node.isVisible()) return;
 
       const activeEl = document.activeElement;
       const isInput = e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA' || e.target.isContentEditable;

@@ -492,6 +492,15 @@ export function ImageViewer() {
     setPan({ x: 0, y: 0 });
   }, []);
 
+  // Refs for zoom functions — useModuleEvent captures handlers at subscription
+  // time, so without refs the handlers would use stale closures from mount
+  const zoomRef = useRef(zoom);
+  zoomRef.current = zoom;
+  const resetZoomRef = useRef(resetZoom);
+  resetZoomRef.current = resetZoom;
+  const autoFitRef = useRef(autoFit);
+  autoFitRef.current = autoFit;
+
   // ============================================
   // Menu State Sync Helper
   // ============================================
@@ -773,10 +782,10 @@ export function ImageViewer() {
   useModuleEvent('boxes-hide', () => setBoxMode('none'));
   useModuleEvent('boxes-all', () => setBoxMode('all'));
   useModuleEvent('boxes-single', () => setBoxMode('single'));
-  useModuleEvent('zoom-in', () => zoom(ZOOM_STEP, mousePosRef.current.x, mousePosRef.current.y));
-  useModuleEvent('zoom-out', () => zoom(1 / ZOOM_STEP, mousePosRef.current.x, mousePosRef.current.y));
-  useModuleEvent('reset-zoom', resetZoom);
-  useModuleEvent('auto-fit', autoFit);
+  useModuleEvent('zoom-in', () => zoomRef.current(ZOOM_STEP, mousePosRef.current.x, mousePosRef.current.y));
+  useModuleEvent('zoom-out', () => zoomRef.current(1 / ZOOM_STEP, mousePosRef.current.x, mousePosRef.current.y));
+  useModuleEvent('reset-zoom', () => resetZoomRef.current());
+  useModuleEvent('auto-fit', () => autoFitRef.current());
   useModuleEvent('auto-center-enable', () => toggleAutoCenterOnFace(true));
   useModuleEvent('auto-center-disable', () => toggleAutoCenterOnFace(false));
   useModuleEvent('file-info-show', () => toggleFileInfo(true));

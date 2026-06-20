@@ -62,7 +62,8 @@ npx electron .                             # Run app (auto-starts backend on :50
 
 ```bash
 cd backend
-pip install -r requirements.txt
+python3 -m venv .venv && source .venv/bin/activate
+pip install -e ".[dev]"
 python -m api.server                       # Run API server standalone
 ```
 
