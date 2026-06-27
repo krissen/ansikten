@@ -326,13 +326,14 @@ export function FileQueueModule({ node }) {
     });
   }, [emit, currentIndex]);
 
-  // Keep the Review queue-overview bar live: re-emit when files finish
-  // preprocessing in the background (the completion paths only update
-  // preprocessingStatus, they don't load/complete a file), and answer a
+  // Keep the Review queue-overview bar live: re-emit when the queue itself
+  // changes (add files, clear completed, remove — none of which load or
+  // complete a file) and when files finish preprocessing in the background
+  // (the completion paths only update preprocessingStatus). Also answer a
   // late subscriber that asks for the current status on mount.
   useEffect(() => {
     emitQueueStatus();
-  }, [preprocessingStatus, emitQueueStatus]);
+  }, [queue, preprocessingStatus, emitQueueStatus]);
 
   useModuleEvent('request-queue-status', useCallback(() => {
     emitQueueStatus();
