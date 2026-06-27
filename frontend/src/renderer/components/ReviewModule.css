@@ -383,3 +383,30 @@
   color: var(--text-tertiary);
   text-align: center;
 }
+
+/* Queue overview bar (footer) */
+.review-queue-bar {
+  display: flex;
+  width: 100%;
+  height: 8px;
+  border-radius: var(--radius-sm);
+  overflow: hidden;
+  background: var(--bg-elevated);
+}
+
+.review-queue-bar .seg {
+  height: 100%;
+  transition: width var(--transition-slow);
+}
+
+.review-queue-bar .seg-done {
+  background: var(--color-success);
+}
+
+.review-queue-bar .seg-cached {
+  background: var(--color-warning);
+}
+
+.review-queue-bar .seg-remaining {
+  background: var(--bg-elevated);
+}

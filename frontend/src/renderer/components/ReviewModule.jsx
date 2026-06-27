@@ -103,6 +103,7 @@ export function ReviewModule({ node }) {
   const [clearInputTrigger, setClearInputTrigger] = useState(0);
   const [confirmDialog, setConfirmDialog] = useState(null);
   const [undoStack, setUndoStack] = useState([]);
+  const [queueStatus, setQueueStatus] = useState(null);
 
   // Refs
   const moduleRef = useRef(null);
@@ -920,6 +921,7 @@ export function ReviewModule({ node }) {
    */
   useModuleEvent('save-all-changes', saveAllChanges);
   useModuleEvent('discard-changes', discardChanges);
+  useModuleEvent('queue-status', setQueueStatus);
   useModuleEvent('undo-face-action', useCallback(() => {
     const undone = undoLastAction();
     if (undone) {
@@ -979,6 +981,30 @@ export function ReviewModule({ node }) {
           ))
         )}
       </div>
+
+      {queueStatus && queueStatus.total > 0 && (() => {
+        const { total, done, preprocessed = 0 } = queueStatus;
+        const remaining = Math.max(0, total - done - preprocessed);
+        const pct = (n) => (n / total) * 100;
+        return (
+          <div className="module-footer review-footer">
+            <div
+              className="review-queue-bar"
+              title={`${done} granskade · ${preprocessed} redo · ${remaining} kvar`}
+            >
+              {done > 0 && (
+                <div className="seg seg-done" style={{ width: `${pct(done)}%` }} />
+              )}
+              {preprocessed > 0 && (
+                <div className="seg seg-cached" style={{ width: `${pct(preprocessed)}%` }} />
+              )}
+              {remaining > 0 && (
+                <div className="seg seg-remaining" style={{ width: `${pct(remaining)}%` }} />
+              )}
+            </div>
+          </div>
+        );
+      })()}
 
       {confirmDialog && (
         <ConfirmDialog

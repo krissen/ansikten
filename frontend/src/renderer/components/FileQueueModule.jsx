@@ -316,11 +316,13 @@ export function FileQueueModule({ node }) {
     const done = q.filter(item => item.status === 'completed').length;
     // Remaining = total - done, but minimum 0 (avoid -1 when queue is empty)
     const remaining = Math.max(0, q.length - done);
+    const preprocessed = countPreprocessed(q);
     emit('queue-status', {
       total: q.length,
       current: currentIdx,
       done: done,
-      remaining: remaining
+      remaining: remaining,
+      preprocessed: preprocessed
     });
   }, [emit, currentIndex]);
 
@@ -553,6 +555,16 @@ export function FileQueueModule({ node }) {
   // Use refs to avoid re-subscribing on every preprocessingStatus change
   const preprocessingStatusRef = useRef(preprocessingStatus);
   preprocessingStatusRef.current = preprocessingStatus;
+
+  // Count files that are preprocessed (in the cache, ready to open) but not yet
+  // reviewed this session. Used for the queue overview bar in ReviewModule.
+  const countPreprocessed = useCallback((queueArr) => {
+    const pp = preprocessingStatusRef.current;
+    return queueArr.filter(
+      item => item.status !== 'completed' &&
+              pp[item.filePath]?.status === PreprocessingStatus.COMPLETED
+    ).length;
+  }, []);
 
   useEffect(() => {
     const handleFileDeleted = (filePath) => {
@@ -1562,11 +1574,19 @@ export function FileQueueModule({ node }) {
 
       const prevDone = currentQueue.filter(q => q.status === 'completed').length;
       const newDone = success ? prevDone + 1 : prevDone;
+      // Patch the just-reviewed file to 'completed' so it isn't also counted as
+      // preprocessed (setQueue above is async, so currentQueue is still stale here).
+      const patchedQueue = success
+        ? currentQueue.map(item =>
+            item.filePath === imagePath ? { ...item, status: 'completed' } : item
+          )
+        : currentQueue;
       emit('queue-status', {
         total: currentQueue.length,
         current: nextIdx >= 0 ? nextIdx : currentIdx,
         done: newDone,
-        remaining: Math.max(0, currentQueue.length - newDone)
+        remaining: Math.max(0, currentQueue.length - newDone),
+        preprocessed: countPreprocessed(patchedQueue)
       });
 
       // Show toast for review result
