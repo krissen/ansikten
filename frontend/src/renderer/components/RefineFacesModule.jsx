@@ -65,7 +65,7 @@ export function RefineFacesModule() {
       params.set('mahalanobis_threshold', config.mahalanobisThreshold.toString());
       params.set('min_encodings', config.minEncodings.toString());
 
-      const result = await api.get(`/api/refinement/preview?${params.toString()}`);
+      const result = await api.get(`/api/v1/refinement/preview?${params.toString()}`);
       setPreview(result);
 
       if (result.summary.total_remove === 0) {
@@ -128,7 +128,7 @@ export function RefineFacesModule() {
    */
   const handleRepairShapes = useCallback(async (dryRun = false) => {
     setIsLoading(true);
-    setStatus({ type: '', message: '' });
+    clearStatus();
 
     try {
       const body = {

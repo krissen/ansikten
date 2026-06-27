@@ -83,8 +83,7 @@ export function LogViewer() {
   }, [logs]);
 
   /**
-   * Poll log buffer for new entries
-   * This approach avoids console interception issues and captures all debug() logs
+   * Listen for new log entries via CustomEvent from debug buffer
    */
   useEffect(() => {
     // Load initial logs from buffer
@@ -94,21 +93,21 @@ export function LogViewer() {
       lastBufferLengthRef.current = initialLogs.length;
     }
 
-    // Poll for new entries every 100ms
-    const pollInterval = setInterval(() => {
+    // React to new entries via event (replaces 100ms polling)
+    const handleBufferChanged = () => {
       const buffer = getLogBuffer();
       if (buffer.length > lastBufferLengthRef.current) {
-        // Get only new entries
         const newEntries = buffer.slice(lastBufferLengthRef.current);
         setLogs(prev => [...prev, ...newEntries]);
         lastBufferLengthRef.current = buffer.length;
       }
-    }, 100);
+    };
 
-    debug('LogViewer', 'Initialized - polling debug buffer');
+    window.addEventListener('debug-buffer-changed', handleBufferChanged);
+    debug('LogViewer', 'Initialized - listening for debug buffer events');
 
     return () => {
-      clearInterval(pollInterval);
+      window.removeEventListener('debug-buffer-changed', handleBufferChanged);
     };
   }, []);
 

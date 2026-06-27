@@ -103,6 +103,12 @@ Workspace är ett modulärt gränssnitt byggt med FlexLayout. Paneler kan dockas
    - **Namnge** (`R` eller skriv i fältet) för nytt namn
    - **Välj alternativ** (`1-9`) för annan matchning
 
+Längst ner i Face Review-panelen visas en **kööversikt** som en
+färgad stapel över hela kön: grönt = granskade den här sessionen,
+orange = förbearbetade (i cachen, snabba att öppna) men ännu inte
+granskade, grått = återstår. Håll muspekaren över stapeln för exakta
+antal.
+
 ### 3. Spara och fortsätt
 
 1. När alla ansikten är granskade:

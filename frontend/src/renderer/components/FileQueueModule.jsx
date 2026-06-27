@@ -10,7 +10,7 @@
  */
 
 import React, { useState, useEffect, useCallback, useRef, useMemo } from 'react';
-import { useModuleEvent, useEmitEvent } from '../hooks/useModuleEvent.js';
+import { useModuleEvent, useEmitEvent, useModuleAPI } from '../hooks/useModuleEvent.js';
 import { useBackend } from '../context/BackendContext.jsx';
 import { useToast } from '../context/ToastContext.jsx';
 import { debug, debugWarn, debugError } from '../shared/debug.js';
@@ -18,6 +18,7 @@ import { apiClient } from '../shared/api-client.js';
 import { getPreprocessingManager, PreprocessingStatus } from '../services/preprocessing/index.js';
 import { Icon } from './Icon.jsx';
 import { isFileEligible as isFileEligiblePure, findNextEligibleIndex } from './fileQueueEligibility.js';
+import { compileFilter } from './filterExpression.js';
 import { formatNamesToFit, measureTextWidth } from '../shared/nameFormatter.js';
 import './FileQueueModule.css';
 
@@ -196,15 +197,16 @@ const naturalSortCompare = (a, b) => {
  */
 const generateId = () => Math.random().toString(36).substring(2, 9);
 
-// Supported file extensions for drag-and-drop
+// Supported image file extensions
 const SUPPORTED_EXTENSIONS = new Set(['nef', 'cr2', 'arw', 'jpg', 'jpeg', 'png', 'tiff']);
 
 /**
  * FileQueueModule Component
  */
-export function FileQueueModule() {
+export function FileQueueModule({ node }) {
   const { api, isConnected } = useBackend();
   const emit = useEmitEvent();
+  const { hasListeners, waitForListeners } = useModuleAPI();
   const globalShowToast = useToast();
 
   // Queue state
@@ -219,7 +221,13 @@ export function FileQueueModule() {
   const [processedFilesLoaded, setProcessedFilesLoaded] = useState(false);
   const [preprocessingStatus, setPreprocessingStatus] = useState({});
   const [preprocessingPaused, setPreprocessingPaused] = useState(false);
-  const [selectedFiles, setSelectedFiles] = useState(new Set()); // Selected file IDs
+  const [selectedFiles, setSelectedFiles] = useState(new Set()); // Checkbox-selected file IDs
+  const [focusedIndex, setFocusedIndex] = useState(-1); // Clicked-on item (visual highlight only)
+
+  // Filter state
+  const [filterText, setFilterText] = useState('');
+  const [showFilter, setShowFilter] = useState(false);
+  const filterInputRef = useRef(null);
 
   // Rename state
   const [showPreviewNames, setShowPreviewNames] = useState(false);
@@ -253,6 +261,9 @@ export function FileQueueModule() {
   const processedFilesRef = useRef(new Set());
   processedFilesRef.current = processedFiles;
 
+  // Queued manual load: stores index to load once processedFiles are ready
+  const pendingManualLoadRef = useRef(-1);
+
   // Get preprocessing manager (singleton)
   const preprocessingManager = useRef(null);
   if (!preprocessingManager.current) {
@@ -266,6 +277,7 @@ export function FileQueueModule() {
   const currentFileRef = useRef(null);
   const queueRef = useRef(queue); // Keep current queue in ref for callbacks
   queueRef.current = queue; // Sync on every render (not just in useEffect)
+  const visibleIdsRef = useRef(null); // Current filter-visible IDs for action scoping
   const fixModeRef = useRef(fixMode);
   fixModeRef.current = fixMode;
 
@@ -304,13 +316,28 @@ export function FileQueueModule() {
     const done = q.filter(item => item.status === 'completed').length;
     // Remaining = total - done, but minimum 0 (avoid -1 when queue is empty)
     const remaining = Math.max(0, q.length - done);
+    const preprocessed = countPreprocessed(q);
     emit('queue-status', {
       total: q.length,
       current: currentIdx,
       done: done,
-      remaining: remaining
+      remaining: remaining,
+      preprocessed: preprocessed
     });
   }, [emit, currentIndex]);
+
+  // Keep the Review queue-overview bar live: re-emit when the queue itself
+  // changes (add files, clear completed, remove — none of which load or
+  // complete a file) and when files finish preprocessing in the background
+  // (the completion paths only update preprocessingStatus). Also answer a
+  // late subscriber that asks for the current status on mount.
+  useEffect(() => {
+    emitQueueStatus();
+  }, [queue, preprocessingStatus, emitQueueStatus]);
+
+  useModuleEvent('request-queue-status', useCallback(() => {
+    emitQueueStatus();
+  }, [emitQueueStatus]));
 
   useEffect(() => {
     loadProcessedFiles();
@@ -321,6 +348,17 @@ export function FileQueueModule() {
       preprocessingManager.current.setHashChecker((hash) => processedHashesRef.current.has(hash));
     }
   }, [processedFilesLoaded]);
+
+  // Execute queued manual load once processed files are ready
+  useEffect(() => {
+    if (processedFilesLoaded && pendingManualLoadRef.current >= 0) {
+      const idx = pendingManualLoadRef.current;
+      pendingManualLoadRef.current = -1;
+      debug('FileQueue', 'Executing queued manual load at index', idx);
+      loadFileRef.current?.(idx);
+    }
+  }, [processedFilesLoaded]);
+
   const statsFetchedRef = useRef(new Set());
   useEffect(() => {
     if (!processedFilesLoaded || processedFiles.size === 0) return;
@@ -530,6 +568,16 @@ export function FileQueueModule() {
   // Use refs to avoid re-subscribing on every preprocessingStatus change
   const preprocessingStatusRef = useRef(preprocessingStatus);
   preprocessingStatusRef.current = preprocessingStatus;
+
+  // Count files that are preprocessed (in the cache, ready to open) but not yet
+  // reviewed this session. Used for the queue overview bar in ReviewModule.
+  const countPreprocessed = useCallback((queueArr) => {
+    const pp = preprocessingStatusRef.current;
+    return queueArr.filter(
+      item => item.status !== 'completed' &&
+              pp[item.filePath]?.status === PreprocessingStatus.COMPLETED
+    ).length;
+  }, []);
 
   useEffect(() => {
     const handleFileDeleted = (filePath) => {
@@ -860,7 +908,23 @@ export function FileQueueModule() {
 
     const effectivePosition = position === 'default' ? getInsertModePreference() : position;
 
-    const newItems = filePaths.map(filePath => {
+    // Filter out unsupported file types (e.g. XMP sidecars from glob expansion)
+    const supportedPaths = filePaths.filter(fp => {
+      const ext = fp.split('.').pop()?.toLowerCase();
+      return ext && SUPPORTED_EXTENSIONS.has(ext);
+    });
+    const skippedCount = filePaths.length - supportedPaths.length;
+    if (skippedCount > 0) {
+      debug('FileQueue', `Filtered out ${skippedCount} unsupported file(s)`);
+    }
+    if (supportedPaths.length === 0) {
+      if (skippedCount > 0) {
+        showToast(`No supported image files (skipped ${skippedCount} non-image files)`, 'warning', 3000);
+      }
+      return;
+    }
+
+    const newItems = supportedPaths.map(filePath => {
       const fileName = filePath.split('/').pop();
       const alreadyProcessed = currentProcessedFiles.has(fileName);
       debug('FileQueue', '>>> addFiles item', { fileName, alreadyProcessed });
@@ -999,13 +1063,18 @@ export function FileQueueModule() {
   const clearCompleted = useCallback(() => {
     const currentFixMode = fixModeRef.current;
     const currentQueue = queueRef.current;
+    const currentVisibleIds = visibleIdsRef.current;
+
+    const isDone = (item) => {
+      if (item.status === 'completed') return true;
+      if (!currentFixMode && item.isAlreadyProcessed) return true;
+      return false;
+    };
 
     // Check if active file will be removed
     const activeFile = currentQueue.find(item => item.filePath === currentFileRef.current);
-    const activeWillBeRemoved = activeFile && (
-      activeFile.status === 'completed' ||
-      (!currentFixMode && activeFile.isAlreadyProcessed)
-    );
+    const activeWillBeRemoved = activeFile && isDone(activeFile) &&
+      (!currentVisibleIds || currentVisibleIds.has(activeFile.id));
 
     if (activeWillBeRemoved) {
       emit('clear-image');
@@ -1013,9 +1082,10 @@ export function FileQueueModule() {
     }
 
     setQueue(prev => prev.filter(item => {
-      if (item.status === 'completed') return false;
-      if (!currentFixMode && item.isAlreadyProcessed) return false;
-      return true;
+      if (!isDone(item)) return true;
+      // When filter is active, only clear visible completed items
+      if (currentVisibleIds && !currentVisibleIds.has(item.id)) return true;
+      return false;
     }));
     setCurrentIndex(-1);
     setSelectedFiles(new Set());
@@ -1079,7 +1149,9 @@ export function FileQueueModule() {
     }
 
     if (!processedFilesLoadedRef.current) {
-      debug('FileQueue', 'loadFile: BLOCKED - processed files not loaded yet');
+      debug('FileQueue', 'loadFile: Queuing load - processed files not loaded yet');
+      pendingManualLoadRef.current = index;
+      showToast('Laddar fillista...', 'info', 2000);
       return;
     }
 
@@ -1110,15 +1182,20 @@ export function FileQueueModule() {
       return;
     }
 
-    const workspace = window.workspace;
-    let hasImageViewer = false;
+    // Ensure image viewer tab is visible/focused
+    if (window.workspace?.openModule) {
+      window.workspace.openModule('image-viewer');
+    }
 
-    if (workspace?.model) {
-      workspace.model.visitNodes(node => {
-        if (node.getComponent?.() === 'image-viewer') {
-          hasImageViewer = true;
-        }
-      });
+    // Wait for ImageViewer to mount and register its load-image handler.
+    // openModule may create or activate the tab, but React renders async —
+    // emitting before the component mounts loses the event.
+    if (!hasListeners('load-image')) {
+      debug('FileQueue', 'Waiting for load-image listener (ImageViewer mounting)...');
+      const ready = await waitForListeners('load-image', 2000, 10);
+      if (!ready) {
+        debugWarn('FileQueue', 'Timeout waiting for ImageViewer - emitting anyway');
+      }
     }
 
     if (fixModeRef.current && item.isAlreadyProcessed) {
@@ -1146,7 +1223,7 @@ export function FileQueueModule() {
     debug('FileQueue', 'Emitting load-image for:', item.filePath, { skipAutoDetect });
     emit('load-image', { imagePath: item.filePath, skipAutoDetect });
     emitQueueStatus(index);
-  }, [api, loadProcessedFiles, emit, showToast, emitQueueStatus]);
+  }, [api, loadProcessedFiles, emit, hasListeners, waitForListeners, showToast, emitQueueStatus]);
 
   loadFileRef.current = loadFile;
 
@@ -1224,9 +1301,9 @@ export function FileQueueModule() {
       return;
     }
 
-    // Single click: Select the file (clear others, select this one)
+    // Single click: Focus the item (visual highlight only, no checkbox)
     lastSelectedIndexRef.current = index;
-    setSelectedFiles(new Set([item.id]));
+    setFocusedIndex(index);
   }, [queue, toggleFileSelection]);
 
   // Handle double-click to load file
@@ -1369,10 +1446,13 @@ export function FileQueueModule() {
     const currentFixMode = fixModeRef.current;
     const hasSelection = selectedFiles.size > 0;
 
+    const currentVisibleIds = visibleIdsRef.current;
     const eligiblePaths = queue
       .filter(q => {
         const isEligible = q.status === 'completed' || (!currentFixMode && q.isAlreadyProcessed);
-        return hasSelection ? (isEligible && selectedFiles.has(q.id)) : isEligible;
+        if (hasSelection) return isEligible && selectedFiles.has(q.id);
+        if (currentVisibleIds) return isEligible && currentVisibleIds.has(q.id);
+        return isEligible;
       })
       .map(q => q.filePath);
 
@@ -1507,11 +1587,19 @@ export function FileQueueModule() {
 
       const prevDone = currentQueue.filter(q => q.status === 'completed').length;
       const newDone = success ? prevDone + 1 : prevDone;
+      // Patch the just-reviewed file to 'completed' so it isn't also counted as
+      // preprocessed (setQueue above is async, so currentQueue is still stale here).
+      const patchedQueue = success
+        ? currentQueue.map(item =>
+            item.filePath === imagePath ? { ...item, status: 'completed' } : item
+          )
+        : currentQueue;
       emit('queue-status', {
         total: currentQueue.length,
         current: nextIdx >= 0 ? nextIdx : currentIdx,
         done: newDone,
-        remaining: Math.max(0, currentQueue.length - newDone)
+        remaining: Math.max(0, currentQueue.length - newDone),
+        preprocessed: countPreprocessed(patchedQueue)
       });
 
       // Show toast for review result
@@ -1724,9 +1812,53 @@ export function FileQueueModule() {
   }, [currentIndex]);
 
   // Keyboard shortcuts
+  const openFilter = useCallback(() => {
+    setShowFilter(true);
+    // Focus input on next tick (after React renders)
+    requestAnimationFrame(() => filterInputRef.current?.focus());
+  }, []);
+
+  const closeFilter = useCallback(() => {
+    setShowFilter(false);
+    setFilterText('');
+  }, []);
+
   useEffect(() => {
     const handleKeyDown = (e) => {
+      // Skip keyboard handling when this tab is hidden in FlexLayout
+      if (node && !node.isVisible()) return;
+
+      // Escape closes filter when filter input is focused
+      if (e.key === 'Escape' && showFilter) {
+        e.preventDefault();
+        closeFilter();
+        moduleRef.current?.focus();
+        return;
+      }
+
+      // Allow Cmd+F anywhere in the module to open filter
+      if (e.key === 'f' && (e.metaKey || e.ctrlKey)) {
+        const module = moduleRef.current;
+        const hasFocus = module && (
+          module === document.activeElement ||
+          module.contains(document.activeElement)
+        );
+        if (hasFocus) {
+          e.preventDefault();
+          e.stopPropagation();
+          openFilter();
+          return;
+        }
+      }
+
       if (e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA') return;
+
+      // / (slash) - open filter (vim-style search)
+      if (e.key === '/') {
+        e.preventDefault();
+        openFilter();
+        return;
+      }
 
       // Cmd/Ctrl+A - select all files (prevent text selection)
       if (e.key === 'a' && (e.metaKey || e.ctrlKey)) {
@@ -1768,7 +1900,7 @@ export function FileQueueModule() {
 
     document.addEventListener('keydown', handleKeyDown);
     return () => document.removeEventListener('keydown', handleKeyDown);
-  }, [advanceToNext, currentIndex, loadFile, queue, selectedFiles.size, selectAll, deselectAll]);
+  }, [advanceToNext, currentIndex, loadFile, queue, selectedFiles.size, selectAll, deselectAll, showFilter, openFilter, closeFilter]);
 
   // Calculate stats
   // When fix-mode is OFF, already-processed files count as "done" (they're skipped)
@@ -1782,8 +1914,29 @@ export function FileQueueModule() {
   const hasSelection = selectedFiles.size > 0;
 
   const displayOrder = useMemo(() => {
-    return queue.map((item, i) => ({ item, originalIndex: i }));
-  }, [queue]);
+    const all = queue.map((item, i) => ({ item, originalIndex: i }));
+    if (!filterText) return all;
+
+    const matcher = compileFilter(filterText);
+
+    return all.filter(({ item }) => {
+      // Build searchable text: filename + detected/confirmed person names
+      const pp = preprocessingStatus[item.filePath];
+      const names = previewData?.[item.filePath]?.persons
+        || item.reviewedFaces?.map(f => f.personName).filter(Boolean)
+        || pp?.persons
+        || [];
+      const searchText = [item.fileName, ...names].join(' ');
+      return matcher(searchText);
+    });
+  }, [queue, filterText, preprocessingStatus, previewData]);
+
+  // Set of IDs currently visible after filtering — used for action scoping
+  const visibleIds = useMemo(() => {
+    if (!filterText) return null; // null = no filter active, all visible
+    return new Set(displayOrder.map(({ item }) => item.id));
+  }, [displayOrder, filterText]);
+  visibleIdsRef.current = visibleIds;
 
   const activeFile = currentIndex >= 0 ? queue[currentIndex] : null;
 
@@ -1884,6 +2037,45 @@ export function FileQueueModule() {
         )}
       </div>
 
+      {/* Filter bar */}
+      {showFilter && (
+        <div className="file-queue-filter-bar">
+          <span className="filter-icon">/</span>
+          <input
+            ref={filterInputRef}
+            type="text"
+            className="filter-input"
+            placeholder="Filter...  a|b = or  a&b = and"
+            value={filterText}
+            onChange={(e) => setFilterText(e.target.value)}
+            onKeyDown={(e) => {
+              if (e.key === 'Escape') {
+                e.preventDefault();
+                e.stopPropagation();
+                closeFilter();
+                moduleRef.current?.focus();
+              }
+              if (e.key === 'Enter') {
+                e.preventDefault();
+                filterInputRef.current?.blur();
+              }
+            }}
+          />
+          {filterText && (
+            <span className="filter-count">
+              {displayOrder.length}/{queue.length}
+            </span>
+          )}
+          <button
+            className="btn-icon filter-close"
+            onClick={closeFilter}
+            title="Clear filter (Esc)"
+          >
+            <Icon name="close" size={12} />
+          </button>
+        </div>
+      )}
+
       {/* Current file status bar */}
       {activeFile && (
         <div className="current-file-bar" onClick={() => {
@@ -1910,6 +2102,7 @@ export function FileQueueModule() {
               item={item}
               index={originalIndex}
               isActive={originalIndex === currentIndex}
+              isFocused={originalIndex === focusedIndex}
               isSelected={selectedFiles.has(item.id)}
               onClick={(e) => handleItemClick(originalIndex, e)}
               onDoubleClick={() => handleItemDoubleClick(originalIndex)}
@@ -1964,16 +2157,24 @@ export function FileQueueModule() {
           <div className="file-queue-controls">
             {(() => {
               const hasSelection = selectedFiles.size > 0;
-              const renameCount = hasSelection
-                ? queue.filter(q => selectedFiles.has(q.id) && (q.status === 'completed' || (!fixMode && q.isAlreadyProcessed))).length
-                : completedCount;
-              const renameLabel = hasSelection ? `Rename (${renameCount} selected)` : `Rename (${renameCount})`;
+              const isEligible = q => q.status === 'completed' || (!fixMode && q.isAlreadyProcessed);
+              let renameCount, renameLabel;
+              if (hasSelection) {
+                renameCount = queue.filter(q => selectedFiles.has(q.id) && isEligible(q)).length;
+                renameLabel = `Rename (${renameCount} selected)`;
+              } else if (visibleIds) {
+                renameCount = queue.filter(q => visibleIds.has(q.id) && isEligible(q)).length;
+                renameLabel = `Rename (${renameCount} filtered)`;
+              } else {
+                renameCount = completedCount;
+                renameLabel = `Rename (${renameCount})`;
+              }
               return renameCount > 0 && (
                 <button
                   className="btn-secondary"
                   onClick={handleRename}
                   disabled={renameInProgress}
-                  title={hasSelection ? "Rename selected files" : "Rename files based on detected faces"}
+                  title={hasSelection ? "Rename selected files" : visibleIds ? "Rename filtered files" : "Rename files based on detected faces"}
                 >
                   {renameInProgress ? 'Renaming...' : renameLabel}
                 </button>
@@ -2008,7 +2209,7 @@ export function FileQueueModule() {
 /**
  * FileQueueItem Component
  */
-function FileQueueItem({ item, index, isActive, isSelected, onClick, onDoubleClick, onToggleSelect, onRemove, onForceReprocess, fixMode, preprocessingStatus, showPreview, previewInfo }) {
+function FileQueueItem({ item, index, isActive, isFocused, isSelected, onClick, onDoubleClick, onToggleSelect, onRemove, onForceReprocess, fixMode, preprocessingStatus, showPreview, previewInfo }) {
   const [showTooltip, setShowTooltip] = useState(false);
   const [tooltipPos, setTooltipPos] = useState({ x: 0, y: 0 });
   const [namesDisplay, setNamesDisplay] = useState('');
@@ -2201,7 +2402,7 @@ function FileQueueItem({ item, index, isActive, isSelected, onClick, onDoubleCli
   return (
     <div
       ref={itemRef}
-      className={`file-item ${item.status} ${isActive ? 'active' : ''} ${isSelected ? 'selected' : ''} ${item.isAlreadyProcessed ? 'already-processed' : ''} ${shouldShowPreview ? 'with-preview' : ''}`}
+      className={`file-item ${item.status} ${isActive ? 'active' : ''} ${isFocused ? 'focused' : ''} ${isSelected ? 'selected' : ''} ${item.isAlreadyProcessed ? 'already-processed' : ''} ${shouldShowPreview ? 'with-preview' : ''}`}
       onClick={onClick}
       onDoubleClick={onDoubleClick}
       onMouseEnter={handleMouseEnter}

@@ -85,7 +85,7 @@ function useDropdownPosition(open, anchorEl, { maxHeight = 200, gap = 4 } = {}) 
 /**
  * ReviewModule Component
  */
-export function ReviewModule() {
+export function ReviewModule({ node }) {
   const { api } = useBackend();
   const emit = useEmitEvent();
   const showToast = useToast();
@@ -103,6 +103,7 @@ export function ReviewModule() {
   const [clearInputTrigger, setClearInputTrigger] = useState(0);
   const [confirmDialog, setConfirmDialog] = useState(null);
   const [undoStack, setUndoStack] = useState([]);
+  const [queueStatus, setQueueStatus] = useState(null);
 
   // Refs
   const moduleRef = useRef(null);
@@ -110,6 +111,10 @@ export function ReviewModule() {
   const inputRefs = useRef({});
   const cardRefs = useRef({});
   const detectAbortRef = useRef(null);
+  const detectedFacesRef = useRef(detectedFaces);
+
+  // Keep detectedFacesRef in sync with state (for use in timeout callbacks)
+  useEffect(() => { detectedFacesRef.current = detectedFaces; }, [detectedFaces]);
 
   /**
    * Load people names for autocomplete
@@ -536,15 +541,11 @@ export function ReviewModule() {
     setStatus(`Saving ${totalChanges} changes...`);
 
     try {
-      // Save confirmations
-      for (const confirmation of pendingConfirmations) {
-        await api.post('/api/v1/confirm-identity', confirmation);
-      }
-
-      // Save ignores
-      for (const ignore of pendingIgnores) {
-        await api.post('/api/v1/ignore-face', ignore);
-      }
+      // Batch save: single request instead of N individual calls
+      await api.post('/api/v1/batch-confirm', {
+        confirmations: pendingConfirmations,
+        ignores: pendingIgnores
+      });
 
       setPendingConfirmations([]);
       setPendingIgnores([]);
@@ -664,6 +665,12 @@ export function ReviewModule() {
 
     if (allDone && hasChanges) {
       const timeout = setTimeout(async () => {
+        // Re-check with current ref — new faces may have been added since timeout was scheduled
+        const currentFaces = detectedFacesRef.current;
+        const stillAllDone = currentFaces.length > 0 &&
+          currentFaces.every(f => f.is_confirmed || f.is_rejected);
+        if (!stillAllDone) return;
+
         const saveSuccess = await saveAllChanges();
         if (!saveSuccess) {
           // Don't proceed if save failed - user needs to retry or discard
@@ -720,10 +727,8 @@ export function ReviewModule() {
    */
   useEffect(() => {
     const handleKeyboard = (e) => {
-      const reviewModuleVisible = document.querySelector('.review-module') !== null;
-      if (!reviewModuleVisible) {
-        return;
-      }
+      // Skip keyboard handling when this tab is hidden in FlexLayout
+      if (node && !node.isVisible()) return;
 
       const activeEl = document.activeElement;
       const isInput = e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA' || e.target.isContentEditable;
@@ -916,6 +921,12 @@ export function ReviewModule() {
    */
   useModuleEvent('save-all-changes', saveAllChanges);
   useModuleEvent('discard-changes', discardChanges);
+  useModuleEvent('queue-status', setQueueStatus);
+  // Pull the current queue status on mount so the overview bar isn't blank
+  // when the Review panel is opened after navigation has already happened.
+  useEffect(() => {
+    emit('request-queue-status');
+  }, [emit]);
   useModuleEvent('undo-face-action', useCallback(() => {
     const undone = undoLastAction();
     if (undone) {
@@ -975,6 +986,28 @@ export function ReviewModule() {
           ))
         )}
       </div>
+
+      {queueStatus && queueStatus.total > 0 && (() => {
+        const { total, done, preprocessed = 0 } = queueStatus;
+        const remaining = Math.max(0, total - done - preprocessed);
+        const pct = (n) => (n / total) * 100;
+        return (
+          <div className="module-footer review-footer">
+            <div
+              className="review-queue-bar"
+              title={`${done} granskade · ${preprocessed} redo · ${remaining} kvar`}
+            >
+              {done > 0 && (
+                <div className="seg seg-done" style={{ width: `${pct(done)}%` }} />
+              )}
+              {preprocessed > 0 && (
+                <div className="seg seg-cached" style={{ width: `${pct(preprocessed)}%` }} />
+              )}
+              {/* "remaining" is the bar track itself (var(--bg-elevated)) showing through */}
+            </div>
+          </div>
+        );
+      })()}
 
       {confirmDialog && (
         <ConfirmDialog
