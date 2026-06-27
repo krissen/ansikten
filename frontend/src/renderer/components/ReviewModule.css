@@ -407,6 +407,4 @@
   background: var(--color-warning);
 }
 
-.review-queue-bar .seg-remaining {
-  background: var(--bg-elevated);
-}
+/* "Remaining" needs no segment — the bar track (--bg-elevated) shows through. */

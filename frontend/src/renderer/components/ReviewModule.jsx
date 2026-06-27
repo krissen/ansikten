@@ -1003,9 +1003,7 @@ export function ReviewModule({ node }) {
               {preprocessed > 0 && (
                 <div className="seg seg-cached" style={{ width: `${pct(preprocessed)}%` }} />
               )}
-              {remaining > 0 && (
-                <div className="seg seg-remaining" style={{ width: `${pct(remaining)}%` }} />
-              )}
+              {/* "remaining" is the bar track itself (var(--bg-elevated)) showing through */}
             </div>
           </div>
         );
