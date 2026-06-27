@@ -103,6 +103,7 @@ export function ReviewModule({ node }) {
   const [clearInputTrigger, setClearInputTrigger] = useState(0);
   const [confirmDialog, setConfirmDialog] = useState(null);
   const [undoStack, setUndoStack] = useState([]);
+  const [queueStatus, setQueueStatus] = useState(null);
 
   // Refs
   const moduleRef = useRef(null);
@@ -920,6 +921,12 @@ export function ReviewModule({ node }) {
    */
   useModuleEvent('save-all-changes', saveAllChanges);
   useModuleEvent('discard-changes', discardChanges);
+  useModuleEvent('queue-status', setQueueStatus);
+  // Pull the current queue status on mount so the overview bar isn't blank
+  // when the Review panel is opened after navigation has already happened.
+  useEffect(() => {
+    emit('request-queue-status');
+  }, [emit]);
   useModuleEvent('undo-face-action', useCallback(() => {
     const undone = undoLastAction();
     if (undone) {
@@ -979,6 +986,28 @@ export function ReviewModule({ node }) {
           ))
         )}
       </div>
+
+      {queueStatus && queueStatus.total > 0 && (() => {
+        const { total, done, preprocessed = 0 } = queueStatus;
+        const remaining = Math.max(0, total - done - preprocessed);
+        const pct = (n) => (n / total) * 100;
+        return (
+          <div className="module-footer review-footer">
+            <div
+              className="review-queue-bar"
+              title={`${done} granskade · ${preprocessed} redo · ${remaining} kvar`}
+            >
+              {done > 0 && (
+                <div className="seg seg-done" style={{ width: `${pct(done)}%` }} />
+              )}
+              {preprocessed > 0 && (
+                <div className="seg seg-cached" style={{ width: `${pct(preprocessed)}%` }} />
+              )}
+              {/* "remaining" is the bar track itself (var(--bg-elevated)) showing through */}
+            </div>
+          </div>
+        );
+      })()}
 
       {confirmDialog && (
         <ConfirmDialog
