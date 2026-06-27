@@ -922,6 +922,11 @@ export function ReviewModule({ node }) {
   useModuleEvent('save-all-changes', saveAllChanges);
   useModuleEvent('discard-changes', discardChanges);
   useModuleEvent('queue-status', setQueueStatus);
+  // Pull the current queue status on mount so the overview bar isn't blank
+  // when the Review panel is opened after navigation has already happened.
+  useEffect(() => {
+    emit('request-queue-status');
+  }, [emit]);
   useModuleEvent('undo-face-action', useCallback(() => {
     const undone = undoLastAction();
     if (undone) {

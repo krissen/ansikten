@@ -326,6 +326,18 @@ export function FileQueueModule({ node }) {
     });
   }, [emit, currentIndex]);
 
+  // Keep the Review queue-overview bar live: re-emit when files finish
+  // preprocessing in the background (the completion paths only update
+  // preprocessingStatus, they don't load/complete a file), and answer a
+  // late subscriber that asks for the current status on mount.
+  useEffect(() => {
+    emitQueueStatus();
+  }, [preprocessingStatus, emitQueueStatus]);
+
+  useModuleEvent('request-queue-status', useCallback(() => {
+    emitQueueStatus();
+  }, [emitQueueStatus]));
+
   useEffect(() => {
     loadProcessedFiles();
   }, [loadProcessedFiles]);
