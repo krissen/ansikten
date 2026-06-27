@@ -6,6 +6,21 @@ This changelog is initialized from git commit history after `v1.0.0` and can be 
 
 ## [Unreleased]
 
+## [1.3.0] - 2026-06-27
+
+### Added
+- Added Review queue overview bar to the Review panel, showing queue progress at a glance.
+
+### Fixed
+- Fixed Refine Faces "Preview" failing with `HTTP 404: Not Found`: the request omitted the `/api/v1` prefix the refinement router is mounted under. Also fixed a crash in Shape Repair caused by calling an undefined `setStatus` (now uses `clearStatus`).
+- Fixed the Review queue overview bar staying out of sync: queue status is now re-emitted on queue changes.
+
+### Changed
+- Simplified the Review queue overview bar by dropping the redundant remaining segment.
+
+### Docs
+- Documented the Review queue overview bar in the workspace guide.
+
 ## [1.2.0] - 2026-06-20
 
 ### Added
