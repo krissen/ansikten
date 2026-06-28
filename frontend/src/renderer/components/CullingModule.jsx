@@ -61,9 +61,12 @@ export function CullingModule({ node }) {
       recursive,
       date_from: dateFrom,
       date_to: dateTo,
+      // Exact player filter (from the dropdown / stats hand-off) so substring
+      // names can't conflate players; name_glob is the extra editable refinement.
+      player: player || null,
       name_glob: glob.trim() || null,
     }),
-    [roots, carriedGlobs, recursive, dateFrom, dateTo, glob]
+    [roots, carriedGlobs, recursive, dateFrom, dateTo, player, glob]
   );
 
   // ----- folder watching (live refresh) ------------------------------
@@ -178,6 +181,7 @@ export function CullingModule({ node }) {
         recursive: nextRecursive,
         date_from: nextFrom,
         date_to: nextTo,
+        player: data.name || null,
         name_glob: data.name ? `*${data.name}*` : null,
       };
       lastQueryRef.current = query;
@@ -207,7 +211,14 @@ export function CullingModule({ node }) {
     try {
       const res = await api.post('/api/v1/culling/trash', { paths: [victim.path] });
       const id = res.trashed?.[0]?.id;
-      if (id) undoStackRef.current.push(id);
+      if (id) {
+        undoStackRef.current.push(id);
+      } else {
+        // 200 with errors[] (permission/lock/race): the file is still on disk, so
+        // roll the optimistic removal back by reloading and surface the reason.
+        setError(res.errors?.[0]?.error || 'Kunde inte flytta filen till papperskorgen.');
+        if (lastQueryRef.current) loadList(lastQueryRef.current, { keepIndex: true });
+      }
     } catch (err) {
       setError(err.message || String(err));
       // Re-fetch to recover correct state on failure.
