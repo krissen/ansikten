@@ -238,7 +238,10 @@ class CullingService:
     def empty(self, ids: list[str] | None = None) -> dict:
         """Permanently delete trashed files (all, or the given ids)."""
         entries = self._load_manifest()
-        target_ids = set(ids) if ids else {e["id"] for e in entries}
+        # Distinguish omitted ids (None -> empty everything) from an explicit
+        # empty list ([] -> delete nothing); a falsy check would nuke the whole
+        # trash when a client forwards an empty selection.
+        target_ids = {e["id"] for e in entries} if ids is None else set(ids)
         keep: list[dict] = []
         deleted = 0
         for e in entries:
