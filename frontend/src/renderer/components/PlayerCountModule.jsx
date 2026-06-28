@@ -108,6 +108,7 @@ export function PlayerCountModule() {
       emit('cull-player', {
         name,
         roots: params.roots,
+        globs: params.globs,
         recursive: params.recursive,
         date_from: params.date_from,
         date_to: params.date_to,

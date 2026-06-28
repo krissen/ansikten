@@ -24,6 +24,13 @@ export function CullingModule({ node }) {
   const [glob, setGlob] = useState('');
   const [player, setPlayer] = useState('');
   const [players, setPlayers] = useState([]);
+  // Scope carried from the stats module (glob-only runs, date span, recursion).
+  // The culling bar has no date inputs, so we keep these to honour the count's
+  // selection and to preserve scope across a manual re-"Visa".
+  const [carriedGlobs, setCarriedGlobs] = useState([]);
+  const [dateFrom, setDateFrom] = useState(null);
+  const [dateTo, setDateTo] = useState(null);
+  const [recursive, setRecursive] = useState(true);
 
   const [files, setFiles] = useState([]);
   const [currentIndex, setCurrentIndex] = useState(-1);
@@ -43,27 +50,31 @@ export function CullingModule({ node }) {
   const debounceRef = useRef(null);
   const bodyRef = useRef(null);
 
+  // The editable glob is a Finder-style basename filter (name_glob) over the
+  // resolved files, NOT an independent filesystem glob. The scan source is
+  // roots (+ any path-globs carried from the stats module).
   const buildQuery = useCallback(
     () => ({
       roots,
-      globs: glob.trim() ? [glob.trim()] : [],
+      globs: carriedGlobs,
       extension_preset: 'jpg',
-      recursive: true,
-      player: player || null,
+      recursive,
+      date_from: dateFrom,
+      date_to: dateTo,
+      name_glob: glob.trim() || null,
     }),
-    [roots, glob, player]
+    [roots, carriedGlobs, recursive, dateFrom, dateTo, glob]
   );
 
   // ----- folder watching (live refresh) ------------------------------
   const watchDirs = useCallback(() => {
     const dirs = new Set(roots);
-    const g = glob.trim();
-    if (g) {
+    for (const g of carriedGlobs) {
       const base = globBaseDir(g);
       if (base) dirs.add(base);
     }
     return dirs;
-  }, [roots, glob]);
+  }, [roots, carriedGlobs]);
 
   const updateWatches = useCallback((desired) => {
     const current = watchedDirsRef.current;
@@ -134,33 +145,52 @@ export function CullingModule({ node }) {
     }
   }, []);
 
+  // Picking a player fills the editable glob with a basename pattern (the user's
+  // "klicka till glob" affordance); the directory scope (roots) is untouched.
   const selectPlayer = useCallback((name) => {
     setPlayer(name);
     setGlob(name ? `*${name}*` : '');
   }, []);
 
-  // Open filtered to a player from the stats module.
+  // Open filtered to a player from the stats module, honouring the count's full
+  // scope: folders OR path-globs, the date span, and the recursion flag.
   useModuleEvent(
     'cull-player',
     (data) => {
       if (!data) return;
-      if (data.roots) setRoots(data.roots);
-      if (data.name) {
-        setPlayer(data.name);
-        setGlob(`*${data.name}*`);
-      }
+      const nextRoots = data.roots || [];
+      const nextGlobs = data.globs || [];
+      const nextRecursive = data.recursive ?? true;
+      const nextFrom = data.date_from || null;
+      const nextTo = data.date_to || null;
+      setRoots(nextRoots);
+      setCarriedGlobs(nextGlobs);
+      setRecursive(nextRecursive);
+      setDateFrom(nextFrom);
+      setDateTo(nextTo);
+      setPlayer(data.name || '');
+      setGlob(data.name ? `*${data.name}*` : '');
+
       const query = {
-        roots: data.roots || roots,
-        globs: [],
+        roots: nextRoots,
+        globs: nextGlobs,
         extension_preset: 'jpg',
-        recursive: true,
-        player: data.name || null,
+        recursive: nextRecursive,
+        date_from: nextFrom,
+        date_to: nextTo,
+        name_glob: data.name ? `*${data.name}*` : null,
       };
       lastQueryRef.current = query;
       loadList(query);
-      updateWatches(new Set(data.roots || roots));
+
+      const dirs = new Set(nextRoots);
+      for (const g of nextGlobs) {
+        const base = globBaseDir(g);
+        if (base) dirs.add(base);
+      }
+      updateWatches(dirs);
     },
-    [roots, loadList, updateWatches]
+    [loadList, updateWatches]
   );
 
   // ----- cull loop ----------------------------------------------------
@@ -186,13 +216,21 @@ export function CullingModule({ node }) {
   }, [api, currentIndex, files, loadList]);
 
   const undoTrash = useCallback(async () => {
-    const id = undoStackRef.current.pop();
-    if (!id) return;
-    try {
-      await api.post('/api/v1/culling/restore', { ids: [id] });
-      if (lastQueryRef.current) loadList(lastQueryRef.current, { keepIndex: true });
-    } catch (err) {
-      setError(err.message || String(err));
+    // Pop until a still-trashed id restores - ids restored via the trash view
+    // are removed from the stack, but guard anyway so Cmd+Z never no-ops loudly.
+    while (undoStackRef.current.length > 0) {
+      const id = undoStackRef.current.pop();
+      try {
+        const res = await api.post('/api/v1/culling/restore', { ids: [id] });
+        if (res.restored && res.restored.length > 0) {
+          if (lastQueryRef.current) loadList(lastQueryRef.current, { keepIndex: true });
+          return;
+        }
+        // id no longer in trash -> fall through and try the next one.
+      } catch (err) {
+        setError(err.message || String(err));
+        return;
+      }
     }
   }, [api, loadList]);
 
@@ -242,6 +280,8 @@ export function CullingModule({ node }) {
       try {
         await api.post('/api/v1/culling/restore', { ids: [id] });
         setTrashItems((prev) => prev.filter((it) => it.id !== id));
+        // Keep the cull-loop undo stack in sync - this id is no longer trashable.
+        undoStackRef.current = undoStackRef.current.filter((x) => x !== id);
         if (lastQueryRef.current) loadList(lastQueryRef.current, { keepIndex: true });
       } catch (err) {
         setError(err.message || String(err));
@@ -254,6 +294,7 @@ export function CullingModule({ node }) {
     try {
       await api.post('/api/v1/culling/empty', {});
       setTrashItems([]);
+      undoStackRef.current = [];
     } catch (err) {
       setError(err.message || String(err));
     }
