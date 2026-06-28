@@ -25,6 +25,7 @@ class CullingFilesRequest(BaseModel):
     date_from: Optional[str] = None
     date_to: Optional[str] = None
     player: Optional[str] = None
+    name_glob: Optional[str] = None
 
 
 class TrashRequest(BaseModel):
@@ -51,6 +52,7 @@ async def list_files(request: CullingFilesRequest):
             date_from=request.date_from,
             date_to=request.date_to,
             player=request.player,
+            name_glob=request.name_glob,
         )
     except ValueError as e:
         raise HTTPException(status_code=400, detail=str(e))

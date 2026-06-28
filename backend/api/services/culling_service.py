@@ -9,6 +9,7 @@ Reuses the shared file resolution (file_resolver) + filename parsing
 filer2mappar for trashing. No face recognition — players are filename-derived.
 """
 
+import fnmatch
 import json
 import logging
 import shutil
@@ -48,12 +49,19 @@ class CullingService:
         date_from: str | None = None,
         date_to: str | None = None,
         player: str | None = None,
+        name_glob: str | None = None,
     ) -> dict:
-        """Resolve files and return parsed entries, optionally filtered to a player.
+        """Resolve files and return parsed entries, optionally filtered.
+
+        ``player`` keeps only files where that exact parsed name appears.
+        ``name_glob`` is a Finder-style, case-insensitive basename pattern
+        (e.g. ``*ArvidW*``) applied to the resolved files within the selected
+        folder(s) — it narrows the working set, it does not scan the filesystem.
 
         Returns {files: [{path, basename, names, datetime}], players: [name,...]}.
         ``players`` is the sorted set of names present across the resolved files
-        (for the filter dropdown). Raises ValueError when no input is given.
+        (for the filter dropdown, computed before name_glob so the dropdown stays
+        complete). Raises ValueError when no folder/glob input is given.
         """
         roots = roots or []
         globs = globs or []
@@ -70,11 +78,15 @@ class CullingService:
         )
         entries = build_entries(files)
 
+        glob_lower = name_glob.lower() if name_glob else None
+
         all_names: set[str] = set()
         out: list[dict] = []
         for dt, names, path in entries:
             all_names.update(names)
             if player is not None and player not in names:
+                continue
+            if glob_lower is not None and not fnmatch.fnmatch(Path(path).name.lower(), glob_lower):
                 continue
             out.append({
                 "path": path,
@@ -130,30 +142,36 @@ class CullingService:
             try:
                 tid = uuid.uuid4().hex
                 stored_name = f"{tid}__{src.name}"
+                # Move the main file first; only after this succeeds is the file
+                # gone from its folder, so the manifest entry below must always be
+                # written to keep it restorable.
                 shutil.move(str(src), str(TRASH_DIR / stored_name))
-
-                stored_sidecars: list[dict] = []
-                for sc in find_sidecar_files(src, SIDECAR_EXTENSIONS):
-                    sc_stored = f"{tid}__{sc.name}"
-                    shutil.move(str(sc), str(TRASH_DIR / sc_stored))
-                    stored_sidecars.append({
-                        "original_path": str(sc),
-                        "stored_name": sc_stored,
-                    })
-
-                entry = {
-                    "id": tid,
-                    "original_path": str(src),
-                    "stored_name": stored_name,
-                    "basename": src.name,
-                    "sidecars": stored_sidecars,
-                    "trashed_at": datetime.now().isoformat(),
-                }
-                self._append_manifest(entry)
-                trashed.append({"id": tid, "original_path": str(src), "basename": src.name})
             except Exception as e:
                 logger.exception("Failed to trash %s", p)
                 errors.append({"path": p, "error": str(e)})
+                continue
+
+            # Sidecars are best-effort: a locked/failed sidecar must not abort the
+            # manifest entry for the already-moved main file (else it'd be lost).
+            stored_sidecars: list[dict] = []
+            for sc in find_sidecar_files(src, SIDECAR_EXTENSIONS):
+                try:
+                    sc_stored = f"{tid}__{sc.name}"
+                    shutil.move(str(sc), str(TRASH_DIR / sc_stored))
+                    stored_sidecars.append({"original_path": str(sc), "stored_name": sc_stored})
+                except Exception:
+                    logger.exception("Failed to trash sidecar %s", sc)
+
+            entry = {
+                "id": tid,
+                "original_path": str(src),
+                "stored_name": stored_name,
+                "basename": src.name,
+                "sidecars": stored_sidecars,
+                "trashed_at": datetime.now().isoformat(),
+            }
+            self._append_manifest(entry)
+            trashed.append({"id": tid, "original_path": str(src), "basename": src.name})
 
         return {"trashed": trashed, "errors": errors}
 
@@ -194,11 +212,20 @@ class CullingService:
         return {"restored": restored, "errors": errors}
 
     def _restore_one(self, original_path: str, stored_name: str) -> Path:
-        """Move one stored file back to original_path, avoiding overwrite."""
-        dest = Path(original_path)
-        dest.parent.mkdir(parents=True, exist_ok=True)
+        """Move one stored file back to original_path, never overwriting.
+
+        If the original path is taken, restore alongside as ``<stem>-restored``,
+        adding a numeric suffix until an unused name is found.
+        """
+        original = Path(original_path)
+        original.parent.mkdir(parents=True, exist_ok=True)
+        dest = original
         if dest.exists():
-            dest = dest.with_name(f"{dest.stem}-restored{dest.suffix}")
+            dest = original.with_name(f"{original.stem}-restored{original.suffix}")
+            counter = 2
+            while dest.exists():
+                dest = original.with_name(f"{original.stem}-restored-{counter}{original.suffix}")
+                counter += 1
         shutil.move(str(TRASH_DIR / stored_name), str(dest))
         return dest
 
