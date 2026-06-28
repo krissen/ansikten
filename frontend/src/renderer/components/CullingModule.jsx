@@ -142,7 +142,12 @@ export function CullingModule({ node }) {
   const addFolders = useCallback(async () => {
     try {
       const paths = await window.ansiktenAPI.invoke('open-folder-paths');
-      if (paths && paths.length) setRoots((r) => Array.from(new Set([...r, ...paths])));
+      if (paths && paths.length) {
+        setRoots((r) => Array.from(new Set([...r, ...paths])));
+        // A manual folder choice replaces the (hidden) scan source carried from a
+        // glob-only count, so the stale glob can't silently mix into the results.
+        setCarriedGlobs([]);
+      }
     } catch (err) {
       console.error('[Culling] folder pick failed', err);
     }
@@ -289,11 +294,17 @@ export function CullingModule({ node }) {
   const restoreItem = useCallback(
     async (id) => {
       try {
-        await api.post('/api/v1/culling/restore', { ids: [id] });
-        setTrashItems((prev) => prev.filter((it) => it.id !== id));
-        // Keep the cull-loop undo stack in sync - this id is no longer trashable.
-        undoStackRef.current = undoStackRef.current.filter((x) => x !== id);
-        if (lastQueryRef.current) loadList(lastQueryRef.current, { keepIndex: true });
+        const res = await api.post('/api/v1/culling/restore', { ids: [id] });
+        if (res.restored && res.restored.length > 0) {
+          setTrashItems((prev) => prev.filter((it) => it.id !== id));
+          // Keep the cull-loop undo stack in sync - this id is no longer trashable.
+          undoStackRef.current = undoStackRef.current.filter((x) => x !== id);
+          if (lastQueryRef.current) loadList(lastQueryRef.current, { keepIndex: true });
+        } else {
+          // 200 with errors[] (unwritable folder, missing stored file): the item
+          // stays in the manifest, so keep it visible and surface the reason.
+          setError(res.errors?.[0]?.error || 'Kunde inte återställa filen.');
+        }
       } catch (err) {
         setError(err.message || String(err));
       }
