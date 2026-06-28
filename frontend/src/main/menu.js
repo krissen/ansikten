@@ -285,6 +285,20 @@ function createApplicationMenu(mainWindow) {
           }
         },
         {
+          label: 'Räkna spelare',
+          accelerator: 'CmdOrCtrl+Shift+K',
+          click: () => {
+            sendMenuCommand('open-player-count');
+          }
+        },
+        {
+          label: 'Gallra spelare',
+          accelerator: 'CmdOrCtrl+Shift+G',
+          click: () => {
+            sendMenuCommand('open-culling');
+          }
+        },
+        {
           label: 'Database Management',
           accelerator: 'CmdOrCtrl+Shift+D',
           click: () => {
