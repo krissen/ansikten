@@ -620,6 +620,119 @@ Remove ALL dlib (128-dim) encodings. dlib backend is deprecated.
 
 ---
 
+## Player Count
+
+Counts images per named player from filenames (no face recognition; the
+filename format `YYMMDD_HHMMSS[-N]_Name1,_Name2.ext` is parsed). Backs the
+**Räkna spelare** module.
+
+### `POST /api/v1/players/count`
+
+Resolve a folder/glob/date selection and return per-player counts with
+median-baseline over/under-representation statistics.
+
+**Request:**
+```json
+{
+  "roots": ["/path/to/folder"],
+  "globs": ["~/Pictures/250601*.jpg"],
+  "extension_preset": "jpg",
+  "extensions": null,
+  "recursive": true,
+  "date_from": "2025-06-01",
+  "date_to": "2025-06-01",
+  "gap_minutes": 30,
+  "baseline": "median",
+  "min_images": 3,
+  "per_match": false,
+  "tranare": null,
+  "publik": null
+}
+```
+
+`extension_preset` is one of `jpg` (jpg/jpeg), `nef`, `raw`, `images`, `all`
+(case-insensitive); `extensions` overrides it with an explicit list. `date_from`/
+`date_to` accept `YYYY-MM-DD` or `YYMMDD` and filter on the filename date.
+At least one of `roots`/`globs` is required.
+
+**Response:**
+```json
+{
+  "total_images": 120,
+  "time_range": { "start": "2025-06-01T10:00:00", "end": "2025-06-01T12:30:00", "duration_minutes": 150.0 },
+  "baseline": 8.0,
+  "baseline_method": "median",
+  "players": [
+    { "name": "Anna", "count": 10, "pct": 8.3, "delta_n": 2.0, "delta_pct": 25.0, "level": "high", "timestamps": ["2025-06-01T10:00:00"] }
+  ],
+  "excluded": {
+    "tranare": [], "publik": [], "grupp": [{ "name": "Laget", "count": 3, "pct": 2.5 }],
+    "below_threshold": [{ "name": "Cesar", "count": 2, "pct": 1.7 }]
+  },
+  "matches": [],
+  "files_resolved": 123
+}
+```
+
+`level` is `ok`/`warn`/`high` (mirrors the CLI ±10/±20 % thresholds). `matches`
+is populated only when `per_match` is true.
+
+---
+
+## Culling
+
+Backs the **Gallra spelare** module: list a player's JPEGs and soft-delete /
+restore them via an app-managed trash (`~/.local/share/faceid/trash/`, manifest-
+backed). Trashed files are automatically excluded from listing and counting.
+
+### `POST /api/v1/culling/files`
+
+List image files for the current filter. `player` is an exact parsed-name
+filter; `name_glob` is a case-insensitive Finder-style basename pattern
+(e.g. `*ArvidW*`) applied to the resolved files. Other fields match
+`/players/count`.
+
+**Response:**
+```json
+{
+  "files": [
+    { "path": "/path/250601_100000_Anna.jpg", "basename": "250601_100000_Anna.jpg", "names": ["Anna"], "datetime": "2025-06-01T10:00:00" }
+  ],
+  "players": ["Anna", "Bertil"]
+}
+```
+
+`players` lists every name present across the resolved files (computed before
+the `name_glob`/`player` filter, so the dropdown stays complete).
+
+### `POST /api/v1/culling/trash`
+
+Move files (and their `.xmp` sidecars) to the app trash.
+
+**Request:** `{ "paths": ["/path/250601_100000_Anna.jpg"] }`
+
+**Response:** `{ "trashed": [{ "id": "…", "original_path": "…", "basename": "…" }], "errors": [] }`
+
+### `GET /api/v1/culling/trash`
+
+List the items currently in the trash: `{ "items": [{ "id", "original_path", "basename", "sidecars", "trashed_at" }] }`.
+
+### `POST /api/v1/culling/restore`
+
+Restore trashed items to their original location. Never overwrites: if the
+original path is occupied, the file is restored as `<stem>-restored<ext>` (and
+sidecars follow it).
+
+**Request:** `{ "ids": ["…"] }`
+**Response:** `{ "restored": [{ "id": "…", "restored_path": "…" }], "errors": [] }`
+
+### `POST /api/v1/culling/empty`
+
+Permanently delete trashed items. `{ "ids": [...] }` deletes those ids; omit
+`ids` to empty the whole trash. Response: `{ "deleted": <count> }`.
+
+---
+
 ## WebSocket
 
 ### `ws://127.0.0.1:5001/ws/progress`
