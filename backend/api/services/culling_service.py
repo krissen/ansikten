@@ -200,8 +200,14 @@ class CullingService:
                 continue
             try:
                 dest = self._restore_one(entry["original_path"], entry["stored_name"])
+                # Sidecars must land beside the *actual* restored image: when the
+                # original path was occupied and the image came back as
+                # <stem>-restored, its .xmp must follow to <stem>-restored.xmp,
+                # not the original name (which would orphan the metadata).
                 for sc in entry.get("sidecars", []):
-                    self._restore_one(sc["original_path"], sc["stored_name"])
+                    sc_suffix = Path(sc["original_path"]).suffix
+                    sc_target = dest.with_name(dest.stem + sc_suffix)
+                    self._restore_one(str(sc_target), sc["stored_name"])
                 keep = [e for e in keep if e["id"] != tid]
                 restored.append({"id": tid, "restored_path": str(dest)})
             except Exception as e:
