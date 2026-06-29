@@ -175,6 +175,11 @@ antal.
    urvalet som uppdateras direkt när du gallrar — så du ser hur varje spelares
    antal förändras. Tryck `x` (eller `Delete`) för att flytta bilden till
    papperskorgen och gå vidare. `Cmd+Z` ångrar.
+   - **Byt namn på en fil:** tryck `Enter` på markerad fil (eller dubbelklicka)
+     för att redigera filnamnet direkt i listan (filändelsen behålls). `Enter`
+     bekräftar, `Esc` avbryter. Användbart när en utvecklad jpg har beskurits så
+     att en namngiven spelare inte längre är med i bild. `.xmp`-sidecars följer
+     med, och befintliga filnamn skrivs aldrig över.
 4. Papperskorgen (knappen **Papperskorg**) listar gallrade bilder och återställer
    dem till ursprungsplatsen, eller tömmer permanent.
 

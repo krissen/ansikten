@@ -25,7 +25,11 @@ sys.path.insert(0, str(Path(__file__).parent.parent.parent))
 from rakna_spelare import parse_filename  # noqa: E402
 
 from .file_resolver import TRASH_DIR, preset_extensions, resolve_files  # noqa: E402
-from .rename_service import extract_filename_datetime, find_sidecar_files  # noqa: E402
+from .rename_service import (  # noqa: E402
+    extract_filename_datetime,
+    find_sidecar_files,
+    validate_path_security,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -188,6 +192,85 @@ class CullingService:
             trashed.append({"id": tid, "original_path": str(src), "basename": src.name})
 
         return {"trashed": trashed, "errors": errors}
+
+    # ----- rename --------------------------------------------------------
+
+    def rename(self, path: str, new_basename: str) -> dict:
+        """Rename a single file (+ matching sidecars) within its folder.
+
+        `new_basename` is the full target filename including extension. Returns
+        {path, basename} for the renamed file. Raises ValueError on bad input
+        (invalid name, existing target, missing source).
+        """
+        ok, err = validate_path_security(path)
+        if not ok:
+            raise ValueError(err)
+
+        # The target must be a bare filename living in the same directory.
+        if not new_basename or "\0" in new_basename or new_basename != Path(new_basename).name:
+            raise ValueError("Ogiltigt filnamn")
+        if new_basename in (".", ".."):
+            raise ValueError("Ogiltigt filnamn")
+
+        src = Path(path)
+        dst = src.with_name(new_basename)
+        if dst.name == src.name:
+            return {"path": str(src), "basename": src.name}
+        # On a case-insensitive filesystem (macOS) a case-only rename has
+        # dst.exists() true while pointing at the source itself — allow that.
+        if dst.exists() and not dst.samefile(src):
+            raise ValueError("En fil med det namnet finns redan")
+
+        # Preflight sidecar destinations BEFORE moving the main file, so we never
+        # half-apply: renaming the main file but leaving a sidecar behind would
+        # pair the image with an unrelated <new-stem>.xmp and orphan its own.
+        sidecars = find_sidecar_files(src, SIDECAR_EXTENSIONS)
+        sidecar_moves = []
+        for sc in sidecars:
+            sc_dst = dst.with_name(dst.stem + sc.suffix)
+            # A target like "b.xmp" for an image with a b.xmp sidecar would make
+            # the sidecar destination equal the main file's — the sidecar move
+            # would then overwrite the renamed image. Reject up front.
+            if sc_dst == dst:
+                raise ValueError("Filnamnet krockar med en sidecar-fil")
+            # samefile allows a case-only rename of the sidecar itself.
+            if sc_dst.exists() and not sc_dst.samefile(sc):
+                raise ValueError("En sidecar-fil med målnamnet finns redan")
+            sidecar_moves.append((sc, sc_dst))
+
+        # Atomic: if a sidecar move fails (e.g. a locked .xmp on Windows), roll
+        # back every move so we never return success with an orphaned sidecar.
+        self._safe_rename(src, dst)
+        done = [(src, dst)]
+        try:
+            for sc, sc_dst in sidecar_moves:
+                self._safe_rename(sc, sc_dst)
+                done.append((sc, sc_dst))
+        except Exception:
+            logger.exception("Sidecar rename failed; rolling back %s", src)
+            for moved_src, moved_dst in reversed(done):
+                try:
+                    self._safe_rename(moved_dst, moved_src)
+                except Exception:
+                    logger.exception("Rollback failed for %s", moved_dst)
+            raise ValueError("Kunde inte byta namn på en sidecar-fil; ändringen återställdes")
+
+        return {"path": str(dst), "basename": dst.name}
+
+    @staticmethod
+    def _safe_rename(src: Path, dst: Path) -> None:
+        """Rename src→dst, handling case-only renames cross-platform.
+
+        On a case-insensitive filesystem dst "exists" (it is src), and a direct
+        os.rename raises FileExistsError on Windows. Go via a temp name so the
+        capitalization change applies everywhere.
+        """
+        if dst.exists() and dst.samefile(src):
+            tmp = src.with_name(f".{uuid.uuid4().hex}.rename.tmp")
+            src.rename(tmp)
+            tmp.rename(dst)
+        else:
+            src.rename(dst)
 
     def list_trash(self) -> dict:
         """Return active trash entries, newest first."""

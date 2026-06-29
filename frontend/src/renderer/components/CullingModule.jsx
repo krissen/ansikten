@@ -58,6 +58,11 @@ export function CullingModule({ node }) {
 
   const [files, setFiles] = useState([]);
   const [currentIndex, setCurrentIndex] = useState(-1);
+  // Inline rename: path of the file being edited (null = none) + its draft
+  // value. Keyed by path, not list index, so a mid-edit auto-refresh that
+  // reorders the list can't make Enter rename a different file.
+  const [editPath, setEditPath] = useState(null);
+  const [editValue, setEditValue] = useState('');
   const [error, setError] = useState(null);
   const [isLoading, setIsLoading] = useState(false);
   const [hasRun, setHasRun] = useState(false);
@@ -332,6 +337,37 @@ export function CullingModule({ node }) {
     }
   }, [api, loadList, refreshStatsDebounced]);
 
+  // ----- inline rename -----------------------------------------------
+  // Edit the filename without its extension (Finder-style); the extension is
+  // re-appended on commit so the YYMMDD_HHMMSS… format / suffix is preserved.
+  const beginEdit = useCallback((index) => {
+    const f = files[index];
+    if (!f) return;
+    setCurrentIndex(index);
+    setEditValue(stripExt(f.basename));
+    setEditPath(f.path);
+  }, [files]);
+
+  const cancelEdit = useCallback(() => setEditPath(null), []);
+
+  const commitEdit = useCallback(async () => {
+    const path = editPath;
+    setEditPath(null);
+    if (!path) return;
+    const next = editValue.trim();
+    // Derive the extension from the file being renamed (not the list), so a
+    // reorder mid-edit can't change which file or extension we commit.
+    const newBasename = next + extOf(basename(path));
+    if (!next || newBasename === basename(path)) return; // no-op
+    try {
+      await api.post('/api/v1/culling/rename', { path, new_basename: newBasename });
+      if (lastQueryRef.current) loadList(lastQueryRef.current, { keepIndex: true });
+      refreshStatsDebounced();
+    } catch (err) {
+      setError(err.message || String(err));
+    }
+  }, [api, editPath, editValue, loadList, refreshStatsDebounced]);
+
   // ----- keyboard ----------------------------------------------------
   useEffect(() => {
     const handler = (e) => {
@@ -361,6 +397,30 @@ export function CullingModule({ node }) {
     window.addEventListener('keydown', handler);
     return () => window.removeEventListener('keydown', handler);
   }, [node, files.length, showTrash, trashCurrent, undoTrash]);
+
+  // Enter starts inline rename of the selected file (Finder muscle memory).
+  // Handled on document in the CAPTURE phase so it preempts other modules'
+  // document-level Enter handlers (e.g. ReviewModule confirming a face) — a
+  // window/bubble listener would fire too late. Only acts when culling is the
+  // active tabset, so an inactive culling panel never steals Enter.
+  useEffect(() => {
+    const onEnterCapture = (e) => {
+      if (e.key !== 'Enter') return;
+      if (node && !node.isVisible?.()) return;
+      const tag = e.target?.tagName;
+      if (tag === 'INPUT' || tag === 'SELECT' || tag === 'TEXTAREA') return;
+      if (showTrash || currentIndex < 0) return;
+      const activeTabsetId = node?.getModel?.().getActiveTabset?.()?.getId?.();
+      const myTabsetId = node?.getParent?.()?.getId?.();
+      if (activeTabsetId && myTabsetId && activeTabsetId !== myTabsetId) return;
+      e.preventDefault();
+      e.stopPropagation();
+      e.stopImmediatePropagation?.();
+      beginEdit(currentIndex);
+    };
+    document.addEventListener('keydown', onEnterCapture, true);
+    return () => document.removeEventListener('keydown', onEnterCapture, true);
+  }, [node, showTrash, currentIndex, beginEdit]);
 
   // ----- trash view --------------------------------------------------
   const openTrash = useCallback(async () => {
@@ -585,8 +645,29 @@ export function CullingModule({ node }) {
                   key={f.path}
                   className={i === currentIndex ? 'active' : ''}
                   onClick={() => setCurrentIndex(i)}
+                  onDoubleClick={() => beginEdit(i)}
                 >
-                  <span className="culling-file-name">{f.basename}</span>
+                  {editPath === f.path ? (
+                    <input
+                      className="culling-rename-input"
+                      value={editValue}
+                      autoFocus
+                      onFocus={(e) => e.target.select()}
+                      onChange={(e) => setEditValue(e.target.value)}
+                      onClick={(e) => e.stopPropagation()}
+                      onKeyDown={(e) => {
+                        // Keep editing keystrokes inside the input: stop them
+                        // bubbling to document-level handlers (e.g. ReviewModule
+                        // confirming a face from the rename draft in a split view).
+                        e.stopPropagation();
+                        if (e.key === 'Enter') { e.preventDefault(); commitEdit(); }
+                        else if (e.key === 'Escape') { e.preventDefault(); cancelEdit(); }
+                      }}
+                      onBlur={cancelEdit}
+                    />
+                  ) : (
+                    <span className="culling-file-name">{f.basename}</span>
+                  )}
                 </li>
               ))}
             </ul>
@@ -644,6 +725,18 @@ function globBaseDir(pattern) {
 function basename(p) {
   const parts = p.replace(/\/+$/, '').split('/');
   return parts[parts.length - 1] || p;
+}
+
+// Split a basename into its editable name and its extension (incl. the dot).
+// A leading dot (dotfile) is treated as part of the name, not an extension.
+function extOf(name) {
+  const i = name.lastIndexOf('.');
+  return i > 0 ? name.slice(i) : '';
+}
+
+function stripExt(name) {
+  const i = name.lastIndexOf('.');
+  return i > 0 ? name.slice(0, i) : name;
 }
 
 /**

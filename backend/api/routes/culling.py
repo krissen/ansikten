@@ -36,6 +36,11 @@ class RestoreRequest(BaseModel):
     ids: List[str]
 
 
+class RenameRequest(BaseModel):
+    path: str
+    new_basename: str
+
+
 class EmptyRequest(BaseModel):
     ids: Optional[List[str]] = None
 
@@ -68,6 +73,18 @@ async def trash(request: TrashRequest):
         return culling_service.trash(request.paths)
     except Exception as e:
         logger.exception("Culling trash failed")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@router.post("/culling/rename")
+async def rename(request: RenameRequest):
+    """Rename a single file (+ sidecars) to a new basename in the same folder."""
+    try:
+        return culling_service.rename(request.path, request.new_basename)
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+    except Exception as e:
+        logger.exception("Culling rename failed")
         raise HTTPException(status_code=500, detail=str(e))
 
 
