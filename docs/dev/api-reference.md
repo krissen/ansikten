@@ -737,6 +737,41 @@ Permanently delete trashed items. `{ "ids": [...] }` deletes those ids; omit
 
 ---
 
+## Import
+
+Transfer NEFs off a camera card and eject it. Backs the **Importera** module.
+macOS-only (`diskutil`); the volume list is empty on other platforms.
+
+### `GET /api/v1/import/volumes`
+
+List ejectable/external card volumes (never the internal disk).
+
+**Response:**
+```json
+{ "volumes": [ { "name": "NIKON Z 9", "mount": "/Volumes/NIKON Z 9", "nef_count": 312, "total_bytes": 12884901888, "ejectable": true } ] }
+```
+
+### `POST /api/v1/import/run`
+
+Transfer the volume's NEFs (+ `.xmp` sidecars) to `destination`, then eject.
+Skips files already present in the destination (never overwrites); ejects only
+after a zero-error transfer. Emits `import-progress` over the WebSocket.
+
+**Request:**
+```json
+{ "volume_mount": "/Volumes/NIKON Z 9", "destination": "~/Pictures/nerladdat", "mode": "move", "eject": true }
+```
+`mode` is `move` (default) or `copy`.
+
+**Response:**
+```json
+{ "transferred": ["…/DSC0001.NEF"], "skipped": [{"path":"…","reason":"finns redan i målmappen"}], "errors": [], "ejected": true, "total": 312 }
+```
+
+WebSocket event `import-progress`: `{ "phase": "transfer", "current": 5, "total": 312, "file": "DSC0005.NEF", "percent": 2 }`.
+
+---
+
 ## WebSocket
 
 ### `ws://127.0.0.1:5001/ws/progress`

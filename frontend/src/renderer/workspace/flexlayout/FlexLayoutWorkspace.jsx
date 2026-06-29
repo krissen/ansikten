@@ -26,6 +26,7 @@ import { PreferencesModule } from '../../components/PreferencesModule.jsx';
 import { RefineFacesModule } from '../../components/RefineFacesModule.jsx';
 import { PlayerCountModule } from '../../components/PlayerCountModule.jsx';
 import { CullingModule } from '../../components/CullingModule.jsx';
+import { ImportModule } from '../../components/ImportModule.jsx';
 
 
 // Storage key for layout persistence
@@ -178,7 +179,8 @@ const MODULE_COMPONENTS = {
   'theme-editor': ThemeEditor,
   'preferences': PreferencesModule,
   'player-count': PlayerCountModule,
-  'culling': CullingModule
+  'culling': CullingModule,
+  'import': ImportModule
 };
 
 // Module titles
@@ -194,7 +196,8 @@ const MODULE_TITLES = {
   'theme-editor': 'Theme Editor',
   'preferences': 'Preferences',
   'player-count': 'Räkna spelare',
-  'culling': 'Gallra spelare'
+  'culling': 'Gallra spelare',
+  'import': 'Importera'
 };
 
 // Module-specific default layout ratios
@@ -249,6 +252,11 @@ const MODULE_LAYOUT = {
   },
   'culling': {
     widthRatio: 0.70,     // wide - it holds list + image side by side
+    heightRatio: 0.70,    // Primary row
+    row: 1
+  },
+  'import': {
+    widthRatio: 0.40,     // compact form
     heightRatio: 0.70,    // Primary row
     row: 1
   }
@@ -472,7 +480,8 @@ export function FlexLayoutWorkspace() {
     'refine-faces',
     'theme-editor',
     'player-count',
-    'culling'
+    'culling',
+    'import'
   ]);
 
   // Open a module tab
@@ -1138,6 +1147,9 @@ export function FlexLayoutWorkspace() {
           break;
         case 'open-culling':
           openModule('culling');
+          break;
+        case 'open-import':
+          openModule('import');
           break;
         case 'open-database-management':
           openModule('database-management');

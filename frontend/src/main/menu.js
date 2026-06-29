@@ -285,6 +285,13 @@ function createApplicationMenu(mainWindow) {
           }
         },
         {
+          label: 'Importera',
+          accelerator: 'CmdOrCtrl+Shift+I',
+          click: () => {
+            sendMenuCommand('open-import');
+          }
+        },
+        {
           label: 'Räkna spelare',
           accelerator: 'CmdOrCtrl+Shift+K',
           click: () => {
