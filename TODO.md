@@ -11,7 +11,7 @@ Konsoliderad lista över planerade förbättringar, kända brister och teknisk s
 ### Nu
 
 - [x] **Rename bugfix — manuellt tillagda ansikten tappades ur filnamnet** (2026-06-29). Manuella ansikten sparades med `hash=None` i batch-confirm (GUI), och rename-uppslaget använde hash-indexet bara som fallback (inte union), så ett ansikte som var ankrat via endast en nyckel kunde tappas. Fix: ankra manuella ansikten på content-hash + union av basename-/hash-träffar i `collect_persons_for_files` (både GUI och legacy-CLI). Plan + diagnos: [RENAME_MANUAL_FACES_PLAN.md](RENAME_MANUAL_FACES_PLAN.md).
-  - [ ] **Följdspår: ordnings-/race-granskning av auto-save → rename** — den strukturella fixen är robust, men den faktiska historiska triggern var att rename läste databasen innan ett nyss tillagt manuellt ansikte hunnit persisteras. Granska auto-save→rename-vägen (`c7564d3`) så att manuell confirm + `mark_review_complete` alltid hinner klart före rename. Egen PR.
+  - [x] **Följdspår: ordnings-/race-granskning av auto-save → rename** (2026-06-29) — granskning bekräftade att normalflödet redan är säkert (status blir `completed` först efter att `saveAllChanges` + `mark_review_complete` awaitats), och att rename bara triggas via knapp. Kvarvarande fönster: ett redan processat filobjekt kunde namnges medan en andra-spar pågick (`isAlreadyProcessed`-vägen var inte gateadd). Fix: Review-panelen signalerar `review-dirty` när det finns osparade ändringar, och fillistan håller dirty-filer utanför rename-preview/-exekvering tills sparningen är klar. Frontend-only; data-modellen orörd.
 
 ### Kort sikt
 
