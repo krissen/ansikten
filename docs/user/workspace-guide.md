@@ -185,7 +185,10 @@ antal.
      att en namngiven spelare inte längre är med i bild. `.xmp`-sidecars följer
      med, och befintliga filnamn skrivs aldrig över.
 4. Papperskorgen (knappen **Papperskorg**) listar gallrade bilder och återställer
-   dem till ursprungsplatsen, eller tömmer permanent.
+   dem till ursprungsplatsen, eller tömmer permanent. Gallrade filer rensas
+   automatiskt efter en konfigurerbar tid (standard 30 dagar; `0` = behåll för
+   alltid), ställbart i **Preferences → Files → Trash (Gallra)**. Rensningen körs
+   när backend startar och när papperskorgen öppnas.
 
 ---
 

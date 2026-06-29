@@ -460,6 +460,23 @@ export class APIClient {
   }
 
   /**
+   * Get the app-trash auto-purge threshold in days (0 = keep forever)
+   * @returns {Promise<{days: number}>}
+   */
+  async getTrashRetention() {
+    return await this.get('/api/v1/culling/retention');
+  }
+
+  /**
+   * Set the app-trash auto-purge threshold
+   * @param {number} days - Days to keep trashed files (0 = keep forever)
+   * @returns {Promise<{days: number}>}
+   */
+  async setTrashRetention(days) {
+    return await this.post('/api/v1/culling/retention', { days });
+  }
+
+  /**
    * Clear preprocessing cache
    * @returns {Promise<object>}
    */

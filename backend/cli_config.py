@@ -128,6 +128,10 @@ DEFAULT_CONFIG = {
             "hard_negative_distance": 0.32
         }
     },
+
+    # === App trash (Gallra) ===
+    # Auto-purge trashed files older than this many days. 0 = keep forever.
+    "trash_retention_days": 30,
 }
 
 
@@ -181,6 +185,20 @@ def load_config() -> dict[str, Any]:
     with open(CONFIG_PATH, "w") as f:
         json.dump(DEFAULT_CONFIG, f, indent=2)
     return DEFAULT_CONFIG
+
+
+def save_config(updates: dict[str, Any]) -> dict[str, Any]:
+    """Merge `updates` into the persisted config and write it back.
+
+    Loads the current config (defaults + file), applies a shallow update, and
+    writes the result to CONFIG_PATH. Returns the merged config.
+    """
+    BASE_DIR.mkdir(parents=True, exist_ok=True)
+    config = load_config()
+    config.update(updates)
+    with open(CONFIG_PATH, "w") as f:
+        json.dump(config, f, indent=2)
+    return config
 
 
 def get_attempt_setting_defs(

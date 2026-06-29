@@ -160,7 +160,8 @@ User configuration overrides.
     "max_downsample_px": 2800,
     "max_midsample_px": 4500,
     "max_fullres_px": 8000,
-    "image_viewer_app": "Ansikten"
+    "image_viewer_app": "Ansikten",
+    "trash_retention_days": 30
 }
 ```
 
@@ -173,6 +174,7 @@ User configuration overrides.
 | `match_threshold` | `0.4` | Distance threshold for matches |
 | `auto_ignore` | `false` | Auto-ignore unmatched faces |
 | `image_viewer_app` | `"Ansikten"` | External preview app |
+| `trash_retention_days` | `30` | Auto-purge culling-trash files older than N days (`0` = keep forever). Editable under Preferences → Files → Trash (Gallra). |
 
 > **Note:** dlib backend is deprecated since January 2026. Existing dlib encodings are automatically removed at server startup.
 

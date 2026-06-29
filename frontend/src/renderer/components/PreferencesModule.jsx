@@ -146,6 +146,7 @@ export function PreferencesModule({ api }) {
   const [prefs, setPrefs] = useState(() => preferences.getAll());
   const [hasChanges, setHasChanges] = useState(false);
   const [cacheStatus, setCacheStatus] = useState(null);
+  const [trashRetention, setTrashRetention] = useState(null); // days; null = not loaded
   // Debug categories need React state to trigger re-render on change
   const [debugCategories, setDebugCategories] = useState(() => getCategories());
 
@@ -216,6 +217,36 @@ export function PreferencesModule({ api }) {
       loadCacheStatus();
     }
   }, [activeSection]);
+
+  // Load the app-trash retention threshold from the backend when the Files
+  // section opens (it's backend config, not a localStorage preference).
+  useEffect(() => {
+    if (activeSection !== 'files') return;
+    let cancelled = false;
+    (async () => {
+      try {
+        const { apiClient } = await import('../shared/api-client.js');
+        const { days } = await apiClient.getTrashRetention();
+        if (!cancelled) setTrashRetention(days);
+      } catch (err) {
+        if (!cancelled) setTrashRetention(null);
+      }
+    })();
+    return () => { cancelled = true; };
+  }, [activeSection]);
+
+  // Persist the retention threshold to backend config (clamped to >= 0).
+  const handleTrashRetentionChange = useCallback(async (days) => {
+    const v = Math.max(0, Math.floor(Number.isFinite(days) ? days : 0));
+    setTrashRetention(v); // optimistic
+    try {
+      const { apiClient } = await import('../shared/api-client.js');
+      const res = await apiClient.setTrashRetention(v);
+      setTrashRetention(res.days);
+    } catch (err) {
+      debugError('Preferences', 'Failed to save trash retention:', err);
+    }
+  }, []);
 
   // Clear cache
   const handleClearCache = useCallback(async () => {
@@ -562,6 +593,17 @@ export function PreferencesModule({ api }) {
         }}
         placeholder="xmp, dng"
         disabled={!(prefs.rename?.renameSidecars ?? true)}
+      />
+
+      <SectionHeader title="Trash (Gallra)" />
+      <NumberField
+        label="Auto-empty trash after (days)"
+        hint="Permanently delete culled files older than this. 0 = keep forever."
+        value={trashRetention ?? 30}
+        onChange={handleTrashRetentionChange}
+        min={0}
+        max={3650}
+        step={1}
       />
     </>
   );
