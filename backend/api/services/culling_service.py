@@ -391,7 +391,9 @@ class CullingService:
                 continue
             try:
                 trashed_at = datetime.fromisoformat(ts)
-            except ValueError:
+            except (ValueError, TypeError):
+                # Unparseable string or a non-string (e.g. epoch int in a
+                # hand-edited manifest): keep, never purge on bad data.
                 continue
             if trashed_at < cutoff:
                 expired.append(e["id"])

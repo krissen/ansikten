@@ -56,12 +56,18 @@ def test_purge_zero_is_keep_forever(service, tmp_path):
     assert any(e["id"] == tid for e in service._load_manifest())
 
 
-def test_purge_keeps_entries_with_unparseable_timestamp(service, tmp_path):
+@pytest.mark.parametrize("bad_ts", ["not-a-date", 1700000000, None])
+def test_purge_keeps_entries_with_bad_timestamp(service, tmp_path, bad_ts):
+    # Unparseable string (ValueError) and non-string values (TypeError, or a
+    # missing key) must all be kept, never aborting or deleting on bad data.
     tid = _trash_file(service, tmp_path, "weird.jpg")
     entries = service._load_manifest()
     for e in entries:
         if e["id"] == tid:
-            e["trashed_at"] = "not-a-date"
+            if bad_ts is None:
+                e.pop("trashed_at", None)
+            else:
+                e["trashed_at"] = bad_ts
     service._rewrite_manifest(entries)
 
     assert service.purge_expired(max_age_days=1)["purged"] == 0
