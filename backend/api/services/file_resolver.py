@@ -20,7 +20,7 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).parent.parent.parent))
 from rakna_spelare import parse_filename  # noqa: E402
 
-from .rename_service import SUPPORTED_EXTENSIONS  # noqa: E402
+from .rename_service import SUPPORTED_EXTENSIONS, extract_filename_datetime  # noqa: E402
 
 # App-managed trash (soft-deleted files live here). Resolution always skips it so
 # trashed files are never re-counted or re-listed by any feature. The culling
@@ -123,7 +123,12 @@ def resolve_files(
         if not _matches_extension(path, allowed_lower):
             continue
         if date_filtering:
+            # parse_filename needs a _Name part; fall back to the name-agnostic
+            # prefix parser so un-named files (e.g. YYMMDD_HHMMSS.NEF from general
+            # culling) survive date filtering instead of being silently dropped.
             dt, _ = parse_filename(path)
+            if dt is None:
+                dt = extract_filename_datetime(os.path.basename(path))
             if dt is None:
                 continue
             d = dt.date()

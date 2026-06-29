@@ -22,10 +22,10 @@ from pathlib import Path
 # other services).
 sys.path.insert(0, str(Path(__file__).parent.parent.parent))
 
-from rakna_spelare import build_entries  # noqa: E402
+from rakna_spelare import parse_filename  # noqa: E402
 
 from .file_resolver import TRASH_DIR, preset_extensions, resolve_files  # noqa: E402
-from .rename_service import find_sidecar_files  # noqa: E402
+from .rename_service import extract_filename_datetime, find_sidecar_files  # noqa: E402
 
 logger = logging.getLogger(__name__)
 
@@ -76,7 +76,21 @@ class CullingService:
             date_from=date_from,
             date_to=date_to,
         )
-        entries = build_entries(files)
+
+        # Lenient listing: unlike the CLI counting core (build_entries), keep
+        # files that have no _Name part (e.g. YYMMDD_HHMMSS.NEF from general
+        # culling, which happens before names are assigned). Datetime comes from
+        # parse_filename when names exist, else the name-agnostic prefix parser.
+        entries: list[tuple] = []
+        for path in files:
+            dt, names = parse_filename(path)
+            if dt is None:
+                dt = extract_filename_datetime(Path(path).name)
+                names = []
+            if dt is None:
+                continue
+            entries.append((dt, names or [], path))
+        entries.sort(key=lambda e: e[0])
 
         glob_lower = name_glob.lower() if name_glob else None
 

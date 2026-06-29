@@ -16,6 +16,9 @@ import { useModuleEvent } from '../hooks/useModuleEvent.js';
 import './CullingModule.css';
 
 const REFRESH_DEBOUNCE_MS = 400;
+// Delay RAW conversion until the selection settles, so fast keyboard stepping
+// only converts the file the user rests on, not every file passed through.
+const PREVIEW_DEBOUNCE_MS = 150;
 
 export function CullingModule({ node }) {
   const { api } = useBackend();
@@ -24,6 +27,7 @@ export function CullingModule({ node }) {
   const [glob, setGlob] = useState('');
   const [player, setPlayer] = useState('');
   const [players, setPlayers] = useState([]);
+  const [preset, setPreset] = useState('jpg'); // jpg | nef | raw
   // Scope carried from the stats module (glob-only runs, date span, recursion).
   // The culling bar has no date inputs, so we keep these to honour the count's
   // selection and to preserve scope across a manual re-"Visa".
@@ -43,6 +47,12 @@ export function CullingModule({ node }) {
 
   const [leftWidthPct, setLeftWidthPct] = useState(32);
 
+  // Resolved preview for the right pane. JPEGs load directly; RAW goes through
+  // the NEF->JPG pipeline, so resolution is async.
+  const [previewUrl, setPreviewUrl] = useState(null);
+  const [previewLoading, setPreviewLoading] = useState(false);
+  const [previewError, setPreviewError] = useState(null);
+
   // Latest filter params for auto-refresh; undo stack of trashed ids.
   const lastQueryRef = useRef(null);
   const undoStackRef = useRef([]);
@@ -57,7 +67,7 @@ export function CullingModule({ node }) {
     () => ({
       roots,
       globs: carriedGlobs,
-      extension_preset: 'jpg',
+      extension_preset: preset,
       recursive,
       date_from: dateFrom,
       date_to: dateTo,
@@ -66,7 +76,7 @@ export function CullingModule({ node }) {
       player: player || null,
       name_glob: glob.trim() || null,
     }),
-    [roots, carriedGlobs, recursive, dateFrom, dateTo, player, glob]
+    [roots, carriedGlobs, preset, recursive, dateFrom, dateTo, player, glob]
   );
 
   // ----- folder watching (live refresh) ------------------------------
@@ -178,6 +188,8 @@ export function CullingModule({ node }) {
       setDateTo(nextTo);
       setPlayer(data.name || '');
       setGlob(data.name ? `*${data.name}*` : '');
+      // Stats culling is always on developed JPEGs.
+      setPreset('jpg');
 
       const query = {
         roots: nextRoots,
@@ -343,10 +355,64 @@ export function CullingModule({ node }) {
   const current = currentIndex >= 0 ? files[currentIndex] : null;
   const canFilter = roots.length > 0 || glob.trim() !== '';
 
+  // Resolve the preview for the current file. RAW is converted via the NEF
+  // pipeline; the cancelled guard prevents a slow conversion from painting over
+  // a newer selection when the user steps quickly.
+  const currentPath = current?.path;
+  useEffect(() => {
+    if (!currentPath) {
+      setPreviewUrl(null); setPreviewError(null); setPreviewLoading(false);
+      return;
+    }
+    if (!isRaw(currentPath)) {
+      setPreviewUrl(toFileUrl(currentPath)); setPreviewError(null); setPreviewLoading(false);
+      return;
+    }
+    let cancelled = false;
+    setPreviewLoading(true); setPreviewError(null); setPreviewUrl(null);
+    // Debounced: clearing the timer on a fast step cancels the POST before it
+    // fires, so no abandoned conversions pile up behind the one the user lands on.
+    const timer = setTimeout(() => {
+      api.post('/api/v1/preprocessing/nef', { file_path: currentPath })
+        .then((res) => {
+          if (cancelled) return;
+          if (res.status === 'error' || !res.nef_jpg_path) {
+            setPreviewError(res.error || 'Kunde inte konvertera NEF.');
+          } else {
+            setPreviewUrl(toFileUrl(res.nef_jpg_path));
+          }
+        })
+        .catch((err) => { if (!cancelled) setPreviewError(err.message || String(err)); })
+        .finally(() => { if (!cancelled) setPreviewLoading(false); });
+    }, PREVIEW_DEBOUNCE_MS);
+    return () => { cancelled = true; clearTimeout(timer); };
+  }, [currentPath, api]);
+
+  // Prefetch the next RAW so stepping through is usually a cache hit - also
+  // debounced, so a fast run of keypresses only warms the file after the rest.
+  useEffect(() => {
+    const next = files[currentIndex + 1];
+    if (!next || !isRaw(next.path)) return;
+    const timer = setTimeout(() => {
+      api.post('/api/v1/preprocessing/nef', { file_path: next.path }).catch(() => {});
+    }, PREVIEW_DEBOUNCE_MS);
+    return () => clearTimeout(timer);
+  }, [currentIndex, files, api]);
+
   return (
     <div className="module-container culling">
       <div className="culling-filterbar">
         <button className="btn-secondary" onClick={addFolders}>+ Mapp</button>
+        <select
+          className="form-select"
+          value={preset}
+          onChange={(e) => setPreset(e.target.value)}
+          title="Filtyp"
+        >
+          <option value="jpg">jpg / jpeg</option>
+          <option value="nef">nef</option>
+          <option value="raw">raw (alla)</option>
+        </select>
         <select
           className="form-select"
           value={player}
@@ -440,16 +506,29 @@ export function CullingModule({ node }) {
           <div className="culling-divider" onMouseDown={startDrag} />
 
           <div className="culling-preview">
-            {current ? (
-              <img className="culling-image" src={toFileUrl(current.path)} alt={current.basename} />
-            ) : (
+            {!current ? (
               <div className="empty-state">Ingen bild vald.</div>
-            )}
+            ) : previewError ? (
+              <div className="status-message error">Fel: {previewError}</div>
+            ) : previewLoading ? (
+              <div className="empty-state">Konverterar…</div>
+            ) : previewUrl ? (
+              <img className="culling-image" src={previewUrl} alt={current.basename} />
+            ) : null}
           </div>
         </div>
       )}
     </div>
   );
+}
+
+// RAW extensions that must go through the NEF->JPG preview pipeline
+// (matches file_resolver EXTENSION_PRESETS.raw).
+const RAW_EXTS = ['.nef', '.cr2', '.cr3', '.arw', '.dng', '.raw', '.raf', '.orf', '.rw2'];
+
+function isRaw(p) {
+  const i = p.lastIndexOf('.');
+  return i !== -1 && RAW_EXTS.includes(p.slice(i).toLowerCase());
 }
 
 // file:// URL builder - mirrors ImageViewer.loadImage encoding.

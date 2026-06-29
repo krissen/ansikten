@@ -143,7 +143,10 @@ antal.
    läggs till, tas bort eller byter namn i mappen.
 2. Klicka på en spelare i tabellen för att öppna **Gallra spelare**
    (`Cmd+Shift+G`) filtrerad på den spelaren. Filtret kan finjusteras med
-   spelar-menyn eller ett eget glob (t.ex. `*ArvidW*`) i balken.
+   spelar-menyn eller ett eget glob (t.ex. `*ArvidW*`) i balken. Välj filtyp
+   (`jpg`/`nef`/`raw`) i balken — `nef`/`raw` används för allmän gallring på
+   råfiler innan namn satts (förhandsvisas via NEF→JPG-konvertering;
+   spelar-menyn är då tom och du filtrerar på mapp/datum/glob).
 3. Bläddra i fillistan till vänster (`↑`/`↓`); bilden visas maximerad till höger.
    Tryck `x` (eller `Delete`) för att flytta bilden till papperskorgen och gå
    vidare. `Cmd+Z` ångrar.
