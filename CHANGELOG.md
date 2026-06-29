@@ -15,6 +15,7 @@ This changelog is initialized from git commit history after `v1.0.0` and can be 
 - **Byt namn** module: rename NEFs from EXIF `CreateDate` to `YYMMDD_HHMMSS.NEF` (rename_nef GUI), with a preview (dry-run) and confirm. Carries `.xmp` sidecars, disambiguates identical timestamps (`-NN`), skips files without a `CreateDate`, and never overwrites an existing target (restores the original on collision).
 
 ### Added
+- **Gallra spelare**: rename a file directly from the list — press `Enter` on the selected file (or double-click it) to edit its name inline (Finder-style; the extension is preserved), then `Enter` to commit or `Esc` to cancel. Renames carry `.xmp` sidecars and refuse to overwrite an existing file. Useful when a developed JPG was cropped so a named player is no longer in frame. New endpoint `POST /api/v1/culling/rename`.
 - **Gallra spelare** now shows a live per-player count column on the left for the current scope (calls the player-count endpoint), updating immediately as you cull or restore files — so you can see each player's balance shift while you work.
 
 ### Changed
