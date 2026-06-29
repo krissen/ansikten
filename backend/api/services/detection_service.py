@@ -171,7 +171,10 @@ class DetectionService:
         """
         ext = image_path.suffix.lower()
 
-        if ext in ['.nef', '.cr2', '.arw']:  # RAW formats
+        # RAW formats handled by rawpy/libraw. Keep this aligned with the "raw"
+        # extension preset (file_resolver.EXTENSION_PRESETS["raw"]) so every RAW
+        # the GUI lets you pick can actually be converted/previewed.
+        if ext in ['.nef', '.cr2', '.cr3', '.arw', '.dng', '.raw', '.raf', '.orf', '.rw2']:  # RAW formats
             # Check preprocessing cache for converted JPG
             try:
                 cache = get_preprocessing_cache()
