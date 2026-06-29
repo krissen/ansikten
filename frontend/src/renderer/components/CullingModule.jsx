@@ -80,7 +80,7 @@ export function CullingModule({ node }) {
   const undoStackRef = useRef([]);
   const watchedDirsRef = useRef(new Set());
   const debounceRef = useRef(null);
-  const bodyRef = useRef(null);
+  const statsDebounceRef = useRef(null);
   const mainRef = useRef(null);
 
   // The editable glob is a Finder-style basename filter (name_glob) over the
@@ -173,6 +173,15 @@ export function CullingModule({ node }) {
     [api]
   );
 
+  // Trailing-debounced stats refresh for the mutation paths (cull/restore), so
+  // rapid culling coalesces into one rescan instead of a backend scan per key.
+  const refreshStatsDebounced = useCallback(() => {
+    if (statsDebounceRef.current) clearTimeout(statsDebounceRef.current);
+    statsDebounceRef.current = setTimeout(() => {
+      loadStats(statsScopeFromQuery(lastQueryRef.current));
+    }, REFRESH_DEBOUNCE_MS);
+  }, [loadStats]);
+
   const runFilter = useCallback((overrides = {}) => {
     const query = buildQuery(overrides);
     lastQueryRef.current = query;
@@ -193,6 +202,7 @@ export function CullingModule({ node }) {
     });
     return () => {
       if (debounceRef.current) clearTimeout(debounceRef.current);
+      if (statsDebounceRef.current) clearTimeout(statsDebounceRef.current);
       if (unsubscribe) unsubscribe();
       for (const dir of watchedDirsRef.current) window.ansiktenAPI.unwatchFolder?.(dir);
       watchedDirsRef.current = new Set();
@@ -282,8 +292,8 @@ export function CullingModule({ node }) {
       const id = res.trashed?.[0]?.id;
       if (id) {
         undoStackRef.current.push(id);
-        // Reflect the removed image in the live counts.
-        loadStats(statsScopeFromQuery(lastQueryRef.current));
+        // Reflect the removed image in the live counts (debounced for fast culling).
+        refreshStatsDebounced();
       } else {
         // 200 with errors[] (permission/lock/race): the file is still on disk, so
         // roll the optimistic removal back by reloading and surface the reason.
@@ -295,7 +305,7 @@ export function CullingModule({ node }) {
       // Re-fetch to recover correct state on failure.
       if (lastQueryRef.current) loadList(lastQueryRef.current, { keepIndex: true });
     }
-  }, [api, currentIndex, files, loadList, loadStats]);
+  }, [api, currentIndex, files, loadList, refreshStatsDebounced]);
 
   const undoTrash = useCallback(async () => {
     // Pop until a still-trashed id restores - ids restored via the trash view
@@ -307,7 +317,7 @@ export function CullingModule({ node }) {
         if (res.restored && res.restored.length > 0) {
           if (lastQueryRef.current) {
             loadList(lastQueryRef.current, { keepIndex: true });
-            loadStats(statsScopeFromQuery(lastQueryRef.current));
+            refreshStatsDebounced();
           }
           return;
         }
@@ -317,7 +327,7 @@ export function CullingModule({ node }) {
         return;
       }
     }
-  }, [api, loadList, loadStats]);
+  }, [api, loadList, refreshStatsDebounced]);
 
   // ----- keyboard ----------------------------------------------------
   useEffect(() => {
@@ -370,7 +380,7 @@ export function CullingModule({ node }) {
           undoStackRef.current = undoStackRef.current.filter((x) => x !== id);
           if (lastQueryRef.current) {
             loadList(lastQueryRef.current, { keepIndex: true });
-            loadStats(statsScopeFromQuery(lastQueryRef.current));
+            refreshStatsDebounced();
           }
         } else {
           // 200 with errors[] (unwritable folder, missing stored file): the item
@@ -381,7 +391,7 @@ export function CullingModule({ node }) {
         setError(err.message || String(err));
       }
     },
-    [api, loadList, loadStats]
+    [api, loadList, refreshStatsDebounced]
   );
 
   const emptyTrash = useCallback(async () => {
@@ -553,7 +563,7 @@ export function CullingModule({ node }) {
           )}
         </div>
       ) : (
-        <div className="culling-body" ref={bodyRef}>
+        <div className="culling-body">
           <CullingStats stats={stats} selected={player} />
           <div className="culling-main" ref={mainRef}>
           <div className="culling-list" style={{ width: `${leftWidthPct}%` }}>
