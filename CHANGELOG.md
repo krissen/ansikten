@@ -11,6 +11,7 @@ This changelog is initialized from git commit history after `v1.0.0` and can be 
 - **Gallra spelare** culling workspace: filter by player or a Finder-style glob, file list beside a maximized preview, keystroke culling (`x`/Delete) with auto-advance and `Cmd+Z` undo, backed by an app-managed trash with restore-to-original (#46). Extended to NEF/RAW via the existing NEF→JPG preview pipeline, with debounced conversion on fast stepping (#47).
 - Folder-level file-watching IPC and a folder-path dialog, shared by the new modules.
 - **Importera** module: detect the mounted camera card, transfer its NEFs (+ `.xmp` sidecars) to a destination folder with live progress (move or copy, selectable), then eject the card. Skips files already present; ejects only after a zero-error transfer. macOS (`diskutil`) (#48-followup).
+- **Byt namn** module: rename NEFs from EXIF `CreateDate` to `YYMMDD_HHMMSS.NEF` (rename_nef GUI), with a preview (dry-run) and confirm. Carries `.xmp` sidecars, disambiguates identical timestamps (`-NN`), skips files without a `CreateDate`, and never overwrites an existing target (restores the original on collision).
 
 ### Changed
 - Documentation: established [CLAUDE.md](CLAUDE.md) as the canonical agent-instructions file; [AGENTS.md](AGENTS.md) and `.github/copilot-instructions.md` now point to it.

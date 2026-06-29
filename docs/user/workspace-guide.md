@@ -19,6 +19,7 @@ Workspace är ett modulärt gränssnitt byggt med FlexLayout. Paneler kan dockas
 | **Original View** | Jämför med originalfil |
 | **Statistics** | Bearbetningsstatistik |
 | **Importera** | Överför NEF från minneskort till målmapp och matar ut kortet |
+| **Byt namn** | Döper om NEF efter EXIF CreateDate (YYMMDD_HHMMSS) med förhandsvisning |
 | **Räkna spelare** | Räknar bilder per spelare (från filnamn) med över-/underrepresentation |
 | **Gallra spelare** | Gallra bilder per spelare med förhandsvisning och papperskorg |
 | **Database** | Databashantering |
@@ -92,6 +93,7 @@ Workspace är ett modulärt gränssnitt byggt med FlexLayout. Paneler kan dockas
 | `?` | Visa hjälp |
 | `Cmd+O` | Öppna fil |
 | `Cmd+Shift+I` | Importera |
+| `Cmd+Shift+B` | Byt namn (NEF) |
 | `Cmd+Shift+K` | Räkna spelare |
 | `Cmd+Shift+G` | Gallra spelare |
 | `Cmd+,` | Inställningar |
@@ -106,6 +108,12 @@ Workspace är ett modulärt gränssnitt byggt med FlexLayout. Paneler kan dockas
 1. Öppna **Importera** (`Cmd+Shift+I`). Modulen listar isatta minneskort med antal NEF.
 2. Välj kort, målmapp (kom ihåg senaste), samt Flytta/Kopiera och om kortet ska matas ut.
 3. Klicka **Importera** — en förloppsindikator visas; kortet matas ut efter felfri överföring.
+
+### 0b. Byt namn på NEF (valfritt)
+
+1. Öppna **Byt namn** (`Cmd+Shift+B`), välj mappen (ev. glob `DSC*`).
+2. **Förhandsgranska** visar `DSC… → YYMMDD_HHMMSS.NEF` (dubbletter får `-NN`; filer utan CreateDate döps ej om).
+3. **Byt namn** utför; befintliga målnamn skrivs aldrig över.
 
 ### 1. Lägg till filer
 

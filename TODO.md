@@ -19,7 +19,7 @@ GUI-onboarding av CLI-skript (en PR per steg):
 - [x] **Räkna spelare** — GUI för `rakna_spelare` (bilder per spelare, baseline/avvikelse, mapp/glob/datum, live-uppdatering) (#46)
 - [x] **Gallra spelare** — culling-workspace (spelar/glob-filter, fillista + maximerad preview, snabbtangent-gallring med app-papperskorg + återställning); NEF/RAW-stöd via NEF→JPG-preview (#46/#47)
 - [x] **Import-modul** — överför NEF från minneskort → målmapp + mata ut (flytta/kopiera väljbart); macOS `diskutil`.
-- [ ] **rename_nef → GUI** — EXIF `CreateDate` → `YYMMDD_HHMMSS.NEF` (+ `-NN` vid krock), preview + bekräfta.
+- [x] **rename_nef → GUI** — EXIF `CreateDate` → `YYMMDD_HHMMSS.NEF` (+ `-NN` vid krock), preview + bekräfta.
 
 ### Mellan sikt
 

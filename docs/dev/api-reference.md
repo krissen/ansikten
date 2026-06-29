@@ -772,6 +772,38 @@ WebSocket event `import-progress`: `{ "phase": "transfer", "current": 5, "total"
 
 ---
 
+## Rename NEF
+
+EXIF-based NEF renaming (`YYMMDD_HHMMSS.NEF`) with preview/confirm. Backs the
+**Byt namn** module. Requires `exiftool`.
+
+### `POST /api/v1/rename-nef/preview`
+
+Dry-run: resolve NEFs (folder/glob) and return the EXIF-derived rename mapping.
+Request `{ roots, globs, recursive }`.
+
+**Response:**
+```json
+{
+  "items": [ { "original_path": "…/DSC0001.NEF", "original": "DSC0001.NEF", "new_name": "250601_100000.NEF" } ],
+  "total_files": 12, "to_rename": 10, "already_named": 1, "no_date": ["DSC9999.NEF"]
+}
+```
+`no_date` = files without a usable `CreateDate` (never renamed). Identical
+timestamps are disambiguated with `-NN`.
+
+### `POST /api/v1/rename-nef/execute`
+
+Rename the NEFs (+ `.xmp` sidecars) from EXIF. Recomputes from current EXIF (no
+stale plan); two-pass via temp files; **never overwrites** — on a target-name
+collision the original is restored and reported as skipped.
+
+**Response:** `{ "renamed": [{"from":"DSC0001.NEF","to":"250601_100000.NEF"}], "skipped": [{"path":"…","reason":"…"}], "errors": [] }`.
+
+`400` if no input or exiftool is missing.
+
+---
+
 ## WebSocket
 
 ### `ws://127.0.0.1:5001/ws/progress`
