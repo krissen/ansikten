@@ -300,6 +300,26 @@ Quick database statistics for UI.
 
 Get current database state.
 
+### `GET /api/management/find-duplicates`
+
+Find pairs of distinctly-named people whose faces look like the same person
+(centroid cosine distance ≤ `threshold`), as merge candidates. People with no
+usable encoding (e.g. only manual faces) are skipped.
+
+**Query params:** `threshold` (float, default `0.35`; lower = stricter).
+
+**Response:**
+```json
+{
+  "pairs": [
+    { "name_a": "Elis", "name_b": "Elis Niemi", "distance": 0.18, "count_a": 3, "count_b": 12 }
+  ],
+  "threshold": 0.35,
+  "people_compared": 42
+}
+```
+Resolve a pair by calling `merge-people` (`source_names: ["<drop>"]`, `target_name: "<keep>"`).
+
 ### `POST /api/management/rename-person`
 
 Rename person in database.
