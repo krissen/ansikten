@@ -240,10 +240,16 @@ The suite is small, so also test manually:
 
 **Always assess if code changes require documentation updates.**
 
-- Bug fixes: Usually no doc update needed
-- API/feature changes: Update relevant docs
-- **MINIMUM**: Note gaps in [TODO.md](TODO.md)
-- **IDEAL**: Update docs alongside code
+| Change type | Documentation action |
+|-------------|----------------------|
+| Bug fix | Usually no update needed |
+| API change | Update [API Reference](docs/dev/api-reference.md) |
+| Feature added/removed | Update relevant user/dev docs |
+| Config change | Update [Database](docs/dev/database.md) |
+| UI change / keyboard shortcut | Update [Workspace Guide](docs/user/workspace-guide.md) |
+
+- **MINIMUM**: Note gaps in [TODO.md](TODO.md) under "Kända brister > Dokumentation"
+- **IDEAL**: Update the actual docs alongside the code
 
 ---
 
