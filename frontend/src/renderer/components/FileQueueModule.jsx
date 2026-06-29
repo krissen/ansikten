@@ -2193,7 +2193,9 @@ export function FileQueueModule({ node }) {
                 renameCount = queue.filter(q => visibleIds.has(q.id) && isEligible(q)).length;
                 renameLabel = `Rename (${renameCount} filtered)`;
               } else {
-                renameCount = completedCount;
+                // Use the gated predicate (not completedCount) so the count excludes
+                // files transiently held out of rename by unsaved review changes.
+                renameCount = queue.filter(isEligible).length;
                 renameLabel = `Rename (${renameCount})`;
               }
               return renameCount > 0 && (
