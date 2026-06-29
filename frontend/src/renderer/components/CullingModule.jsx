@@ -377,7 +377,12 @@ export function CullingModule({ node }) {
       if (showTrash) return;
 
       if (e.key === 'Enter') {
-        // Enter renames the selected file (mirrors Finder muscle memory).
+        // Enter renames the selected file (mirrors Finder muscle memory). Only
+        // act when culling is the active tabset, so we don't collide with
+        // another visible module's Enter handler (e.g. Review accept-face).
+        const activeTabsetId = node?.getModel?.().getActiveTabset?.()?.getId?.();
+        const myTabsetId = node?.getParent?.()?.getId?.();
+        if (activeTabsetId && myTabsetId && activeTabsetId !== myTabsetId) return;
         e.preventDefault();
         if (currentIndex >= 0) beginEdit(currentIndex);
         return;
