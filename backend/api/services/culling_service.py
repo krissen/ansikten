@@ -223,7 +223,7 @@ class CullingService:
 
         # Find sidecars before the move; rename each to follow the new stem.
         sidecars = find_sidecar_files(src, SIDECAR_EXTENSIONS)
-        src.rename(dst)
+        self._safe_rename(src, dst)
         for sc in sidecars:
             sc_dst = dst.with_name(dst.stem + sc.suffix)
             # Don't clobber an unrelated existing sidecar at the target name
@@ -232,11 +232,26 @@ class CullingService:
                 logger.warning("Sidecar target exists, skipping: %s", sc_dst)
                 continue
             try:
-                sc.rename(sc_dst)
+                self._safe_rename(sc, sc_dst)
             except Exception:
                 logger.exception("Failed to rename sidecar %s", sc)
 
         return {"path": str(dst), "basename": dst.name}
+
+    @staticmethod
+    def _safe_rename(src: Path, dst: Path) -> None:
+        """Rename src→dst, handling case-only renames cross-platform.
+
+        On a case-insensitive filesystem dst "exists" (it is src), and a direct
+        os.rename raises FileExistsError on Windows. Go via a temp name so the
+        capitalization change applies everywhere.
+        """
+        if dst.exists() and dst.samefile(src):
+            tmp = src.with_name(f".{uuid.uuid4().hex}.rename.tmp")
+            src.rename(tmp)
+            tmp.rename(dst)
+        else:
+            src.rename(dst)
 
     def list_trash(self) -> dict:
         """Return active trash entries, newest first."""
