@@ -58,8 +58,10 @@ export function CullingModule({ node }) {
 
   const [files, setFiles] = useState([]);
   const [currentIndex, setCurrentIndex] = useState(-1);
-  // Inline rename: index of the row being edited (-1 = none) + its draft value.
-  const [editIndex, setEditIndex] = useState(-1);
+  // Inline rename: path of the file being edited (null = none) + its draft
+  // value. Keyed by path, not list index, so a mid-edit auto-refresh that
+  // reorders the list can't make Enter rename a different file.
+  const [editPath, setEditPath] = useState(null);
   const [editValue, setEditValue] = useState('');
   const [error, setError] = useState(null);
   const [isLoading, setIsLoading] = useState(false);
@@ -343,26 +345,28 @@ export function CullingModule({ node }) {
     if (!f) return;
     setCurrentIndex(index);
     setEditValue(stripExt(f.basename));
-    setEditIndex(index);
+    setEditPath(f.path);
   }, [files]);
 
-  const cancelEdit = useCallback(() => setEditIndex(-1), []);
+  const cancelEdit = useCallback(() => setEditPath(null), []);
 
   const commitEdit = useCallback(async () => {
-    const f = files[editIndex];
-    setEditIndex(-1);
-    if (!f) return;
+    const path = editPath;
+    setEditPath(null);
+    if (!path) return;
     const next = editValue.trim();
-    const newBasename = next + extOf(f.basename);
-    if (!next || newBasename === f.basename) return; // no-op
+    // Derive the extension from the file being renamed (not the list), so a
+    // reorder mid-edit can't change which file or extension we commit.
+    const newBasename = next + extOf(basename(path));
+    if (!next || newBasename === basename(path)) return; // no-op
     try {
-      await api.post('/api/v1/culling/rename', { path: f.path, new_basename: newBasename });
+      await api.post('/api/v1/culling/rename', { path, new_basename: newBasename });
       if (lastQueryRef.current) loadList(lastQueryRef.current, { keepIndex: true });
       refreshStatsDebounced();
     } catch (err) {
       setError(err.message || String(err));
     }
-  }, [api, files, editIndex, editValue, loadList, refreshStatsDebounced]);
+  }, [api, editPath, editValue, loadList, refreshStatsDebounced]);
 
   // ----- keyboard ----------------------------------------------------
   useEffect(() => {
@@ -626,7 +630,7 @@ export function CullingModule({ node }) {
                   onClick={() => setCurrentIndex(i)}
                   onDoubleClick={() => beginEdit(i)}
                 >
-                  {editIndex === i ? (
+                  {editPath === f.path ? (
                     <input
                       className="culling-rename-input"
                       value={editValue}
