@@ -233,12 +233,22 @@ class CullingService:
                 raise ValueError("En sidecar-fil med målnamnet finns redan")
             sidecar_moves.append((sc, sc_dst))
 
+        # Atomic: if a sidecar move fails (e.g. a locked .xmp on Windows), roll
+        # back every move so we never return success with an orphaned sidecar.
         self._safe_rename(src, dst)
-        for sc, sc_dst in sidecar_moves:
-            try:
+        done = [(src, dst)]
+        try:
+            for sc, sc_dst in sidecar_moves:
                 self._safe_rename(sc, sc_dst)
-            except Exception:
-                logger.exception("Failed to rename sidecar %s", sc)
+                done.append((sc, sc_dst))
+        except Exception:
+            logger.exception("Sidecar rename failed; rolling back %s", src)
+            for moved_src, moved_dst in reversed(done):
+                try:
+                    self._safe_rename(moved_dst, moved_src)
+                except Exception:
+                    logger.exception("Rollback failed for %s", moved_dst)
+            raise ValueError("Kunde inte byta namn på en sidecar-fil; ändringen återställdes")
 
         return {"path": str(dst), "basename": dst.name}
 

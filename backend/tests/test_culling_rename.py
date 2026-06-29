@@ -83,6 +83,31 @@ def test_rename_refuses_when_sidecar_target_occupied(service, tmp_path):
     assert (tmp_path / "a.xmp").read_text() == "a-side"
 
 
+def test_rename_rolls_back_on_sidecar_failure(service, tmp_path, monkeypatch):
+    img = tmp_path / "a.jpg"
+    img.write_bytes(b"a")
+    (tmp_path / "a.xmp").write_text("side")
+
+    real = service._safe_rename
+    calls = {"n": 0}
+
+    def flaky(src, dst):
+        calls["n"] += 1
+        if calls["n"] == 2:  # fail on the sidecar move (main already moved)
+            raise OSError("locked")
+        return real(src, dst)
+
+    monkeypatch.setattr(service, "_safe_rename", flaky)
+
+    with pytest.raises(ValueError):
+        service.rename(str(img), "b.jpg")
+
+    # Rolled back: originals restored, no partial b.* left behind.
+    assert img.exists()
+    assert (tmp_path / "a.xmp").read_text() == "side"
+    assert not (tmp_path / "b.jpg").exists()
+
+
 def test_rename_case_only(service, tmp_path):
     img = tmp_path / "anna.jpg"
     img.write_bytes(b"a")
