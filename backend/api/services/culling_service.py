@@ -15,13 +15,14 @@ import logging
 import shutil
 import sys
 import uuid
-from datetime import datetime
+from datetime import datetime, timedelta
 from pathlib import Path
 
 # Backend root on sys.path to import the CLI parser (pattern shared with the
 # other services).
 sys.path.insert(0, str(Path(__file__).parent.parent.parent))
 
+from cli_config import load_config, save_config  # noqa: E402
 from rakna_spelare import parse_filename  # noqa: E402
 
 from .file_resolver import TRASH_DIR, preset_extensions, resolve_files  # noqa: E402
@@ -353,6 +354,53 @@ class CullingService:
                     logger.exception("Failed to delete trashed file %s", name)
         self._rewrite_manifest(keep)
         return {"deleted": deleted}
+
+    # ----- retention ----------------------------------------------------
+
+    def get_retention_days(self) -> int:
+        """Current auto-purge threshold in days (0 = keep forever)."""
+        try:
+            return int(load_config().get("trash_retention_days", 30))
+        except (TypeError, ValueError):
+            return 30
+
+    def set_retention_days(self, days: int) -> dict:
+        """Persist the auto-purge threshold (clamped to >= 0). Returns {days}."""
+        days = max(0, int(days))
+        save_config({"trash_retention_days": days})
+        return {"days": days}
+
+    def purge_expired(self, max_age_days: int | None = None) -> dict:
+        """Permanently delete trashed items older than the retention threshold.
+
+        Reads the threshold from config when not given. A threshold of 0 (or
+        negative) means "keep forever" and is a no-op. Entries with a missing or
+        unparseable ``trashed_at`` are kept, so bad data never triggers deletion.
+        Returns ``{purged: n}`` (number of trashed items removed).
+        """
+        if max_age_days is None:
+            max_age_days = self.get_retention_days()
+        if max_age_days <= 0:
+            return {"purged": 0}
+
+        cutoff = datetime.now() - timedelta(days=max_age_days)
+        expired: list[str] = []
+        for e in self._load_manifest():
+            ts = e.get("trashed_at")
+            if not ts:
+                continue
+            try:
+                trashed_at = datetime.fromisoformat(ts)
+            except ValueError:
+                continue
+            if trashed_at < cutoff:
+                expired.append(e["id"])
+
+        if not expired:
+            return {"purged": 0}
+        self.empty(expired)
+        logger.info("Trash retention: purged %d expired item(s)", len(expired))
+        return {"purged": len(expired)}
 
 
 culling_service = CullingService()

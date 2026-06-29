@@ -45,6 +45,10 @@ class EmptyRequest(BaseModel):
     ids: Optional[List[str]] = None
 
 
+class RetentionRequest(BaseModel):
+    days: int
+
+
 @router.post("/culling/files")
 async def list_files(request: CullingFilesRequest):
     """List image files for the current filter, optionally restricted to a player."""
@@ -90,11 +94,39 @@ async def rename(request: RenameRequest):
 
 @router.get("/culling/trash")
 async def list_trash():
-    """List items currently in the app trash."""
+    """List items currently in the app trash.
+
+    Lazily purges items past the retention threshold before listing, so the
+    trash view never shows (and never keeps) expired files.
+    """
     try:
+        try:
+            culling_service.purge_expired()
+        except Exception:
+            logger.exception("Trash retention purge failed (non-fatal)")
         return culling_service.list_trash()
     except Exception as e:
         logger.exception("Culling list-trash failed")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@router.get("/culling/retention")
+async def get_retention():
+    """Return the trash auto-purge threshold in days (0 = keep forever)."""
+    try:
+        return {"days": culling_service.get_retention_days()}
+    except Exception as e:
+        logger.exception("Culling get-retention failed")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@router.post("/culling/retention")
+async def set_retention(request: RetentionRequest):
+    """Set the trash auto-purge threshold (days; 0 = keep forever)."""
+    try:
+        return culling_service.set_retention_days(request.days)
+    except Exception as e:
+        logger.exception("Culling set-retention failed")
         raise HTTPException(status_code=500, detail=str(e))
 
 

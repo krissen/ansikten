@@ -43,6 +43,14 @@ async def lifespan(app: FastAPI):
         # Rotate logs on startup to prevent unbounded growth
         rotate_logs()
 
+        # Purge trashed files past the retention threshold (0 = keep forever),
+        # so the app trash doesn't grow without bound between sessions.
+        try:
+            from .services.culling_service import culling_service
+            culling_service.purge_expired()
+        except Exception:
+            logger.warning("Trash retention purge on startup failed", exc_info=True)
+
         svc = get_management_service()
         return len(svc.known_faces)
 
