@@ -1209,11 +1209,15 @@ export function FlexLayoutWorkspace() {
 
     window.ansiktenAPI.on('menu-command', handleMenuCommand);
 
-    // Loading an image (initial file or queue auto-load) dismisses the landing.
-    const unsubscribeLoadImage = moduleAPI.on('load-image', () => setShowLanding(false));
+    // A loaded image dismisses the landing. Listen on the past-tense
+    // 'image-loaded' (emitted by ImageViewer after a load), NOT the imperative
+    // 'load-image' command: FileQueue uses hasListeners('load-image') to detect
+    // when ImageViewer has mounted, and a permanent listener here would defeat
+    // that guard and reintroduce a lost-event race on first queue load.
+    const unsubscribeImageLoaded = moduleAPI.on('image-loaded', () => setShowLanding(false));
 
     return () => {
-      unsubscribeLoadImage();
+      unsubscribeImageLoaded();
     };
   }, [ready, loadLayout, addTabset, removeEmptyTabset, openModule, moduleAPI, moveToNewTabset]);
 
