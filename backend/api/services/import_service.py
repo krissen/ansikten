@@ -110,14 +110,27 @@ class ImportService:
         return count, size
 
     @staticmethod
-    def _free_target(dest: Path, name: str) -> Path:
-        """Next non-colliding target: DSC0001.NEF -> DSC0001-1.NEF, -2, ..."""
+    def _resolve_target(dest: Path, name: str, src: Path) -> Path | None:
+        """Where to write `src`, or None if an identical copy is already present.
+
+        Skips byte-identical re-imports — checking the base name AND any earlier
+        `-N` disambiguation variant (so re-importing is idempotent, no dupes) — and
+        otherwise returns the next free `DSC0001-N.NEF`, so a distinct same-named
+        frame is never dropped.
+        """
+        target = dest / name
+        if not target.exists():
+            return target
+        if _same_file(src, target):
+            return None
         stem, suffix = os.path.splitext(name)
         i = 1
         while True:
             cand = dest / f"{stem}-{i}{suffix}"
             if not cand.exists():
                 return cand
+            if _same_file(src, cand):
+                return None
             i += 1
 
     # ----- transfer -----------------------------------------------------
@@ -157,16 +170,12 @@ class ImportService:
 
         for i, src in enumerate(nefs, 1):
             try:
-                target = dest / src.name
-                if target.exists() and await loop.run_in_executor(None, _same_file, src, target):
-                    # Genuine re-import of the same file — safe to skip.
+                target = await loop.run_in_executor(None, self._resolve_target, dest, src.name, src)
+                if target is None:
+                    # Byte-identical copy already present (base or a -N variant) —
+                    # safe to skip; re-import is idempotent.
                     skipped.append({"path": str(src), "reason": "identisk fil finns redan"})
                 else:
-                    if target.exists():
-                        # A DISTINCT file sharing a camera basename (DCIM rollover
-                        # or a second card into the same folder). Disambiguate
-                        # instead of silently dropping it — never lose a frame.
-                        target = self._free_target(dest, src.name)
                     await loop.run_in_executor(None, op, str(src), str(target))
                     # Carry .xmp sidecars, named after the (possibly renamed) target.
                     for sc in find_sidecar_files(src, SIDECAR_EXTENSIONS):
