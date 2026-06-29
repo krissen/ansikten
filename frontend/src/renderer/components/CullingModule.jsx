@@ -65,7 +65,9 @@ export function CullingModule({ node }) {
   // reorders the list can't make Enter rename a different file.
   const [editPath, setEditPath] = useState(null);
   const [editValue, setEditValue] = useState('');
-  // Right-click context menu: { x, y, index } at the cursor, or null.
+  // Right-click context menu: { x, y, path } at the cursor, or null. Keyed by
+  // file path (not index) so a live list reload while the menu is open can't
+  // make an action hit the wrong file — same approach as the inline rename.
   const [menu, setMenu] = useState(null);
   const [error, setError] = useState(null);
   const [isLoading, setIsLoading] = useState(false);
@@ -679,7 +681,7 @@ export function CullingModule({ node }) {
                     e.preventDefault();
                     e.stopPropagation();
                     setCurrentIndex(i);
-                    setMenu({ x: e.clientX, y: e.clientY, index: i });
+                    setMenu({ x: e.clientX, y: e.clientY, path: f.path });
                   }}
                 >
                   {editPath === f.path ? (
@@ -744,10 +746,18 @@ export function CullingModule({ node }) {
             <span>Hoppa framåt</span><span className="culling-menu-keys"><kbd>⌥</kbd><kbd>→</kbd></span>
           </li>
           <li className="culling-menu-sep" role="separator" />
-          <li onClick={() => { setMenu(null); beginEdit(menu.index); }}>
+          <li onClick={() => {
+            setMenu(null);
+            const idx = files.findIndex((f) => f.path === menu.path);
+            if (idx >= 0) beginEdit(idx);
+          }}>
             <span>Byt namn</span><span className="culling-menu-keys"><kbd>Enter</kbd></span>
           </li>
-          <li onClick={() => { setMenu(null); trashIndex(menu.index); }}>
+          <li onClick={() => {
+            setMenu(null);
+            const idx = files.findIndex((f) => f.path === menu.path);
+            if (idx >= 0) trashIndex(idx);
+          }}>
             <span>Gallra</span><span className="culling-menu-keys"><kbd>X</kbd><kbd>⌦</kbd></span>
           </li>
           <li onClick={() => { setMenu(null); undoTrash(); }}>
