@@ -644,6 +644,10 @@ export function CullingModule({ node }) {
                       onChange={(e) => setEditValue(e.target.value)}
                       onClick={(e) => e.stopPropagation()}
                       onKeyDown={(e) => {
+                        // Keep editing keystrokes inside the input: stop them
+                        // bubbling to document-level handlers (e.g. ReviewModule
+                        // confirming a face from the rename draft in a split view).
+                        e.stopPropagation();
                         if (e.key === 'Enter') { e.preventDefault(); commitEdit(); }
                         else if (e.key === 'Escape') { e.preventDefault(); cancelEdit(); }
                       }}
