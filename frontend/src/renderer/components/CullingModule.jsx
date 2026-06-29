@@ -58,6 +58,9 @@ export function CullingModule({ node }) {
 
   const [files, setFiles] = useState([]);
   const [currentIndex, setCurrentIndex] = useState(-1);
+  // Inline rename: index of the row being edited (-1 = none) + its draft value.
+  const [editIndex, setEditIndex] = useState(-1);
+  const [editValue, setEditValue] = useState('');
   const [error, setError] = useState(null);
   const [isLoading, setIsLoading] = useState(false);
   const [hasRun, setHasRun] = useState(false);
@@ -332,6 +335,35 @@ export function CullingModule({ node }) {
     }
   }, [api, loadList, refreshStatsDebounced]);
 
+  // ----- inline rename -----------------------------------------------
+  // Edit the filename without its extension (Finder-style); the extension is
+  // re-appended on commit so the YYMMDD_HHMMSS… format / suffix is preserved.
+  const beginEdit = useCallback((index) => {
+    const f = files[index];
+    if (!f) return;
+    setCurrentIndex(index);
+    setEditValue(stripExt(f.basename));
+    setEditIndex(index);
+  }, [files]);
+
+  const cancelEdit = useCallback(() => setEditIndex(-1), []);
+
+  const commitEdit = useCallback(async () => {
+    const f = files[editIndex];
+    setEditIndex(-1);
+    if (!f) return;
+    const next = editValue.trim();
+    const newBasename = next + extOf(f.basename);
+    if (!next || newBasename === f.basename) return; // no-op
+    try {
+      await api.post('/api/v1/culling/rename', { path: f.path, new_basename: newBasename });
+      if (lastQueryRef.current) loadList(lastQueryRef.current, { keepIndex: true });
+      refreshStatsDebounced();
+    } catch (err) {
+      setError(err.message || String(err));
+    }
+  }, [api, files, editIndex, editValue, loadList, refreshStatsDebounced]);
+
   // ----- keyboard ----------------------------------------------------
   useEffect(() => {
     const handler = (e) => {
@@ -339,6 +371,13 @@ export function CullingModule({ node }) {
       const tag = e.target?.tagName;
       if (tag === 'INPUT' || tag === 'SELECT' || tag === 'TEXTAREA') return;
       if (showTrash) return;
+
+      if (e.key === 'Enter') {
+        // Enter renames the selected file (mirrors Finder muscle memory).
+        e.preventDefault();
+        if (currentIndex >= 0) beginEdit(currentIndex);
+        return;
+      }
 
       if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === 'z') {
         e.preventDefault();
@@ -360,7 +399,7 @@ export function CullingModule({ node }) {
     };
     window.addEventListener('keydown', handler);
     return () => window.removeEventListener('keydown', handler);
-  }, [node, files.length, showTrash, trashCurrent, undoTrash]);
+  }, [node, files.length, showTrash, trashCurrent, undoTrash, currentIndex, beginEdit]);
 
   // ----- trash view --------------------------------------------------
   const openTrash = useCallback(async () => {
@@ -585,8 +624,25 @@ export function CullingModule({ node }) {
                   key={f.path}
                   className={i === currentIndex ? 'active' : ''}
                   onClick={() => setCurrentIndex(i)}
+                  onDoubleClick={() => beginEdit(i)}
                 >
-                  <span className="culling-file-name">{f.basename}</span>
+                  {editIndex === i ? (
+                    <input
+                      className="culling-rename-input"
+                      value={editValue}
+                      autoFocus
+                      onFocus={(e) => e.target.select()}
+                      onChange={(e) => setEditValue(e.target.value)}
+                      onClick={(e) => e.stopPropagation()}
+                      onKeyDown={(e) => {
+                        if (e.key === 'Enter') { e.preventDefault(); commitEdit(); }
+                        else if (e.key === 'Escape') { e.preventDefault(); cancelEdit(); }
+                      }}
+                      onBlur={cancelEdit}
+                    />
+                  ) : (
+                    <span className="culling-file-name">{f.basename}</span>
+                  )}
                 </li>
               ))}
             </ul>
@@ -644,6 +700,18 @@ function globBaseDir(pattern) {
 function basename(p) {
   const parts = p.replace(/\/+$/, '').split('/');
   return parts[parts.length - 1] || p;
+}
+
+// Split a basename into its editable name and its extension (incl. the dot).
+// A leading dot (dotfile) is treated as part of the name, not an extension.
+function extOf(name) {
+  const i = name.lastIndexOf('.');
+  return i > 0 ? name.slice(i) : '';
+}
+
+function stripExt(name) {
+  const i = name.lastIndexOf('.');
+  return i > 0 ? name.slice(0, i) : name;
 }
 
 /**

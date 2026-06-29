@@ -180,6 +180,22 @@
   color: var(--text-on-accent);
 }
 
+.culling-rename-input {
+  width: 100%;
+  box-sizing: border-box;
+  padding: 1px 4px;
+  font: inherit;
+  font-variant-numeric: tabular-nums;
+  color: var(--text-primary);
+  background: var(--bg-elevated);
+  border: 1px solid var(--accent-primary);
+  border-radius: var(--radius-sm);
+}
+
+.culling-rename-input:focus {
+  outline: none;
+}
+
 .culling-divider {
   width: 5px;
   cursor: col-resize;
