@@ -22,6 +22,8 @@ const PREVIEW_DEBOUNCE_MS = 150;
 
 // The live stats panel counts every player in the folder, so it uses the
 // scan scope only — not the player/name_glob filter that narrows the file list.
+// min_images: 1 overrides the count endpoint's default of 3 so players culled
+// down to 1-2 images stay visible (the whole point is watching counts shrink).
 function statsScopeFromQuery(q) {
   if (!q) return null;
   return {
@@ -31,6 +33,7 @@ function statsScopeFromQuery(q) {
     recursive: q.recursive,
     date_from: q.date_from,
     date_to: q.date_to,
+    min_images: 1,
   };
 }
 
