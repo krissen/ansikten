@@ -689,8 +689,12 @@ backed). Trashed files are automatically excluded from listing and counting.
 
 List image files for the current filter. `player` is an exact parsed-name
 filter; `name_glob` is a case-insensitive Finder-style basename pattern
-(e.g. `*ArvidW*`) applied to the resolved files. Other fields match
-`/players/count`.
+(e.g. `*ArvidW*`) applied to the resolved files. `extension_preset` selects the
+file types (`jpg`/`nef`/`raw`/...). Other fields match `/players/count`.
+
+Unlike `/players/count`, this lists files **without** a `_Name` part too (e.g.
+`YYMMDD_HHMMSS.NEF` from general culling before names are assigned); their date
+is read from the `YYMMDD_HHMMSS` prefix and they contribute no `players` entries.
 
 **Response:**
 ```json
