@@ -91,12 +91,30 @@ export function PlayerCountModule() {
     watchedDirsRef.current = desired;
   }, []);
 
-  const handleSubmit = useCallback(() => {
-    const params = buildParams(input, perMatch);
-    lastParamsRef.current = params;
-    runCount(params);
-    updateWatches(watchDirsFor(input));
-  }, [input, perMatch, buildParams, runCount, updateWatches, watchDirsFor]);
+  const submitWith = useCallback(
+    (inp, includePerMatch) => {
+      const params = buildParams(inp, includePerMatch);
+      lastParamsRef.current = params;
+      runCount(params);
+      updateWatches(watchDirsFor(inp));
+    },
+    [buildParams, runCount, updateWatches, watchDirsFor]
+  );
+
+  const handleSubmit = useCallback(
+    () => submitWith(input, perMatch),
+    [submitWith, input, perMatch]
+  );
+
+  // Select/checkbox changes from the InputBar apply immediately, but only once a
+  // query has run (otherwise there's nothing to recompute yet).
+  const handleAutoApply = useCallback(
+    (nextInput) => {
+      setInput(nextInput);
+      if (lastParamsRef.current) submitWith(nextInput, perMatch);
+    },
+    [submitWith, perMatch]
+  );
 
   // Open the culling workspace filtered to a player (from the stats table).
   const openCullForPlayer = useCallback(
@@ -148,7 +166,11 @@ export function PlayerCountModule() {
             <input
               type="checkbox"
               checked={perMatch}
-              onChange={(e) => setPerMatch(e.target.checked)}
+              onChange={(e) => {
+                const v = e.target.checked;
+                setPerMatch(v);
+                if (lastParamsRef.current) submitWith(input, v);
+              }}
             />
             Per match
           </label>
@@ -156,7 +178,13 @@ export function PlayerCountModule() {
         </div>
       </div>
 
-      <InputBar value={input} onChange={setInput} onSubmit={handleSubmit} busy={isLoading} />
+      <InputBar
+        value={input}
+        onChange={setInput}
+        onSubmit={handleSubmit}
+        onAutoApply={handleAutoApply}
+        busy={isLoading}
+      />
 
       <div className="module-body player-count-body">
         {error && <div className="status-message error">Fel: {error}</div>}

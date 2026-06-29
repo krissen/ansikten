@@ -33,10 +33,22 @@ export function InputBar({
   value,
   onChange,
   onSubmit,
+  onAutoApply,
   presets = DEFAULT_PRESETS,
   busy = false,
   submitLabel = 'Räkna',
 }) {
+  // Select/checkbox changes apply immediately (no need to press the submit
+  // button); the parent decides whether anything has run yet. Free-text fields
+  // (glob, dates) still require Enter / the button.
+  const patchAndApply = useCallback(
+    (partial) => {
+      const next = { ...value, ...partial };
+      onChange(next);
+      onAutoApply?.(next);
+    },
+    [value, onChange, onAutoApply]
+  );
   const patch = useCallback(
     (partial) => onChange({ ...value, ...partial }),
     [value, onChange]
@@ -91,7 +103,7 @@ export function InputBar({
         <select
           className="form-select"
           value={value.preset}
-          onChange={(e) => patch({ preset: e.target.value })}
+          onChange={(e) => patchAndApply({ preset: e.target.value })}
           disabled={busy}
           title="Filtyper (skiftlägesokänsligt)"
         >
@@ -102,7 +114,7 @@ export function InputBar({
           ))}
         </select>
 
-        <button className="btn-primary" onClick={submit} disabled={!canSubmit}>
+        <button className="btn-action" onClick={submit} disabled={!canSubmit}>
           {busy ? '…' : submitLabel}
         </button>
       </div>
@@ -132,7 +144,7 @@ export function InputBar({
           <input
             type="checkbox"
             checked={value.recursive}
-            onChange={(e) => patch({ recursive: e.target.checked })}
+            onChange={(e) => patchAndApply({ recursive: e.target.checked })}
             disabled={busy}
           />
           Inkl. undermappar

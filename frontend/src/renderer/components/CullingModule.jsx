@@ -63,8 +63,10 @@ export function CullingModule({ node }) {
   // The editable glob is a Finder-style basename filter (name_glob) over the
   // resolved files, NOT an independent filesystem glob. The scan source is
   // roots (+ any path-globs carried from the stats module).
+  // `overrides` lets callers run with a just-changed value before the matching
+  // setState has flushed (e.g. auto-apply on a dropdown change).
   const buildQuery = useCallback(
-    () => ({
+    (overrides = {}) => ({
       roots,
       globs: carriedGlobs,
       extension_preset: preset,
@@ -75,6 +77,7 @@ export function CullingModule({ node }) {
       // names can't conflate players; name_glob is the extra editable refinement.
       player: player || null,
       name_glob: glob.trim() || null,
+      ...overrides,
     }),
     [roots, carriedGlobs, preset, recursive, dateFrom, dateTo, player, glob]
   );
@@ -124,8 +127,8 @@ export function CullingModule({ node }) {
     [api]
   );
 
-  const runFilter = useCallback(() => {
-    const query = buildQuery();
+  const runFilter = useCallback((overrides = {}) => {
+    const query = buildQuery(overrides);
     lastQueryRef.current = query;
     loadList(query);
     updateWatches(watchDirs());
@@ -406,7 +409,12 @@ export function CullingModule({ node }) {
         <select
           className="form-select"
           value={preset}
-          onChange={(e) => setPreset(e.target.value)}
+          onChange={(e) => {
+            const v = e.target.value;
+            setPreset(v);
+            // Auto-apply once a scope exists (a query has run).
+            if (lastQueryRef.current) runFilter({ extension_preset: v });
+          }}
           title="Filtyp"
         >
           <option value="jpg">jpg / jpeg</option>
@@ -416,7 +424,15 @@ export function CullingModule({ node }) {
         <select
           className="form-select"
           value={player}
-          onChange={(e) => selectPlayer(e.target.value)}
+          onChange={(e) => {
+            const name = e.target.value;
+            selectPlayer(name);
+            // Picking a player applies immediately — no need to press Visa.
+            if (lastQueryRef.current) {
+              const g = name ? `*${name}*` : '';
+              runFilter({ player: name || null, name_glob: g || null });
+            }
+          }}
           title="Spelare"
         >
           <option value="">Alla spelare</option>
@@ -432,12 +448,12 @@ export function CullingModule({ node }) {
           onChange={(e) => { setGlob(e.target.value); setPlayer(''); }}
           onKeyDown={(e) => { if (e.key === 'Enter') runFilter(); }}
         />
-        <button className="btn-primary" onClick={runFilter} disabled={!canFilter || isLoading}>
+        <button className="btn-action" onClick={() => runFilter()} disabled={!canFilter || isLoading}>
           {isLoading ? '…' : 'Visa'}
         </button>
         <span className="culling-spacer" />
         <button
-          className={showTrash ? 'btn-primary' : 'btn-secondary'}
+          className={showTrash ? 'btn-action' : 'btn-secondary'}
           onClick={() => (showTrash ? setShowTrash(false) : openTrash())}
         >
           Papperskorg

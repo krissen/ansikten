@@ -15,6 +15,7 @@ This changelog is initialized from git commit history after `v1.0.0` and can be 
 - **Byt namn** module: rename NEFs from EXIF `CreateDate` to `YYMMDD_HHMMSS.NEF` (rename_nef GUI), with a preview (dry-run) and confirm. Carries `.xmp` sidecars, disambiguates identical timestamps (`-NN`), skips files without a `CreateDate`, and never overwrites an existing target (restores the original on collision).
 
 ### Changed
+- Räkna spelare / Gallra spelare filter controls: the primary "Räkna"/"Visa" buttons now use the themed button style (previously rendered as unstyled native buttons), and checkboxes are restyled to match the theme. Changing the player/filetype dropdown, or toggling "Inkl. undermappar" / "Per match", now re-runs immediately — no need to click the button.
 - Documentation: established [CLAUDE.md](CLAUDE.md) as the canonical agent-instructions file; [AGENTS.md](AGENTS.md) and `.github/copilot-instructions.md` now point to it.
 
 ## [1.3.0] - 2026-06-27
