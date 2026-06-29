@@ -58,6 +58,13 @@ Known faces database. Dictionary mapping person names to encoding lists.
 - One person can have multiple encodings from different images
 - dlib encodings (128-dim) are deprecated and auto-removed at server startup
 
+**Manual faces.** A face added by hand in review (not auto-detected) is stored as an
+entry with `encoding: None`, `encoding_hash: None`, `bounding_box: None`, and
+`is_manual: True`. It still records `file` and the source file's content `hash` — the
+hash anchors the name to the image so the rename pipeline recovers it even after the file
+is renamed (rename matches by hash and basename). A manual entry has no vector, so it
+never participates in matching; it only carries the name → file association.
+
 ### ignored.pkl
 
 List of ignored face encodings.
