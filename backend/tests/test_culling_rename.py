@@ -108,6 +108,19 @@ def test_rename_rolls_back_on_sidecar_failure(service, tmp_path, monkeypatch):
     assert not (tmp_path / "b.jpg").exists()
 
 
+def test_rename_to_sidecar_extension_is_rejected(service, tmp_path):
+    img = tmp_path / "a.jpg"
+    img.write_bytes(b"img")
+    (tmp_path / "a.xmp").write_text("side")
+
+    # Renaming the image to "b.xmp" would collide with its sidecar's destination.
+    with pytest.raises(ValueError):
+        service.rename(str(img), "b.xmp")
+    assert img.exists()
+    assert (tmp_path / "a.xmp").read_text() == "side"
+    assert not (tmp_path / "b.xmp").exists()
+
+
 def test_rename_case_only(service, tmp_path):
     img = tmp_path / "anna.jpg"
     img.write_bytes(b"a")

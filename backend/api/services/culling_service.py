@@ -228,6 +228,11 @@ class CullingService:
         sidecar_moves = []
         for sc in sidecars:
             sc_dst = dst.with_name(dst.stem + sc.suffix)
+            # A target like "b.xmp" for an image with a b.xmp sidecar would make
+            # the sidecar destination equal the main file's — the sidecar move
+            # would then overwrite the renamed image. Reject up front.
+            if sc_dst == dst:
+                raise ValueError("Filnamnet krockar med en sidecar-fil")
             # samefile allows a case-only rename of the sidecar itself.
             if sc_dst.exists() and not sc_dst.samefile(sc):
                 raise ValueError("En sidecar-fil med målnamnet finns redan")
