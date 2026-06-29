@@ -150,3 +150,47 @@
   font-size: var(--font-xs);
   color: var(--text-tertiary);
 }
+
+/* Find Duplicates */
+.db-duplicate-threshold {
+  width: 5rem;
+}
+
+.db-duplicate-empty {
+  margin-top: var(--space-sm);
+  font-size: var(--font-sm);
+  color: var(--text-tertiary);
+}
+
+.db-duplicate-list {
+  list-style: none;
+  margin: var(--space-sm) 0 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-xs);
+}
+
+.db-duplicate-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-sm);
+  padding: var(--space-xs) var(--space-sm);
+  border: 1px solid var(--border-medium);
+  border-radius: var(--radius-sm);
+  background: var(--bg-elevated);
+}
+
+.db-duplicate-names {
+  font-size: var(--font-sm);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.db-duplicate-actions {
+  display: flex;
+  gap: var(--space-xs);
+  flex-shrink: 0;
+}
