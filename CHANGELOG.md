@@ -7,6 +7,7 @@ This changelog is initialized from git commit history after `v1.0.0` and can be 
 ## [Unreleased]
 
 ### Added
+- **Startup landing page**: when the app opens with an empty workspace, a centered view presents the workflow steps in order (Importera · Byt namn · Granska ansikten · Räkna spelare · Gallra spelare) as buttons that open the matching module. Import is enabled only while a camera card is mounted (polled), the rest are always available. The view disappears once a module opens or an image loads.
 - **Räkna spelare** module: counts images per named player from filenames (no face recognition) with median-baseline over/under-representation stats; folder/glob input with extension presets and a filename-date span; live auto-refresh when the watched folder changes (#46).
 - **Gallra spelare** culling workspace: filter by player or a Finder-style glob, file list beside a maximized preview, keystroke culling (`x`/Delete) with auto-advance and `Cmd+Z` undo, backed by an app-managed trash with restore-to-original (#46). Extended to NEF/RAW via the existing NEF→JPG preview pipeline, with debounced conversion on fast stepping (#47).
 - Folder-level file-watching IPC and a folder-path dialog, shared by the new modules.
