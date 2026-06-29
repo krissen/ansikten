@@ -10,7 +10,7 @@
   gap: 8px;
   padding: 8px 12px;
   background: var(--bg-secondary);
-  border-bottom: 1px solid var(--border-color);
+  border-bottom: 1px solid var(--border-subtle);
   flex-wrap: wrap;
 }
 
@@ -28,7 +28,7 @@
   flex-wrap: wrap;
   gap: 6px;
   padding: 6px 12px;
-  border-bottom: 1px solid var(--border-color);
+  border-bottom: 1px solid var(--border-subtle);
 }
 
 .culling-chip {
@@ -38,7 +38,7 @@
   padding: 2px 6px 2px 8px;
   border-radius: 12px;
   background: var(--bg-tertiary, var(--bg-primary));
-  border: 1px solid var(--border-color);
+  border: 1px solid var(--border-subtle);
   font-size: 0.8em;
 }
 
@@ -58,11 +58,91 @@
   min-height: 0;
 }
 
+/* Live per-player count column (left of the list+preview area). */
+.culling-stats {
+  flex: 0 0 190px;
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+  border-right: 1px solid var(--border-subtle);
+  background: var(--bg-secondary);
+}
+
+.culling-stats-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  padding: 6px 10px;
+  font-size: 0.85em;
+  color: var(--text-secondary);
+  border-bottom: 1px solid var(--border-subtle);
+}
+
+.culling-stats-baseline {
+  font-variant-numeric: tabular-nums;
+  color: var(--text-tertiary, var(--text-secondary));
+}
+
+.culling-stats-empty {
+  padding: 8px 10px;
+  color: var(--text-secondary);
+}
+
+.culling-stats-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  overflow-y: auto;
+  flex: 1;
+}
+
+.culling-stat {
+  display: flex;
+  justify-content: space-between;
+  gap: 8px;
+  padding: 3px 10px;
+  font-size: 0.85em;
+  font-variant-numeric: tabular-nums;
+  border-left: 3px solid transparent;
+}
+
+.culling-stat-name {
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.culling-stat-count {
+  color: var(--text-secondary);
+}
+
+/* Deviation from baseline (matches the player-count level thresholds). */
+.culling-stat.delta-high { border-left-color: var(--color-error); }
+.culling-stat.delta-warn { border-left-color: var(--color-warning); }
+.culling-stat.delta-ok { border-left-color: var(--color-success); }
+
+.culling-stat.active {
+  background: var(--bg-active);
+  font-weight: 600;
+}
+
+.culling-stat.active .culling-stat-count {
+  color: var(--text-primary);
+}
+
+/* Wraps the list + divider + preview so the divider drag measures this area
+   (excluding the fixed stats column). */
+.culling-main {
+  flex: 1;
+  display: flex;
+  min-width: 0;
+}
+
 .culling-list {
   display: flex;
   flex-direction: column;
   min-width: 0;
-  border-right: 1px solid var(--border-color);
+  border-right: 1px solid var(--border-subtle);
   overflow: hidden;
 }
 
@@ -70,7 +150,7 @@
   padding: 6px 10px;
   font-size: 0.85em;
   color: var(--text-secondary);
-  border-bottom: 1px solid var(--border-color);
+  border-bottom: 1px solid var(--border-subtle);
 }
 
 .culling-files {
@@ -96,19 +176,19 @@
 }
 
 .culling-files li.active {
-  background: var(--accent, #3b82f6);
-  color: #fff;
+  background: var(--accent-primary);
+  color: var(--text-on-accent);
 }
 
 .culling-divider {
   width: 5px;
   cursor: col-resize;
-  background: var(--border-color);
+  background: var(--border-subtle);
   flex: 0 0 auto;
 }
 
 .culling-divider:hover {
-  background: var(--accent, #3b82f6);
+  background: var(--accent-primary);
 }
 
 .culling-preview {
@@ -155,7 +235,7 @@
   justify-content: space-between;
   gap: 8px;
   padding: 5px 0;
-  border-bottom: 1px solid var(--border-color);
+  border-bottom: 1px solid var(--border-subtle);
   font-size: 0.85em;
 }
 

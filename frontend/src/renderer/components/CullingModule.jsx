@@ -20,6 +20,23 @@ const REFRESH_DEBOUNCE_MS = 400;
 // only converts the file the user rests on, not every file passed through.
 const PREVIEW_DEBOUNCE_MS = 150;
 
+// The live stats panel counts every player in the folder, so it uses the
+// scan scope only — not the player/name_glob filter that narrows the file list.
+// min_images: 1 overrides the count endpoint's default of 3 so players culled
+// down to 1-2 images stay visible (the whole point is watching counts shrink).
+function statsScopeFromQuery(q) {
+  if (!q) return null;
+  return {
+    roots: q.roots,
+    globs: q.globs,
+    extension_preset: q.extension_preset,
+    recursive: q.recursive,
+    date_from: q.date_from,
+    date_to: q.date_to,
+    min_images: 1,
+  };
+}
+
 export function CullingModule({ node }) {
   const { api } = useBackend();
 
@@ -27,6 +44,9 @@ export function CullingModule({ node }) {
   const [glob, setGlob] = useState('');
   const [player, setPlayer] = useState('');
   const [players, setPlayers] = useState([]);
+  // Live per-player counts for the current scope (from /players/count), shown in
+  // the left stats column and refreshed as files are culled.
+  const [stats, setStats] = useState(null);
   const [preset, setPreset] = useState('jpg'); // jpg | nef | raw
   // Scope carried from the stats module (glob-only runs, date span, recursion).
   // The culling bar has no date inputs, so we keep these to honour the count's
@@ -59,10 +79,12 @@ export function CullingModule({ node }) {
   // a large folder) can't clobber a newer result — critical here because the
   // list drives which files `x`/Delete trashes.
   const reqSeqRef = useRef(0);
+  const statsSeqRef = useRef(0);
   const undoStackRef = useRef([]);
   const watchedDirsRef = useRef(new Set());
   const debounceRef = useRef(null);
-  const bodyRef = useRef(null);
+  const statsDebounceRef = useRef(null);
+  const mainRef = useRef(null);
 
   // The editable glob is a Finder-style basename filter (name_glob) over the
   // resolved files, NOT an independent filesystem glob. The scan source is
@@ -137,12 +159,39 @@ export function CullingModule({ node }) {
     [api]
   );
 
+  // Live per-player counts for the scan scope (no player filter), so the panel
+  // shows the balance across all players. Guarded against out-of-order responses.
+  const loadStats = useCallback(
+    async (scope) => {
+      if (!scope) return;
+      const seq = ++statsSeqRef.current;
+      try {
+        const data = await api.post('/api/v1/players/count', scope);
+        if (seq !== statsSeqRef.current) return;
+        setStats(data);
+      } catch {
+        if (seq === statsSeqRef.current) setStats(null);
+      }
+    },
+    [api]
+  );
+
+  // Trailing-debounced stats refresh for the mutation paths (cull/restore), so
+  // rapid culling coalesces into one rescan instead of a backend scan per key.
+  const refreshStatsDebounced = useCallback(() => {
+    if (statsDebounceRef.current) clearTimeout(statsDebounceRef.current);
+    statsDebounceRef.current = setTimeout(() => {
+      loadStats(statsScopeFromQuery(lastQueryRef.current));
+    }, REFRESH_DEBOUNCE_MS);
+  }, [loadStats]);
+
   const runFilter = useCallback((overrides = {}) => {
     const query = buildQuery(overrides);
     lastQueryRef.current = query;
     loadList(query);
+    loadStats(statsScopeFromQuery(query));
     updateWatches(watchDirs());
-  }, [buildQuery, loadList, updateWatches, watchDirs]);
+  }, [buildQuery, loadList, loadStats, updateWatches, watchDirs]);
 
   // Auto-refresh on folder change.
   useEffect(() => {
@@ -151,15 +200,17 @@ export function CullingModule({ node }) {
       if (debounceRef.current) clearTimeout(debounceRef.current);
       debounceRef.current = setTimeout(() => {
         loadList(lastQueryRef.current, { keepIndex: true });
+        loadStats(statsScopeFromQuery(lastQueryRef.current));
       }, REFRESH_DEBOUNCE_MS);
     });
     return () => {
       if (debounceRef.current) clearTimeout(debounceRef.current);
+      if (statsDebounceRef.current) clearTimeout(statsDebounceRef.current);
       if (unsubscribe) unsubscribe();
       for (const dir of watchedDirsRef.current) window.ansiktenAPI.unwatchFolder?.(dir);
       watchedDirsRef.current = new Set();
     };
-  }, [loadList]);
+  }, [loadList, loadStats]);
 
   // ----- filter bar actions ------------------------------------------
   const addFolders = useCallback(async () => {
@@ -216,6 +267,7 @@ export function CullingModule({ node }) {
       };
       lastQueryRef.current = query;
       loadList(query);
+      loadStats(statsScopeFromQuery(query));
 
       const dirs = new Set(nextRoots);
       for (const g of nextGlobs) {
@@ -224,7 +276,7 @@ export function CullingModule({ node }) {
       }
       updateWatches(dirs);
     },
-    [loadList, updateWatches]
+    [loadList, loadStats, updateWatches]
   );
 
   // ----- cull loop ----------------------------------------------------
@@ -243,6 +295,8 @@ export function CullingModule({ node }) {
       const id = res.trashed?.[0]?.id;
       if (id) {
         undoStackRef.current.push(id);
+        // Reflect the removed image in the live counts (debounced for fast culling).
+        refreshStatsDebounced();
       } else {
         // 200 with errors[] (permission/lock/race): the file is still on disk, so
         // roll the optimistic removal back by reloading and surface the reason.
@@ -254,7 +308,7 @@ export function CullingModule({ node }) {
       // Re-fetch to recover correct state on failure.
       if (lastQueryRef.current) loadList(lastQueryRef.current, { keepIndex: true });
     }
-  }, [api, currentIndex, files, loadList]);
+  }, [api, currentIndex, files, loadList, refreshStatsDebounced]);
 
   const undoTrash = useCallback(async () => {
     // Pop until a still-trashed id restores - ids restored via the trash view
@@ -264,7 +318,10 @@ export function CullingModule({ node }) {
       try {
         const res = await api.post('/api/v1/culling/restore', { ids: [id] });
         if (res.restored && res.restored.length > 0) {
-          if (lastQueryRef.current) loadList(lastQueryRef.current, { keepIndex: true });
+          if (lastQueryRef.current) {
+            loadList(lastQueryRef.current, { keepIndex: true });
+            refreshStatsDebounced();
+          }
           return;
         }
         // id no longer in trash -> fall through and try the next one.
@@ -273,7 +330,7 @@ export function CullingModule({ node }) {
         return;
       }
     }
-  }, [api, loadList]);
+  }, [api, loadList, refreshStatsDebounced]);
 
   // ----- keyboard ----------------------------------------------------
   useEffect(() => {
@@ -324,7 +381,10 @@ export function CullingModule({ node }) {
           setTrashItems((prev) => prev.filter((it) => it.id !== id));
           // Keep the cull-loop undo stack in sync - this id is no longer trashable.
           undoStackRef.current = undoStackRef.current.filter((x) => x !== id);
-          if (lastQueryRef.current) loadList(lastQueryRef.current, { keepIndex: true });
+          if (lastQueryRef.current) {
+            loadList(lastQueryRef.current, { keepIndex: true });
+            refreshStatsDebounced();
+          }
         } else {
           // 200 with errors[] (unwritable folder, missing stored file): the item
           // stays in the manifest, so keep it visible and surface the reason.
@@ -334,7 +394,7 @@ export function CullingModule({ node }) {
         setError(err.message || String(err));
       }
     },
-    [api, loadList]
+    [api, loadList, refreshStatsDebounced]
   );
 
   const emptyTrash = useCallback(async () => {
@@ -350,10 +410,11 @@ export function CullingModule({ node }) {
   // ----- divider drag ------------------------------------------------
   const startDrag = useCallback((e) => {
     e.preventDefault();
-    const body = bodyRef.current;
-    if (!body) return;
+    // Measure against the list+preview area (excludes the fixed stats column).
+    const main = mainRef.current;
+    if (!main) return;
     const onMove = (ev) => {
-      const rect = body.getBoundingClientRect();
+      const rect = main.getBoundingClientRect();
       const pct = ((ev.clientX - rect.left) / rect.width) * 100;
       setLeftWidthPct(Math.min(70, Math.max(15, pct)));
     };
@@ -505,7 +566,9 @@ export function CullingModule({ node }) {
           )}
         </div>
       ) : (
-        <div className="culling-body" ref={bodyRef}>
+        <div className="culling-body">
+          <CullingStats stats={stats} selected={player} />
+          <div className="culling-main" ref={mainRef}>
           <div className="culling-list" style={{ width: `${leftWidthPct}%` }}>
             <div className="culling-list-header">
               {files.length} bilder{player ? ` · ${player}` : ''}
@@ -541,6 +604,7 @@ export function CullingModule({ node }) {
             ) : previewUrl ? (
               <img className="culling-image" src={previewUrl} alt={current.basename} />
             ) : null}
+          </div>
           </div>
         </div>
       )}
@@ -580,6 +644,43 @@ function globBaseDir(pattern) {
 function basename(p) {
   const parts = p.replace(/\/+$/, '').split('/');
   return parts[parts.length - 1] || p;
+}
+
+/**
+ * Live per-player count for the current scope, shown left of the file list.
+ * `stats` is the /players/count response (or null); `selected` highlights the
+ * player currently filtered in the list.
+ */
+function CullingStats({ stats, selected }) {
+  const players = stats?.players || [];
+  return (
+    <div className="culling-stats">
+      <div className="culling-stats-header">
+        <span>Spelare</span>
+        {stats?.baseline != null && (
+          <span className="culling-stats-baseline" title="Baslinje (median)">
+            ~{Math.round(stats.baseline)}
+          </span>
+        )}
+      </div>
+      {players.length === 0 ? (
+        <div className="culling-stats-empty">—</div>
+      ) : (
+        <ul className="culling-stats-list">
+          {players.map((p) => (
+            <li
+              key={p.name}
+              className={`culling-stat delta-${p.level || 'ok'}${p.name === selected ? ' active' : ''}`}
+              title={`${p.name}: ${p.count}`}
+            >
+              <span className="culling-stat-name">{p.name}</span>
+              <span className="culling-stat-count">{p.count}</span>
+            </li>
+          ))}
+        </ul>
+      )}
+    </div>
+  );
 }
 
 export default CullingModule;
