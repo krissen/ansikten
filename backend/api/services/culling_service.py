@@ -216,15 +216,23 @@ class CullingService:
         dst = src.with_name(new_basename)
         if dst.name == src.name:
             return {"path": str(src), "basename": src.name}
-        if dst.exists():
+        # On a case-insensitive filesystem (macOS) a case-only rename has
+        # dst.exists() true while pointing at the source itself — allow that.
+        if dst.exists() and not dst.samefile(src):
             raise ValueError("En fil med det namnet finns redan")
 
         # Find sidecars before the move; rename each to follow the new stem.
         sidecars = find_sidecar_files(src, SIDECAR_EXTENSIONS)
         src.rename(dst)
         for sc in sidecars:
+            sc_dst = dst.with_name(dst.stem + sc.suffix)
+            # Don't clobber an unrelated existing sidecar at the target name
+            # (samefile allows a case-only rename of the sidecar itself).
+            if sc_dst.exists() and not sc_dst.samefile(sc):
+                logger.warning("Sidecar target exists, skipping: %s", sc_dst)
+                continue
             try:
-                sc.rename(dst.with_name(dst.stem + sc.suffix))
+                sc.rename(sc_dst)
             except Exception:
                 logger.exception("Failed to rename sidecar %s", sc)
 

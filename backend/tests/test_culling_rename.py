@@ -62,3 +62,30 @@ def test_rename_same_name_is_noop(service, tmp_path):
     result = service.rename(str(a), "a.jpg")
     assert result["basename"] == "a.jpg"
     assert a.exists()
+
+
+def test_rename_does_not_clobber_existing_sidecar(service, tmp_path):
+    img = tmp_path / "a.jpg"
+    img.write_bytes(b"a")
+    (tmp_path / "a.xmp").write_text("a-side")
+    # A sidecar already occupies the target stem's name.
+    occupied = tmp_path / "b.xmp"
+    occupied.write_text("keep-me")
+
+    service.rename(str(img), "b.jpg")
+
+    assert (tmp_path / "b.jpg").exists()
+    # The pre-existing b.xmp is preserved (not overwritten by a.xmp's content).
+    assert occupied.read_text() == "keep-me"
+    # a.xmp stays put since its target was occupied.
+    assert (tmp_path / "a.xmp").read_text() == "a-side"
+
+
+def test_rename_case_only(service, tmp_path):
+    img = tmp_path / "anna.jpg"
+    img.write_bytes(b"a")
+    result = service.rename(str(img), "Anna.jpg")
+    assert result["basename"] == "Anna.jpg"
+    # On case-insensitive FS the same inode is now named Anna.jpg; on
+    # case-sensitive FS the old name is gone. Either way the new name exists.
+    assert (tmp_path / "Anna.jpg").exists()
