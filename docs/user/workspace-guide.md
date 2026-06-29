@@ -170,7 +170,11 @@ antal.
    (`jpg`/`nef`/`raw`) i balken — `nef`/`raw` används för allmän gallring på
    råfiler innan namn satts (förhandsvisas via NEF→JPG-konvertering;
    spelar-menyn är då tom och du filtrerar på mapp/datum/glob).
-3. Bläddra i fillistan i mitten (`↑`/`↓`); bilden visas maximerad till höger.
+3. Bläddra i fillistan i mitten — `→`/`↓` nästa, `←`/`↑` föregående (`Alt`+pil
+   hoppar 10 i taget); bilden visas maximerad till höger. **Högerklicka** en fil
+   för en meny med navigering, byt namn, gallra och ångra — varje rad visar sitt
+   kortkommando (så du lär dig genvägarna). Alla genvägar finns även i
+   genvägshjälpen (`?`).
    Längst till vänster visas en **levande spelarräkning** för det aktuella
    urvalet som uppdateras direkt när du gallrar — så du ser hur varje spelares
    antal förändras. Tryck `x` (eller `Delete`) för att flytta bilden till
