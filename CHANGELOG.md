@@ -25,6 +25,7 @@ This changelog is initialized from git commit history after `v1.0.0` and can be 
 - Documentation: established [CLAUDE.md](CLAUDE.md) as the canonical agent-instructions file; [AGENTS.md](AGENTS.md) and `.github/copilot-instructions.md` now point to it.
 
 ### Fixed
+- Rename now keeps manually added faces in the new filename. Manual faces are persisted with the file's content hash (the batch-confirm path previously stored `hash=None`), and the rename name lookup now takes the union of basename- and hash-matched names instead of consulting the hash index only as a fallback — so a manual face anchored by only one key is no longer dropped when an auto-detected face matches by the other. Applies to both the GUI and the legacy CLI rename.
 - Gallra spelare CSS referenced undefined `--border-color` / `--accent` variables, so borders fell back to nothing and the active file row rendered a non-theme blue; it now uses the theme variables (the active row uses the theme accent in both light and dark).
 
 ## [1.3.0] - 2026-06-27

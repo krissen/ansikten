@@ -634,9 +634,14 @@ def collect_persons_for_files(
         fname = fpath.name
         h = filehash_map.get(str(fpath)) or processed_name_to_hash.get(fname)
 
-        encoding_persons = file_to_persons.get(fname, [])
-        if not encoding_persons and h:
-            encoding_persons = hash_to_persons.get(h, [])
+        # Union of basename- and hash-matched names (deduped). Manual faces may be
+        # anchored by only one key (legacy entries have hash=None → basename-only),
+        # so a hash-only match must not be suppressed by a basename match, or vice versa.
+        encoding_persons = list(file_to_persons.get(fname, []))
+        if h:
+            for name in hash_to_persons.get(h, []):
+                if name not in encoding_persons:
+                    encoding_persons.append(name)
 
         review_persons = []
         if h and h in stats_by_hash:

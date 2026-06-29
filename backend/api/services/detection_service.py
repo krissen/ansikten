@@ -780,10 +780,15 @@ class DetectionService:
         """In-memory confirm without saving to disk. Returns result dict."""
         if face_id.startswith("manual_"):
             backend_info = self.backend.get_model_info()
+            # Anchor manual faces by content hash (like detected faces) so the rename
+            # pipeline can recover the name by hash even after the file is renamed —
+            # mirrors the single-call confirm_identity path.
+            path = Path(image_path)
+            file_hash = get_file_hash(path) if path.exists() else None
             entry = {
                 "encoding": None,
                 "file": str(image_path),
-                "hash": None,
+                "hash": file_hash,
                 "backend": self.backend.backend_name,
                 "backend_version": backend_info.get("version", "unknown"),
                 "created_at": datetime.now().isoformat(),

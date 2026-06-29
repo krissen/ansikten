@@ -10,7 +10,8 @@ Konsoliderad lista över planerade förbättringar, kända brister och teknisk s
 
 ### Nu
 
-- [ ] Rename bugfix. Jag kan ha fel, men jag *tror* att rename inte beaktar manuellt tillagda ansikten/namn? Exempelvis filen ~/Pictures/nerladdat/260111_080910_Aryan.NEF. Den har döpts om enligt ovan. Aryan är ett hittat och bekräftat ansikte---men manuellt har även Elis lagts till. Ändå blir det nya filnamnet endast Aryan; inte Elis. Något är fel! Undersök vad och åtgärda buggen! /plan deepthink Skriv ner planen i en .md för ändamålet i reporoten.
+- [x] **Rename bugfix — manuellt tillagda ansikten tappades ur filnamnet** (2026-06-29). Manuella ansikten sparades med `hash=None` i batch-confirm (GUI), och rename-uppslaget använde hash-indexet bara som fallback (inte union), så ett ansikte som var ankrat via endast en nyckel kunde tappas. Fix: ankra manuella ansikten på content-hash + union av basename-/hash-träffar i `collect_persons_for_files` (både GUI och legacy-CLI). Plan + diagnos: [RENAME_MANUAL_FACES_PLAN.md](RENAME_MANUAL_FACES_PLAN.md).
+  - [ ] **Följdspår: ordnings-/race-granskning av auto-save → rename** — den strukturella fixen är robust, men den faktiska historiska triggern var att rename läste databasen innan ett nyss tillagt manuellt ansikte hunnit persisteras. Granska auto-save→rename-vägen (`c7564d3`) så att manuell confirm + `mark_review_complete` alltid hinner klart före rename. Egen PR.
 
 ### Kort sikt
 
