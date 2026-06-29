@@ -380,6 +380,51 @@ export const databaseLayout = {
 };
 
 /**
+ * Single-module layout: one full-width tabset holding just the given module.
+ * Used for self-contained workflow modules (culling, player-count, import,
+ * rename-nef) opened from the landing page so they fill the workspace instead
+ * of docking beside the Review panel.
+ * @param {string} moduleId - Module component id
+ * @param {string} [title] - Tab title (defaults to moduleId)
+ * @returns {object} FlexLayout JSON configuration
+ */
+export function singleModuleLayout(moduleId, title) {
+  return {
+    global: {
+      tabEnableClose: true,
+      tabSetEnableMaximize: true,
+      tabSetEnableDrag: true,
+      tabSetEnableDrop: true,
+      tabSetMinWidth: 100,
+      tabSetMinHeight: 100,
+      borderMinSize: 100,
+      splitterSize: 4,
+      enableEdgeDock: true,
+      tabEnableRenderOnDemand: true
+    },
+    layout: {
+      type: 'row',
+      weight: 100,
+      children: [
+        {
+          type: 'tabset',
+          weight: 100,
+          children: [
+            {
+              type: 'tab',
+              name: title || moduleId,
+              component: moduleId,
+              enableRenderOnDemand: false,
+              config: { moduleId }
+            }
+          ]
+        }
+      ]
+    }
+  };
+}
+
+/**
  * Get layout by name
  * @param {string} name - Layout name
  * @returns {object} FlexLayout JSON configuration

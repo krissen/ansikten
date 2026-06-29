@@ -6,7 +6,7 @@
 
 import React, { useRef, useEffect, useCallback, useState } from 'react';
 import { Layout, Model, Actions, DockLocation } from 'flexlayout-react';
-import { reviewLayout, getLayoutByName } from './layouts.js';
+import { reviewLayout, getLayoutByName, singleModuleLayout } from './layouts.js';
 import { preferences } from '../preferences.js';
 import { themeManager } from '../../theme-manager.js';
 import { useModuleAPI } from '../../context/ModuleAPIContext.jsx';
@@ -203,6 +203,12 @@ const MODULE_TITLES = {
   'import': 'Importera',
   'rename-nef': 'Byt namn'
 };
+
+// Self-contained workflow modules render their own full UI, so a landing-page
+// click gives them the whole workspace (a single-module layout) rather than
+// docking beside the empty Review panel. Review is not here: it needs the
+// Image Viewer beside it, so its landing button loads the review layout.
+const SOLO_WORKFLOW_MODULES = new Set(['import', 'rename-nef', 'player-count', 'culling']);
 
 // Module-specific default layout ratios
 // widthRatio: proportion of row width (horizontal split)
@@ -728,6 +734,29 @@ export function FlexLayoutWorkspace() {
       debugError('FlexLayout', 'Failed to load layout:', err);
     }
   }, []);
+
+  // Replace the workspace with a single self-contained module filling it. Used
+  // by the landing page for workflow steps (culling, player-count, import,
+  // rename-nef) so they don't dock beside the empty Review panel.
+  const openModuleSolo = useCallback((moduleId) => {
+    setShowLanding(false);
+    try {
+      setModel(Model.fromJson(singleModuleLayout(moduleId, MODULE_TITLES[moduleId])));
+    } catch (err) {
+      debugError('FlexLayout', 'Failed to open module solo:', err);
+    }
+  }, []);
+
+  const openLandingStep = useCallback((moduleId) => {
+    setShowLanding(false);
+    if (moduleId === 'review-module') {
+      loadLayout('review');
+    } else if (SOLO_WORKFLOW_MODULES.has(moduleId)) {
+      openModuleSolo(moduleId);
+    } else {
+      openModule(moduleId);
+    }
+  }, [loadLayout, openModuleSolo, openModule]);
 
   // Helper: Get DockLocation from direction string
   const getDockLocation = useCallback((direction) => {
@@ -1272,7 +1301,7 @@ export function FlexLayoutWorkspace() {
         onModelChange={handleModelChange}
         onAction={handleAction}
       />
-      {showLanding && <StartupLanding onOpenModule={openModule} />}
+      {showLanding && <StartupLanding onOpenModule={openLandingStep} />}
       {showShortcutsHelp && (
         <ShortcutsHelpOverlay
           onClose={() => setShowShortcutsHelp(false)}
