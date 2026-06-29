@@ -26,6 +26,7 @@ This changelog is initialized from git commit history after `v1.0.0` and can be 
 
 ### Fixed
 - Rename now keeps manually added faces in the new filename. Manual faces are persisted with the file's content hash (the batch-confirm path previously stored `hash=None`), and the rename name lookup now takes the union of basename- and hash-matched names instead of consulting the hash index only as a fallback — so a manual face anchored by only one key is no longer dropped when an auto-detected face matches by the other. Applies to both the GUI and the legacy CLI rename.
+- Rename now holds a file out of name resolution while its review has unsaved changes, closing the ordering window behind the fix above: adding a manual face to an already-processed file and renaming during the brief save window could read the database before the face persisted and drop it from the first-pass filename. The Review panel signals unsaved changes and the file queue excludes such files from rename preview and execution until the save completes.
 - Gallra spelare CSS referenced undefined `--border-color` / `--accent` variables, so borders fell back to nothing and the active file row rendered a non-theme blue; it now uses the theme variables (the active row uses the theme accent in both light and dark).
 
 ## [1.3.0] - 2026-06-27
