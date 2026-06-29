@@ -224,7 +224,14 @@ Config in `~/.local/share/faceid/config.json`:
 
 ### Testing
 
-No automated test suite. Manual testing:
+Automated tests exist — run them before pushing:
+
+```bash
+cd backend && pytest        # backend/tests/ (configured in backend/pyproject.toml)
+cd frontend && npm test     # Vitest, frontend/tests/
+```
+
+The suite is small, so also test manually:
 - Run `npx electron .` and test modules in both light/dark themes
 - Check DevTools console for errors
 - Legacy CLI: `./hitta_ansikten.py --simulate *.NEF`
