@@ -75,6 +75,7 @@ export function CullingModule({ node }) {
 
   const [showTrash, setShowTrash] = useState(false);
   const [trashItems, setTrashItems] = useState([]);
+  const [trashFilter, setTrashFilter] = useState('all'); // 'all' | 'jpg' | 'nef'
 
   const [leftWidthPct, setLeftWidthPct] = useState(32);
 
@@ -488,11 +489,19 @@ export function CullingModule({ node }) {
     [api, loadList, refreshStatsDebounced]
   );
 
-  const emptyTrash = useCallback(async () => {
+  // Empty the trash. With no ids, clears everything; with ids, deletes just
+  // those (used to empty only the currently filtered subset).
+  const emptyTrash = useCallback(async (ids = null) => {
     try {
-      await api.post('/api/v1/culling/empty', {});
-      setTrashItems([]);
-      undoStackRef.current = [];
+      await api.post('/api/v1/culling/empty', ids ? { ids } : {});
+      if (ids) {
+        const gone = new Set(ids);
+        setTrashItems((prev) => prev.filter((it) => !gone.has(it.id)));
+        undoStackRef.current = undoStackRef.current.filter((x) => !gone.has(x));
+      } else {
+        setTrashItems([]);
+        undoStackRef.current = [];
+      }
     } catch (err) {
       setError(err.message || String(err));
     }
@@ -518,6 +527,10 @@ export function CullingModule({ node }) {
   }, []);
 
   const current = currentIndex >= 0 ? files[currentIndex] : null;
+  const filteredTrash =
+    trashFilter === 'all'
+      ? trashItems
+      : trashItems.filter((it) => trashGroup(it.basename) === trashFilter);
   const canFilter = roots.length > 0 || glob.trim() !== '';
 
   // Resolve the preview for the current file. RAW is converted via the NEF
@@ -638,16 +651,42 @@ export function CullingModule({ node }) {
       {showTrash ? (
         <div className="module-body culling-trashview">
           <div className="culling-trash-header">
-            <span>{trashItems.length} i papperskorgen</span>
+            <span>
+              {trashFilter === 'all'
+                ? `${trashItems.length} i papperskorgen`
+                : `${filteredTrash.length} av ${trashItems.length} i papperskorgen`}
+            </span>
             {trashItems.length > 0 && (
-              <button className="btn-secondary" onClick={emptyTrash}>Töm</button>
+              <>
+                <select
+                  className="form-select"
+                  value={trashFilter}
+                  onChange={(e) => setTrashFilter(e.target.value)}
+                  title="Filtyp"
+                >
+                  <option value="all">Alla</option>
+                  <option value="jpg">jpg / jpeg</option>
+                  <option value="nef">nef / raw</option>
+                </select>
+                <button
+                  className="btn-secondary"
+                  onClick={() =>
+                    emptyTrash(trashFilter === 'all' ? null : filteredTrash.map((it) => it.id))
+                  }
+                  disabled={filteredTrash.length === 0}
+                >
+                  {trashFilter === 'all' ? 'Töm' : `Töm ${filteredTrash.length}`}
+                </button>
+              </>
             )}
           </div>
           {trashItems.length === 0 ? (
             <div className="empty-state">Papperskorgen är tom.</div>
+          ) : filteredTrash.length === 0 ? (
+            <div className="empty-state">Inga filer av den typen i papperskorgen.</div>
           ) : (
             <ul className="culling-trash-list">
-              {trashItems.map((it) => (
+              {filteredTrash.map((it) => (
                 <li key={it.id}>
                   <span className="culling-trash-name" title={it.original_path}>{it.basename}</span>
                   <button className="btn-secondary" onClick={() => restoreItem(it.id)}>Återställ</button>
@@ -776,6 +815,17 @@ const RAW_EXTS = ['.nef', '.cr2', '.cr3', '.arw', '.dng', '.raw', '.raf', '.orf'
 function isRaw(p) {
   const i = p.lastIndexOf('.');
   return i !== -1 && RAW_EXTS.includes(p.slice(i).toLowerCase());
+}
+
+const JPG_EXTS = ['.jpg', '.jpeg'];
+
+// Classify a trashed file by type for the trash-view filter: JPEG vs raw
+// (nef/cr2/…) vs anything else (png/tiff). Mirrors the EXTENSION_PRESETS groups.
+export function trashGroup(name) {
+  const ext = extOf(name).toLowerCase();
+  if (JPG_EXTS.includes(ext)) return 'jpg';
+  if (RAW_EXTS.includes(ext)) return 'nef';
+  return 'other';
 }
 
 // file:// URL builder - mirrors ImageViewer.loadImage encoding.
