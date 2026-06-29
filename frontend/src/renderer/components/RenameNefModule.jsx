@@ -1,0 +1,169 @@
+/**
+ * RenameNefModule - EXIF-based NEF renaming (YYMMDD_HHMMSS.NEF).
+ *
+ * GUI for the rename_nef CLI: pick a folder (optionally narrow by glob), preview
+ * the EXIF-derived rename mapping, then confirm. Preview is the dry-run; execute
+ * renames NEFs (+ .xmp sidecars), never overwriting an existing target.
+ */
+
+import React, { useState, useCallback } from 'react';
+import { useBackend } from '../context/BackendContext.jsx';
+import './RenameNefModule.css';
+
+export function RenameNefModule() {
+  const { api } = useBackend();
+
+  const [roots, setRoots] = useState([]);
+  const [glob, setGlob] = useState('');
+  const [preview, setPreview] = useState(null);
+  const [result, setResult] = useState(null);
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState(null);
+
+  const params = useCallback(() => ({
+    roots,
+    globs: glob.trim() ? [glob.trim()] : [],
+    recursive: true,
+  }), [roots, glob]);
+
+  const addFolder = useCallback(async () => {
+    try {
+      const paths = await window.ansiktenAPI.invoke('open-folder-paths');
+      if (paths && paths.length) {
+        setRoots((r) => Array.from(new Set([...r, ...paths])));
+        setPreview(null);
+        setResult(null);
+      }
+    } catch (err) {
+      console.error('[RenameNef] folder pick failed', err);
+    }
+  }, []);
+
+  const doPreview = useCallback(async () => {
+    setBusy(true);
+    setError(null);
+    setResult(null);
+    try {
+      const data = await api.post('/api/v1/rename-nef/preview', params());
+      setPreview(data);
+    } catch (err) {
+      setError(err.message || String(err));
+    } finally {
+      setBusy(false);
+    }
+  }, [api, params]);
+
+  const doExecute = useCallback(async () => {
+    setBusy(true);
+    setError(null);
+    try {
+      const data = await api.post('/api/v1/rename-nef/execute', params());
+      setResult(data);
+      setPreview(null);
+    } catch (err) {
+      setError(err.message || String(err));
+    } finally {
+      setBusy(false);
+    }
+  }, [api, params]);
+
+  const canPreview = !busy && (roots.length > 0 || glob.trim() !== '');
+  const canExecute = !busy && preview && preview.to_rename > 0;
+
+  return (
+    <div className="module-container rename-nef">
+      <div className="rename-nef-bar">
+        <button className="btn-secondary" onClick={addFolder} disabled={busy}>+ Mapp</button>
+        <input
+          className="form-input rename-nef-glob"
+          type="text"
+          placeholder="Glob (valfritt), t.ex. DSC*"
+          value={glob}
+          onChange={(e) => { setGlob(e.target.value); setPreview(null); setResult(null); }}
+          onKeyDown={(e) => { if (e.key === 'Enter') canPreview && doPreview(); }}
+          disabled={busy}
+        />
+        <button className="btn-secondary" onClick={doPreview} disabled={!canPreview}>
+          {busy ? '…' : 'Förhandsgranska'}
+        </button>
+        <button className="btn-primary" onClick={doExecute} disabled={!canExecute}>
+          Byt namn
+        </button>
+      </div>
+
+      {roots.length > 0 && (
+        <div className="rename-nef-roots">
+          {roots.map((r) => (
+            <span className="rename-nef-chip" key={r} title={r}>
+              {basename(r)}
+              <button className="rename-nef-chip-x" onClick={() => { setRoots((rs) => rs.filter((x) => x !== r)); setPreview(null); }} disabled={busy}>×</button>
+            </span>
+          ))}
+        </div>
+      )}
+
+      <div className="module-body rename-nef-body">
+        {error && <div className="status-message error">Fel: {error}</div>}
+
+        {!preview && !result && !error && (
+          <div className="empty-state">Välj en mapp och tryck <strong>Förhandsgranska</strong>.</div>
+        )}
+
+        {preview && (
+          <>
+            <div className="rename-nef-summary">
+              <strong>{preview.to_rename}</strong> att döpa om
+              {preview.already_named > 0 && <> · {preview.already_named} redan namngivna</>}
+              {preview.no_date.length > 0 && <> · {preview.no_date.length} utan CreateDate</>}
+            </div>
+            {preview.to_rename === 0 ? (
+              <div className="empty-state">Inget att döpa om.</div>
+            ) : (
+              <table className="rename-nef-table">
+                <thead><tr><th>Original</th><th></th><th>Nytt namn</th></tr></thead>
+                <tbody>
+                  {preview.items.map((it) => (
+                    <tr key={it.original_path}>
+                      <td>{it.original}</td>
+                      <td className="rename-nef-arrow">→</td>
+                      <td>{it.new_name}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            )}
+            {preview.no_date.length > 0 && (
+              <details className="rename-nef-nodate">
+                <summary>{preview.no_date.length} utan CreateDate (döps ej om)</summary>
+                <ul>{preview.no_date.map((n) => <li key={n}>{n}</li>)}</ul>
+              </details>
+            )}
+          </>
+        )}
+
+        {result && (
+          <div className="rename-nef-result">
+            <div><strong>{result.renamed.length}</strong> omdöpta{result.skipped.length > 0 && `, ${result.skipped.length} överhoppade`}</div>
+            {result.skipped.length > 0 && (
+              <details><summary>Överhoppade</summary>
+                <ul>{result.skipped.map((s, i) => <li key={i}>{basename(s.path)}: {s.reason}</li>)}</ul>
+              </details>
+            )}
+            {result.errors.length > 0 && (
+              <details className="rename-nef-errors"><summary>{result.errors.length} fel</summary>
+                <ul>{result.errors.map((e, i) => <li key={i}>{e.path}: {e.error}</li>)}</ul>
+              </details>
+            )}
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
+
+function basename(p) {
+  const parts = String(p).replace(/\/+$/, '').split('/');
+  return parts[parts.length - 1] || p;
+}
+
+export default RenameNefModule;
