@@ -16,6 +16,9 @@ import { useModuleEvent } from '../hooks/useModuleEvent.js';
 import './CullingModule.css';
 
 const REFRESH_DEBOUNCE_MS = 400;
+// Delay RAW conversion until the selection settles, so fast keyboard stepping
+// only converts the file the user rests on, not every file passed through.
+const PREVIEW_DEBOUNCE_MS = 150;
 
 export function CullingModule({ node }) {
   const { api } = useBackend();
@@ -367,26 +370,33 @@ export function CullingModule({ node }) {
     }
     let cancelled = false;
     setPreviewLoading(true); setPreviewError(null); setPreviewUrl(null);
-    api.post('/api/v1/preprocessing/nef', { file_path: currentPath })
-      .then((res) => {
-        if (cancelled) return;
-        if (res.status === 'error' || !res.nef_jpg_path) {
-          setPreviewError(res.error || 'Kunde inte konvertera NEF.');
-        } else {
-          setPreviewUrl(toFileUrl(res.nef_jpg_path));
-        }
-      })
-      .catch((err) => { if (!cancelled) setPreviewError(err.message || String(err)); })
-      .finally(() => { if (!cancelled) setPreviewLoading(false); });
-    return () => { cancelled = true; };
+    // Debounced: clearing the timer on a fast step cancels the POST before it
+    // fires, so no abandoned conversions pile up behind the one the user lands on.
+    const timer = setTimeout(() => {
+      api.post('/api/v1/preprocessing/nef', { file_path: currentPath })
+        .then((res) => {
+          if (cancelled) return;
+          if (res.status === 'error' || !res.nef_jpg_path) {
+            setPreviewError(res.error || 'Kunde inte konvertera NEF.');
+          } else {
+            setPreviewUrl(toFileUrl(res.nef_jpg_path));
+          }
+        })
+        .catch((err) => { if (!cancelled) setPreviewError(err.message || String(err)); })
+        .finally(() => { if (!cancelled) setPreviewLoading(false); });
+    }, PREVIEW_DEBOUNCE_MS);
+    return () => { cancelled = true; clearTimeout(timer); };
   }, [currentPath, api]);
 
-  // Prefetch the next RAW so stepping through is usually a cache hit.
+  // Prefetch the next RAW so stepping through is usually a cache hit - also
+  // debounced, so a fast run of keypresses only warms the file after the rest.
   useEffect(() => {
     const next = files[currentIndex + 1];
-    if (next && isRaw(next.path)) {
+    if (!next || !isRaw(next.path)) return;
+    const timer = setTimeout(() => {
       api.post('/api/v1/preprocessing/nef', { file_path: next.path }).catch(() => {});
-    }
+    }, PREVIEW_DEBOUNCE_MS);
+    return () => clearTimeout(timer);
   }, [currentIndex, files, api]);
 
   return (
