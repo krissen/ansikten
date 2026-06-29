@@ -696,6 +696,31 @@ export function ReviewModule({ node }) {
   }, [detectedFaces, pendingConfirmations, pendingIgnores, saveAllChanges, buildReviewedFaces, markReviewComplete, emit, currentImagePath, currentFileHash]);
 
   /**
+   * Signal "dirty" state for the current file so the file queue can hold it out of
+   * rename until the review is persisted. Pending confirmations/ignores are cleared
+   * only after the batch save succeeds, so a non-empty pending set is exactly the
+   * window where the database has not yet caught up with the user's edits — renaming
+   * during it would drop a just-added (but unsaved) manual face from the filename.
+   */
+  useEffect(() => {
+    if (!currentImagePath) return;
+    const dirty = pendingConfirmations.length + pendingIgnores.length > 0;
+    emit('review-dirty', { imagePath: currentImagePath, dirty });
+  }, [pendingConfirmations.length, pendingIgnores.length, currentImagePath, emit]);
+
+  /**
+   * Clear the dirty flag for a file when the user leaves it (manual file switch that
+   * bypasses saveAllChanges), so a file is never stuck unrenamable. review-complete
+   * also clears it on the normal save path.
+   */
+  useEffect(() => {
+    const leftPath = currentImagePath;
+    return () => {
+      if (leftPath) emit('review-dirty', { imagePath: leftPath, dirty: false });
+    };
+  }, [currentImagePath, emit]);
+
+  /**
    * Update status when pending changes
    */
   useEffect(() => {

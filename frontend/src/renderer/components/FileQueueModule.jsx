@@ -17,7 +17,7 @@ import { debug, debugWarn, debugError } from '../shared/debug.js';
 import { apiClient } from '../shared/api-client.js';
 import { getPreprocessingManager, PreprocessingStatus } from '../services/preprocessing/index.js';
 import { Icon } from './Icon.jsx';
-import { isFileEligible as isFileEligiblePure, findNextEligibleIndex } from './fileQueueEligibility.js';
+import { isFileEligible as isFileEligiblePure, findNextEligibleIndex, isRenameEligible } from './fileQueueEligibility.js';
 import { compileFilter } from './filterExpression.js';
 import { formatNamesToFit, measureTextWidth } from '../shared/nameFormatter.js';
 import './FileQueueModule.css';
@@ -233,6 +233,10 @@ export function FileQueueModule({ node }) {
   const [showPreviewNames, setShowPreviewNames] = useState(false);
   const [previewData, setPreviewData] = useState(null); // { path: { newName, status, persons } }
   const [renameInProgress, setRenameInProgress] = useState(false);
+  // Paths whose review has unsaved changes; held out of rename until persisted.
+  const [dirtyPaths, setDirtyPaths] = useState(new Set());
+  const dirtyPathsRef = useRef(dirtyPaths);
+  dirtyPathsRef.current = dirtyPaths;
 
   // Drag-and-drop state
   const [isDragOver, setIsDragOver] = useState(false);
@@ -1359,8 +1363,9 @@ export function FileQueueModule({ node }) {
     // - isAlreadyProcessed (when fix-mode OFF): already in database, includes active files being re-viewed
     const currentQueue = queueRef.current;
     const currentFixMode = fixModeRef.current;
+    const dirty = dirtyPathsRef.current;
     const eligiblePaths = currentQueue
-      .filter(q => q.status === 'completed' || (!currentFixMode && q.isAlreadyProcessed))
+      .filter(q => isRenameEligible(q, currentFixMode, dirty))
       .map(q => q.filePath);
 
     if (eligiblePaths.length === 0) {
@@ -1449,7 +1454,7 @@ export function FileQueueModule({ node }) {
     const currentVisibleIds = visibleIdsRef.current;
     const eligiblePaths = queue
       .filter(q => {
-        const isEligible = q.status === 'completed' || (!currentFixMode && q.isAlreadyProcessed);
+        const isEligible = isRenameEligible(q, currentFixMode, dirtyPathsRef.current);
         if (hasSelection) return isEligible && selectedFiles.has(q.id);
         if (currentVisibleIds) return isEligible && currentVisibleIds.has(q.id);
         return isEligible;
@@ -1558,6 +1563,14 @@ export function FileQueueModule({ node }) {
   useModuleEvent('review-complete', useCallback(({ imagePath, success, reviewedFaces }) => {
     debug('FileQueue', 'Review complete:', imagePath, success, 'faces:', reviewedFaces?.length);
 
+    // The review is persisted by the time this fires, so the file is safe to rename again.
+    setDirtyPaths(prev => {
+      if (!prev.has(imagePath)) return prev;
+      const next = new Set(prev);
+      next.delete(imagePath);
+      return next;
+    });
+
     if (success && preprocessingManager.current) {
       preprocessingManager.current.markDone(imagePath);
     }
@@ -1632,6 +1645,20 @@ export function FileQueueModule({ node }) {
       }
     }
   }, [autoAdvance, loadFile, loadProcessedFiles, showToast, emit, isFileEligible]));
+
+  // Track files whose review has unsaved changes; while dirty they're held out of
+  // rename so a rename can't read the database before a just-added manual face persists.
+  useModuleEvent('review-dirty', useCallback(({ imagePath, dirty }) => {
+    if (!imagePath) return;
+    setDirtyPaths(prev => {
+      const has = prev.has(imagePath);
+      if (dirty === has) return prev;
+      const next = new Set(prev);
+      if (dirty) next.add(imagePath);
+      else next.delete(imagePath);
+      return next;
+    });
+  }, []));
 
   // Listen for faces-detected event to update face count for the detected file
   // This updates the face count when detection completes (not just from preprocessing)
@@ -2157,7 +2184,7 @@ export function FileQueueModule({ node }) {
           <div className="file-queue-controls">
             {(() => {
               const hasSelection = selectedFiles.size > 0;
-              const isEligible = q => q.status === 'completed' || (!fixMode && q.isAlreadyProcessed);
+              const isEligible = q => isRenameEligible(q, fixMode, dirtyPaths);
               let renameCount, renameLabel;
               if (hasSelection) {
                 renameCount = queue.filter(q => selectedFiles.has(q.id) && isEligible(q)).length;
