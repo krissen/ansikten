@@ -107,24 +107,42 @@ class RenameNefService:
                 logger.error("[RenameNef] to-temp failed: %s -> %s: %s", src, tmp, e)
                 errors.append({"path": str(src), "error": str(e)})
 
-        # Pass 2: temp -> dst, never overwriting (restore the original on collision).
+        # Pass 2: temp -> dst, never overwriting; restore the original on collision.
         for src, dst, tmp in moved:
             if dst.exists():
-                try:
-                    tmp.rename(src)  # restore — do NOT delete (CLI bug)
+                if self._restore(tmp, src):
                     skipped.append({"path": str(src), "reason": f"målnamn upptaget: {dst.name}"})
-                except OSError as e:
-                    logger.error("[RenameNef] restore failed: %s -> %s: %s", tmp, src, e)
-                    errors.append({"path": str(tmp), "error": f"kunde inte återställa: {e}"})
+                else:
+                    errors.append({"path": str(tmp), "error": f"kan ej återställa: {src.name} upptaget — fil kvar som {tmp.name}"})
                 continue
             try:
                 tmp.rename(dst)
                 renamed.append({"from": src.name, "to": dst.name})
             except OSError as e:
                 logger.error("[RenameNef] to-final failed: %s -> %s: %s", tmp, dst, e)
-                errors.append({"path": str(tmp), "error": str(e)})
+                if self._restore(tmp, src):
+                    errors.append({"path": str(src), "error": str(e)})
+                else:
+                    errors.append({"path": str(tmp), "error": f"{e}; kunde ej återställa (fil kvar som {tmp.name})"})
 
         return {"renamed": renamed, "skipped": skipped, "errors": errors}
+
+    @staticmethod
+    def _restore(tmp: Path, src: Path) -> bool:
+        """Move a temp back to its original name, NEVER overwriting an existing file.
+
+        Returns False (leaving the temp in place) if `src` is occupied — better a
+        recoverable hidden temp than silently clobbering a sibling already placed
+        at that name in this same pass.
+        """
+        if src.exists():
+            return False
+        try:
+            tmp.rename(src)
+            return True
+        except OSError as e:
+            logger.error("[RenameNef] restore failed: %s -> %s: %s", tmp, src, e)
+            return False
 
 
 rename_nef_service = RenameNefService()
