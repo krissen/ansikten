@@ -27,6 +27,7 @@ contextBridge.exposeInMainWorld("ansiktenAPI", {
       "open-file-dialog",
       "open-multi-file-dialog",
       "open-folder-dialog",
+      "open-folder-paths",
       "expand-glob",
       "check-file-changed",
       "get-initial-file"
@@ -73,5 +74,22 @@ contextBridge.exposeInMainWorld("ansiktenAPI", {
 
   unwatchAllFiles: () => {
     ipcRenderer.send("unwatch-all-files");
+  },
+
+  // Folder-level watching for live auto-refresh (whole directory, debounced).
+  watchFolder: (dir, recursive = true) => {
+    ipcRenderer.send("watch-folder", { dir, recursive });
+  },
+
+  unwatchFolder: (dir) => {
+    ipcRenderer.send("unwatch-folder", dir);
+  },
+
+  onFolderChanged: (callback) => {
+    const handler = (event, dir) => callback(dir);
+    ipcRenderer.on("folder-changed", handler);
+    return () => {
+      ipcRenderer.removeListener("folder-changed", handler);
+    };
   },
 });

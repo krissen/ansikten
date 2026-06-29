@@ -18,6 +18,8 @@ Workspace är ett modulärt gränssnitt byggt med FlexLayout. Paneler kan dockas
 | **Log Viewer** | Visa loggar |
 | **Original View** | Jämför med originalfil |
 | **Statistics** | Bearbetningsstatistik |
+| **Räkna spelare** | Räknar bilder per spelare (från filnamn) med över-/underrepresentation |
+| **Gallra spelare** | Gallra bilder per spelare med förhandsvisning och papperskorg |
 | **Database** | Databashantering |
 | **Preferences** | Inställningar |
 | **Theme Editor** | Anpassa utseende |
@@ -74,12 +76,22 @@ Workspace är ett modulärt gränssnitt byggt med FlexLayout. Paneler kan dockas
 | `Cmd+Shift+]` | Lägg till kolumn |
 | `Cmd+Shift+[` | Ta bort kolumn |
 
+### Gallring (Gallra spelare)
+
+| Genväg | Funktion |
+|--------|----------|
+| `↑` / `↓` (`k` / `j`) | Föregående/nästa bild i listan |
+| `x` / `Delete` | Flytta bilden till papperskorgen och gå vidare |
+| `Cmd+Z` | Ångra (återställ senast gallrade bild) |
+
 ### Allmänt
 
 | Genväg | Funktion |
 |--------|----------|
 | `?` | Visa hjälp |
 | `Cmd+O` | Öppna fil |
+| `Cmd+Shift+K` | Räkna spelare |
+| `Cmd+Shift+G` | Gallra spelare |
 | `Cmd+,` | Inställningar |
 | `Cmd+S` | Spara ändringar |
 
@@ -121,6 +133,22 @@ antal.
 1. När filer är granskade, klicka **Rename** i File Queue
 2. Bekräfta namnbytet
 3. Filer får nya namn enligt mönstret `YYMMDD_HHMMSS_Namn1,_Namn2.NEF`
+
+### 5. Räkna och gallra spelare (på utvecklade jpg)
+
+1. Öppna **Räkna spelare** (`Cmd+Shift+K`). Ange en mapp och/eller ett wildcard
+   i balken högst upp, välj filtyp (vanligen `jpg / jpeg`) och ev. datum-span,
+   och klicka **Räkna**. Tabellen visar antal bilder per spelare och avvikelse
+   från medianen (grön/gul/röd). Statistiken uppdateras automatiskt när filer
+   läggs till, tas bort eller byter namn i mappen.
+2. Klicka på en spelare i tabellen för att öppna **Gallra spelare**
+   (`Cmd+Shift+G`) filtrerad på den spelaren. Filtret kan finjusteras med
+   spelar-menyn eller ett eget glob (t.ex. `*ArvidW*`) i balken.
+3. Bläddra i fillistan till vänster (`↑`/`↓`); bilden visas maximerad till höger.
+   Tryck `x` (eller `Delete`) för att flytta bilden till papperskorgen och gå
+   vidare. `Cmd+Z` ångrar.
+4. Papperskorgen (knappen **Papperskorg**) listar gallrade bilder och återställer
+   dem till ursprungsplatsen, eller tömmer permanent.
 
 ---
 

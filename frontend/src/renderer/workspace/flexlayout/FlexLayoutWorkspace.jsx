@@ -24,6 +24,8 @@ import { FileQueueModule } from '../../components/FileQueueModule.jsx';
 import { ThemeEditor } from '../../components/ThemeEditor.jsx';
 import { PreferencesModule } from '../../components/PreferencesModule.jsx';
 import { RefineFacesModule } from '../../components/RefineFacesModule.jsx';
+import { PlayerCountModule } from '../../components/PlayerCountModule.jsx';
+import { CullingModule } from '../../components/CullingModule.jsx';
 
 
 // Storage key for layout persistence
@@ -174,7 +176,9 @@ const MODULE_COMPONENTS = {
   'refine-faces': RefineFacesModule,
   'file-queue': FileQueueModule,
   'theme-editor': ThemeEditor,
-  'preferences': PreferencesModule
+  'preferences': PreferencesModule,
+  'player-count': PlayerCountModule,
+  'culling': CullingModule
 };
 
 // Module titles
@@ -188,7 +192,9 @@ const MODULE_TITLES = {
   'refine-faces': 'Refine Faces',
   'file-queue': 'File Queue',
   'theme-editor': 'Theme Editor',
-  'preferences': 'Preferences'
+  'preferences': 'Preferences',
+  'player-count': 'Räkna spelare',
+  'culling': 'Gallra spelare'
 };
 
 // Module-specific default layout ratios
@@ -233,6 +239,16 @@ const MODULE_LAYOUT = {
   },
   'theme-editor': {
     widthRatio: 0.50,     // 50% when sharing row
+    heightRatio: 0.70,    // Primary row
+    row: 1
+  },
+  'player-count': {
+    widthRatio: 0.50,     // 50% when sharing row
+    heightRatio: 0.70,    // Primary row
+    row: 1
+  },
+  'culling': {
+    widthRatio: 0.70,     // wide - it holds list + image side by side
     heightRatio: 0.70,    // Primary row
     row: 1
   }
@@ -454,7 +470,9 @@ export function FlexLayoutWorkspace() {
     'log-viewer',
     'database-management',
     'refine-faces',
-    'theme-editor'
+    'theme-editor',
+    'player-count',
+    'culling'
   ]);
 
   // Open a module tab
@@ -1114,6 +1132,12 @@ export function FlexLayoutWorkspace() {
           break;
         case 'open-statistics-dashboard':
           openModule('statistics-dashboard');
+          break;
+        case 'open-player-count':
+          openModule('player-count');
+          break;
+        case 'open-culling':
+          openModule('culling');
           break;
         case 'open-database-management':
           openModule('database-management');

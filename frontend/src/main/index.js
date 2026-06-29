@@ -737,4 +737,105 @@ ipcMain.on("unwatch-all-files", () => {
   fileToDirectory.clear();
 });
 
+// Folder selection that returns the chosen directory paths themselves (not the
+// expanded image files) - used by modules that let the backend do the globbing.
+ipcMain.handle("open-folder-paths", async () => {
+  const result = await dialog.showOpenDialog(mainWindow, {
+    properties: ["openDirectory", "multiSelections"],
+    message: "Välj mapp(ar)",
+  });
+
+  if (result.canceled || !result.filePaths || result.filePaths.length === 0) {
+    return null;
+  }
+  return result.filePaths;
+});
+
+// Folder-level watching for live auto-refresh. Unlike the file-list watcher
+// above, this watches a whole directory (optionally recursively) and emits on
+// ANY add/remove/rename/change, debounced to coalesce the bursts fs.watch fires
+// on macOS. Keyed by folder path; reference-counted so multiple modules can
+// share a watcher.
+const folderWatchers = new Map(); // dir -> { watcher, refs, timer }
+const FOLDER_DEBOUNCE_MS = 300;
+
+ipcMain.on("watch-folder", (event, { dir, recursive = true } = {}) => {
+  if (!dir) return;
+
+  // Expand a leading ~ - glob inputs like ~/Pictures/... arrive un-expanded, and
+  // fs.existsSync/fs.watch don't expand it (so the watch would silently no-op).
+  if (dir.startsWith("~")) {
+    dir = path.join(os.homedir(), dir.slice(1));
+  }
+
+  const existing = folderWatchers.get(dir);
+  if (existing) {
+    existing.refs += 1;
+    return;
+  }
+
+  try {
+    if (!fs.existsSync(dir)) return;
+
+    const entry = { watcher: null, refs: 1, timer: null };
+    const onChange = () => {
+      if (entry.timer) clearTimeout(entry.timer);
+      entry.timer = setTimeout(() => {
+        entry.timer = null;
+        mainWindow?.webContents.send("folder-changed", dir);
+      }, FOLDER_DEBOUNCE_MS);
+    };
+    let watcher;
+    try {
+      watcher = fs.watch(dir, { recursive }, onChange);
+    } catch (err) {
+      // Recursive watching is unsupported on Linux (ERR_FEATURE_UNAVAILABLE_ON_PLATFORM);
+      // fall back to a non-recursive watch so top-level changes still refresh.
+      if (recursive) {
+        console.warn("[Main] Recursive folder watch unavailable, falling back:", err.message);
+        watcher = fs.watch(dir, { recursive: false }, onChange);
+      } else {
+        throw err;
+      }
+    }
+
+    watcher.on("error", (err) => {
+      console.error("[Main] Folder watcher error:", dir, err.message);
+      if (entry.timer) clearTimeout(entry.timer);
+      try {
+        entry.watcher?.close();
+      } catch (_) {
+        // already closed
+      }
+      folderWatchers.delete(dir);
+    });
+
+    entry.watcher = watcher;
+    folderWatchers.set(dir, entry);
+  } catch (err) {
+    console.error("[Main] Failed to watch folder:", dir, err.message);
+  }
+});
+
+ipcMain.on("unwatch-folder", (event, dir) => {
+  if (!dir) return;
+  // Match the ~-expansion done in watch-folder so we find the right watcher.
+  if (dir.startsWith("~")) {
+    dir = path.join(os.homedir(), dir.slice(1));
+  }
+  const entry = folderWatchers.get(dir);
+  if (!entry) return;
+
+  entry.refs -= 1;
+  if (entry.refs > 0) return;
+
+  if (entry.timer) clearTimeout(entry.timer);
+  try {
+    entry.watcher?.close();
+  } catch (_) {
+    // already closed
+  }
+  folderWatchers.delete(dir);
+});
+
 console.log("[Main] Workspace mode initialized");

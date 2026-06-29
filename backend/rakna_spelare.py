@@ -110,6 +110,237 @@ def compute_baseline(counts: list[int], method: str = "median") -> float:
     return median(counts) if method == "median" else mean(counts)
 
 
+# ============================================================================
+# Reusable counting core (shared by the CLI and the GUI/API).
+#
+# These functions produce plain data (lists/dicts of primitives) and never
+# print. The terminal renderers (render_bar/render_spark/print_section) consume
+# the same parsed entries but format for the console; the API consumes the dicts
+# from compute_player_stats() and renders its own visuals.
+# ============================================================================
+
+
+def build_entries(files: list[str]) -> list[tuple[datetime, list[str], str]]:
+    """Parse + filter + sort files into (datetime, names, filename) entries.
+
+    Files whose name does not match the YYMMDD_HHMMSS[_Name...] format are
+    silently skipped (parse_filename returns None). Sorted by timestamp.
+    """
+    entries: list[tuple[datetime, list[str], str]] = []
+    for fn in files:
+        dt, names = parse_filename(fn)
+        if dt is None:
+            continue
+        entries.append((dt, names or [], fn))
+    entries.sort(key=lambda x: x[0])
+    return entries
+
+
+def segment_matches(
+    entries: list[tuple[datetime, list[str], str]], gap_minutes: int
+) -> list[list[int]]:
+    """Group temporally-adjacent entries into matches.
+
+    A new match starts whenever the gap to the previous entry exceeds
+    gap_minutes. Returns a list of matches, each a list of indices into entries.
+    """
+    if not entries:
+        return []
+    matches: list[list[int]] = []
+    current = [0]
+    for i in range(1, len(entries)):
+        if entries[i][0] - entries[i - 1][0] > timedelta(minutes=gap_minutes):
+            matches.append(current)
+            current = [i]
+        else:
+            current.append(i)
+    matches.append(current)
+    return matches
+
+
+def bucket_counter(
+    counter: Counter,
+    min_images: int,
+    tranare_set: set[str],
+    publik_set: set[str],
+    grupp_set: set[str],
+) -> dict[str, dict[str, int]]:
+    """Split a name->count Counter into the five output buckets.
+
+    Returns dict with keys: players, below_threshold, tranare, publik, grupp.
+    """
+    excluded = tranare_set | publik_set | grupp_set
+    return {
+        "players": {n: c for n, c in counter.items() if n not in excluded and c >= min_images},
+        "below_threshold": {n: c for n, c in counter.items() if n not in excluded and c < min_images},
+        "tranare": {n: c for n, c in counter.items() if n in tranare_set},
+        "publik": {n: c for n, c in counter.items() if n in publik_set},
+        "grupp": {n: c for n, c in counter.items() if n in grupp_set},
+    }
+
+
+def classify_deviation(delta_pct: float) -> str:
+    """Machine-readable deviation level matching the CLI color thresholds.
+
+    Mirrors get_deviation_color: abs>20 -> "high", abs>10 -> "warn", else "ok".
+    """
+    abs_pct = abs(delta_pct)
+    if abs_pct > 20:
+        return "high"
+    if abs_pct > 10:
+        return "warn"
+    return "ok"
+
+
+def summarize_counter(
+    counter: Counter,
+    timestamps_per_person: dict[str, list[datetime]],
+    total_images: int,
+    min_images: int,
+    baseline_method: str,
+    tranare_set: set[str],
+    publik_set: set[str],
+    grupp_set: set[str],
+) -> dict:
+    """Produce a JSON-serializable summary for one counter (total or per match).
+
+    Players are sorted by (count - baseline) descending, same as the CLI table.
+    Excluded groups (tranare/publik/grupp/below_threshold) are sorted by count.
+    """
+    buckets = bucket_counter(counter, min_images, tranare_set, publik_set, grupp_set)
+    players_counts = buckets["players"]
+    baseline = compute_baseline(list(players_counts.values()), baseline_method) if players_counts else 0
+
+    def player_row(name: str, count: int) -> dict:
+        pct = 100 * count / total_images if total_images > 0 else 0
+        delta_n = count - baseline
+        delta_pct = 100 * delta_n / baseline if baseline > 0 else 0
+        return {
+            "name": name,
+            "count": count,
+            "pct": round(pct, 1),
+            "delta_n": round(delta_n, 1),
+            "delta_pct": round(delta_pct, 1),
+            "level": classify_deviation(delta_pct),
+            "timestamps": [ts.isoformat() for ts in timestamps_per_person.get(name, [])],
+        }
+
+    players = [
+        player_row(n, c)
+        for n, c in sorted(players_counts.items(), key=lambda x: x[1] - baseline, reverse=True)
+    ]
+
+    def excluded_rows(group: dict[str, int]) -> list[dict]:
+        return [
+            {
+                "name": n,
+                "count": c,
+                "pct": round(100 * c / total_images, 1) if total_images > 0 else 0,
+            }
+            for n, c in sorted(group.items(), key=lambda x: x[1], reverse=True)
+        ]
+
+    return {
+        "baseline": round(baseline, 1),
+        "baseline_method": baseline_method,
+        "players": players,
+        "excluded": {
+            "tranare": excluded_rows(buckets["tranare"]),
+            "publik": excluded_rows(buckets["publik"]),
+            "grupp": excluded_rows(buckets["grupp"]),
+            "below_threshold": excluded_rows(buckets["below_threshold"]),
+        },
+    }
+
+
+def compute_player_stats(
+    files: list[str],
+    gap_minutes: int = 30,
+    baseline_method: str = "median",
+    min_images: int = 3,
+    tranare_set: set[str] | None = None,
+    publik_set: set[str] | None = None,
+    grupp_set: set[str] | None = None,
+    per_match: bool = False,
+) -> dict:
+    """Top-level counting core: files -> JSON-serializable statistics.
+
+    Returns {total_images, time_range, ...summary, matches: [...]} or
+    {total_images: 0, ...empty...} when nothing parsed. Shared by the GUI/API;
+    the CLI uses build_entries/segment_matches directly for its rendering.
+    """
+    tranare_set = tranare_set or set()
+    publik_set = publik_set or set()
+    grupp_set = grupp_set or set()
+
+    entries = build_entries(files)
+    if not entries:
+        return {
+            "total_images": 0,
+            "time_range": None,
+            "baseline": 0,
+            "baseline_method": baseline_method,
+            "players": [],
+            "excluded": {"tranare": [], "publik": [], "grupp": [], "below_threshold": []},
+            "matches": [],
+        }
+
+    matches = segment_matches(entries, gap_minutes)
+
+    total_counter: Counter = Counter()
+    total_timestamps: dict[str, list[datetime]] = defaultdict(list)
+    for dt, names, _ in entries:
+        for n in names:
+            total_counter[n] += 1
+            total_timestamps[n].append(dt)
+
+    total_images = len(entries)
+    global_start = entries[0][0]
+    global_end = entries[-1][0]
+    duration_minutes = (global_end - global_start).total_seconds() / 60
+
+    summary = summarize_counter(
+        total_counter, total_timestamps, total_images, min_images, baseline_method,
+        tranare_set, publik_set, grupp_set,
+    )
+
+    match_summaries: list[dict] = []
+    if per_match:
+        for match_idx, idx_list in enumerate(matches, start=1):
+            c: Counter = Counter()
+            ts_map: dict[str, list[datetime]] = defaultdict(list)
+            for idx in idx_list:
+                dt, names, _ = entries[idx]
+                for n in names:
+                    c[n] += 1
+                    ts_map[n].append(dt)
+            m_start = entries[idx_list[0]][0]
+            m_end = entries[idx_list[-1]][0]
+            m_summary = summarize_counter(
+                c, ts_map, len(idx_list), min_images, baseline_method,
+                tranare_set, publik_set, grupp_set,
+            )
+            match_summaries.append({
+                "index": match_idx,
+                "start": m_start.isoformat(),
+                "end": m_end.isoformat(),
+                "duration_minutes": round((m_end - m_start).total_seconds() / 60, 1),
+                "total_images": len(idx_list),
+                **m_summary,
+            })
+
+    return {
+        "total_images": total_images,
+        "time_range": {
+            "start": global_start.isoformat(),
+            "end": global_end.isoformat(),
+            "duration_minutes": round(duration_minutes, 1),
+        },
+        **summary,
+        "matches": match_summaries,
+    }
+
+
 def render_bar(value: int, baseline: float, width: int = 20, ascii_mode: bool = False) -> str:
     """Render a progress bar showing value relative to baseline."""
     if baseline <= 0:
@@ -298,13 +529,13 @@ def print_section(
     tranare_set = tranare_set or set()
     publik_set = publik_set or set()
     grupp_set = grupp_set or set()
-    excluded = tranare_set | publik_set | grupp_set
 
-    players = {n: c for n, c in counter.items() if n not in excluded and c >= min_images}
-    below_threshold = {n: c for n, c in counter.items() if n not in excluded and c < min_images}
-    tranare = {n: c for n, c in counter.items() if n in tranare_set}
-    publik = {n: c for n, c in counter.items() if n in publik_set}
-    grupp = {n: c for n, c in counter.items() if n in grupp_set}
+    buckets = bucket_counter(counter, min_images, tranare_set, publik_set, grupp_set)
+    players = buckets["players"]
+    below_threshold = buckets["below_threshold"]
+    tranare = buckets["tranare"]
+    publik = buckets["publik"]
+    grupp = buckets["grupp"]
 
     baseline_counts = list(players.values())
     baseline = compute_baseline(baseline_counts, baseline_method) if baseline_counts else 0
@@ -404,30 +635,13 @@ def main(args: argparse.Namespace) -> None:
         print("Ingen fil matchade angivet mönster.")
         sys.exit(1)
 
-    entries = []
-    for fn in files:
-        dt, names = parse_filename(fn)
-        if dt is None:
-            continue
-        entries.append((dt, names, fn))
+    entries = build_entries(files)
 
     if not entries:
         print("Inga giltiga bilder hittades bland matchande filer.")
         sys.exit(1)
 
-    entries.sort(key=lambda x: x[0])
-
-    matcher = []
-    current_match = [0]
-    for i in range(1, len(entries)):
-        prev_dt = entries[i - 1][0]
-        this_dt = entries[i][0]
-        if this_dt - prev_dt > timedelta(minutes=args.gap_minutes):
-            matcher.append(current_match)
-            current_match = [i]
-        else:
-            current_match.append(i)
-    matcher.append(current_match)
+    matcher = segment_matches(entries, args.gap_minutes)
 
     total_counter = Counter()
     total_timestamps = defaultdict(list)
