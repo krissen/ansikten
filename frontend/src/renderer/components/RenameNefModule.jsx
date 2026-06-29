@@ -79,7 +79,7 @@ export function RenameNefModule() {
           type="text"
           placeholder="Glob (valfritt), t.ex. DSC*"
           value={glob}
-          onChange={(e) => { setGlob(e.target.value); }}
+          onChange={(e) => { setGlob(e.target.value); setPreview(null); setResult(null); }}
           onKeyDown={(e) => { if (e.key === 'Enter') canPreview && doPreview(); }}
           disabled={busy}
         />
