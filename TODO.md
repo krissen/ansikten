@@ -42,6 +42,14 @@ GUI-onboarding av CLI-skript (en PR per steg):
   - **Var:** rendera som tomt-läge i FlexLayout-arbetsytan; försvinner när en modul öppnas eller filer laddas. Se befintlig uppstarts-/tomt-logik (StartupStatus, FlexLayoutWorkspace, ev. `get-initial-file`).
   - **Återanvänd:** modulregistret (`MODULE_COMPONENTS`/`MODULE_TITLES`) för steglistan, import-volym-endpointen för aktiv/nedtonad, ikon/knapp-stilarna från befintliga moduler.
   - Egen PR.
+- [ ] **Räkna spelare GUI: full paritet med CLI (`rakna_spelare.py`)** — GUI:t saknar funktionalitet som CLI-skriptet har; **allt CLI gör ska in i GUI:t**. Verifierat mot koden (backend `player_count_service`/route stödjer redan det mesta; frontend exponerar inte):
+  - **Saknade UI-kontroller** (backend stödjer parametern, frontend skickar den aldrig → default): `gap_minutes` (matchdelningens känslighet, default 30), `baseline` (median/mean), `min_images` (default 3), samt per-request `tranare`/`publik` (visa/redigera tränar-/publiklistorna).
+  - **Saknas i hela stacken:** `--add-tranare`/`--add-publik` (append-semantik) — `_exclusion_sets` gör bara replace; route-modellen saknar fälten.
+  - **Per-match ofullständigt:** "Per match" finns och backend returnerar full per-match-statistik, men GUI:t renderar inte per-match exkluderade hinkar (`m.excluded`) och saknar per-match info-rad (baseline/duration/Δ).
+  - **Visualisering saknas:** temporal "spark" (per-spelare-tidslinje; `timestamps[]` returneras men används inte), match-gräns-markeringar, `ΔN` (absolut avvikelse; bara `Δ%` visas), och fördelnings-baren är `count/maxCount` i GUI men `count/baseline` i CLI.
+  - Ej tillämpligt (CLI-only): `--no-color`/`--color`/`--ascii`/`--bar-width`.
+  - GUI är redan rikare på input (mappar, extension-preset, recursive, datumspann) — inte en lucka.
+  - Egen PR (separat från culling-arbetet).
 - [ ] **Arbetsflödes-layoutpresets** — spara flerfönsterkonfigurationer per uppgift (t.ex. NEF-culling = fillista vänster + maximal preview höger). De flesta vyer är single-instance: öppna inte flera, skifta fokus till befintlig.
 - [ ] **Positions-/progressindikator i culling** — visa var i listan användaren står (fil X/N; granskade gröna, resten grå) i fillistan eller filterraden.
 - [ ] **Omfattande docs-uppdatering** — TODO.md/övriga docs är inaktuella; genomgång + uppdatering (stort jobb, egen PR).
