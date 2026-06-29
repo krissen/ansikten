@@ -376,18 +376,6 @@ export function CullingModule({ node }) {
       if (tag === 'INPUT' || tag === 'SELECT' || tag === 'TEXTAREA') return;
       if (showTrash) return;
 
-      if (e.key === 'Enter') {
-        // Enter renames the selected file (mirrors Finder muscle memory). Only
-        // act when culling is the active tabset, so we don't collide with
-        // another visible module's Enter handler (e.g. Review accept-face).
-        const activeTabsetId = node?.getModel?.().getActiveTabset?.()?.getId?.();
-        const myTabsetId = node?.getParent?.()?.getId?.();
-        if (activeTabsetId && myTabsetId && activeTabsetId !== myTabsetId) return;
-        e.preventDefault();
-        if (currentIndex >= 0) beginEdit(currentIndex);
-        return;
-      }
-
       if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === 'z') {
         e.preventDefault();
         undoTrash();
@@ -408,7 +396,31 @@ export function CullingModule({ node }) {
     };
     window.addEventListener('keydown', handler);
     return () => window.removeEventListener('keydown', handler);
-  }, [node, files.length, showTrash, trashCurrent, undoTrash, currentIndex, beginEdit]);
+  }, [node, files.length, showTrash, trashCurrent, undoTrash]);
+
+  // Enter starts inline rename of the selected file (Finder muscle memory).
+  // Handled on document in the CAPTURE phase so it preempts other modules'
+  // document-level Enter handlers (e.g. ReviewModule confirming a face) — a
+  // window/bubble listener would fire too late. Only acts when culling is the
+  // active tabset, so an inactive culling panel never steals Enter.
+  useEffect(() => {
+    const onEnterCapture = (e) => {
+      if (e.key !== 'Enter') return;
+      if (node && !node.isVisible?.()) return;
+      const tag = e.target?.tagName;
+      if (tag === 'INPUT' || tag === 'SELECT' || tag === 'TEXTAREA') return;
+      if (showTrash || currentIndex < 0) return;
+      const activeTabsetId = node?.getModel?.().getActiveTabset?.()?.getId?.();
+      const myTabsetId = node?.getParent?.()?.getId?.();
+      if (activeTabsetId && myTabsetId && activeTabsetId !== myTabsetId) return;
+      e.preventDefault();
+      e.stopPropagation();
+      e.stopImmediatePropagation?.();
+      beginEdit(currentIndex);
+    };
+    document.addEventListener('keydown', onEnterCapture, true);
+    return () => document.removeEventListener('keydown', onEnterCapture, true);
+  }, [node, showTrash, currentIndex, beginEdit]);
 
   // ----- trash view --------------------------------------------------
   const openTrash = useCallback(async () => {
