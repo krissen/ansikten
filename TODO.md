@@ -2,7 +2,7 @@
 
 Konsoliderad lista över planerade förbättringar, kända brister och teknisk skuld.
 
-**Senast uppdaterad:** 2026-01-11
+**Senast uppdaterad:** 2026-06-29
 
 ---
 
@@ -14,7 +14,12 @@ Konsoliderad lista över planerade förbättringar, kända brister och teknisk s
 
 ### Kort sikt
 
-(Inga uppgifter just nu)
+GUI-onboarding av CLI-skript (en PR per steg):
+
+- [x] **Räkna spelare** — GUI för `rakna_spelare` (bilder per spelare, baseline/avvikelse, mapp/glob/datum, live-uppdatering) (#46)
+- [x] **Gallra spelare** — culling-workspace (spelar/glob-filter, fillista + maximerad preview, snabbtangent-gallring med app-papperskorg + återställning); NEF/RAW-stöd via NEF→JPG-preview (#46/#47)
+- [ ] **Import-modul** — överför NEF från minneskort → målmapp + mata ut (flytta/kopiera väljbart); macOS `diskutil`. Egen PR. (Spec i planfilen.)
+- [ ] **rename_nef → GUI** — EXIF `CreateDate` → `YYMMDD_HHMMSS.NEF` (+ `-NN` vid krock), preview + bekräfta.
 
 ### Mellan sikt
 
@@ -30,6 +35,11 @@ Konsoliderad lista över planerade förbättringar, kända brister och teknisk s
 - [ ] **Backend distance-optimering** - Optimera distansberäkningar för bättre prestanda
 - [ ] **Duplicate cleanup tool** - Verktyg för att hitta och hantera duplicerade ansikten i databasen
 - [ ] Utveckla smidigare stöd för terminal-interaktion med backend (synkat med frontend)
+- [ ] **Landningssida vid uppstart** (tom kö / inga filer angivna, eller kön töms vid uppstart pga saknade filer): knappar för arbetsflödesstegen. Import-knappen *aktiv* när kortvolym syns, annars *nedtonad/inaktiv*; övriga steg motsvarande.
+- [ ] **Arbetsflödes-layoutpresets** — spara flerfönsterkonfigurationer per uppgift (t.ex. NEF-culling = fillista vänster + maximal preview höger). De flesta vyer är single-instance: öppna inte flera, skifta fokus till befintlig.
+- [ ] **Positions-/progressindikator i culling** — visa var i listan användaren står (fil X/N; granskade gröna, resten grå) i fillistan eller filterraden.
+- [ ] **Omfattande docs-uppdatering** — TODO.md/övriga docs är inaktuella; genomgång + uppdatering (stort jobb, egen PR).
+- [ ] **Tydliggör TODO.md vs `docs/dev/roadmap.md`** — definiera rollerna (TODO.md = löpande backlog/known issues/teknisk skuld per horisont; roadmap.md = release-scopad plan med sprintar/deliverables/DoD), korslänka dem, och uppdatera `docs/dev/roadmap.md` (inaktuell: scopar `v1.2.0` fast vi passerat 1.3.0) eller arkivera den som historik. **När rollfördelningen fastställts: dokumentera den i CLAUDE.md (kanonisk) så den inte glöms.**
 
 ### Lång sikt
 
