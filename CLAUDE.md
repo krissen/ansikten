@@ -2,6 +2,11 @@
 
 This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
 
+> **Canonical agent-instructions file.** This is the single source of truth for
+> AI coding assistants on this repo. [AGENTS.md](AGENTS.md) (Codex) and
+> [.github/copilot-instructions.md](.github/copilot-instructions.md) (Copilot)
+> are thin pointers to this file — put shared guidance here, not in those.
+
 ---
 
 ## Project Overview
@@ -219,7 +224,14 @@ Config in `~/.local/share/faceid/config.json`:
 
 ### Testing
 
-No automated test suite. Manual testing:
+Automated tests exist — run them before pushing:
+
+```bash
+cd backend && pytest        # backend/tests/ (configured in backend/pyproject.toml)
+cd frontend && npm test     # Vitest, frontend/tests/
+```
+
+The suite is small, so also test manually:
 - Run `npx electron .` and test modules in both light/dark themes
 - Check DevTools console for errors
 - Legacy CLI: `./hitta_ansikten.py --simulate *.NEF`
@@ -228,10 +240,40 @@ No automated test suite. Manual testing:
 
 **Always assess if code changes require documentation updates.**
 
-- Bug fixes: Usually no doc update needed
-- API/feature changes: Update relevant docs
-- **MINIMUM**: Note gaps in [TODO.md](TODO.md)
-- **IDEAL**: Update docs alongside code
+| Change type | Documentation action |
+|-------------|----------------------|
+| Bug fix | Usually no update needed |
+| API change | Update [API Reference](docs/dev/api-reference.md) |
+| Feature added/removed | Update relevant user/dev docs |
+| Config change | Update [Database](docs/dev/database.md) |
+| UI change / keyboard shortcut | Update [Workspace Guide](docs/user/workspace-guide.md) |
+
+- **MINIMUM**: Note gaps in [TODO.md](TODO.md) under "Kända brister > Dokumentation"
+- **IDEAL**: Update the actual docs alongside the code
+
+---
+
+## Code Style
+
+### Python (Backend)
+- PEP 8; type hints where appropriate; descriptive names.
+- Docstrings for public functions/classes; inline comments for non-obvious logic.
+
+### JavaScript (Frontend)
+- ES6+ (async/await, destructuring); JSDoc on functions.
+- camelCase for variables/functions, PascalCase for classes/components.
+
+### CSS
+- CSS variables for colors/spacing/fonts; test in light **and** dark themes.
+- Follow patterns in [docs/dev/theming.md](docs/dev/theming.md).
+
+---
+
+## Working Process
+
+- **One PR per thing** — one focused PR per discrete change; don't fold unrelated work together.
+- **Log TODOs immediately** — when the user adds work, or a gap is found, add it to [TODO.md](TODO.md) right away so it isn't lost with the session.
+- **Keep roadmap + changelog current** — every change updates [TODO.md](TODO.md) (the roadmap) and [CHANGELOG.md](CHANGELOG.md) `[Unreleased]` as part of the work, so any new session can resume from the docs alone.
 
 ---
 
