@@ -16,6 +16,8 @@ import { useModuleEvent } from '../hooks/useModuleEvent.js';
 import './CullingModule.css';
 
 const REFRESH_DEBOUNCE_MS = 400;
+// Rows to jump when paging the file list with Alt+arrow.
+const PAGE_STEP = 10;
 // Delay RAW conversion until the selection settles, so fast keyboard stepping
 // only converts the file the user rests on, not every file passed through.
 const PREVIEW_DEBOUNCE_MS = 150;
@@ -63,6 +65,10 @@ export function CullingModule({ node }) {
   // reorders the list can't make Enter rename a different file.
   const [editPath, setEditPath] = useState(null);
   const [editValue, setEditValue] = useState('');
+  // Right-click context menu: { x, y, path } at the cursor, or null. Keyed by
+  // file path (not index) so a live list reload while the menu is open can't
+  // make an action hit the wrong file — same approach as the inline rename.
+  const [menu, setMenu] = useState(null);
   const [error, setError] = useState(null);
   const [isLoading, setIsLoading] = useState(false);
   const [hasRun, setHasRun] = useState(false);
@@ -285,11 +291,11 @@ export function CullingModule({ node }) {
   );
 
   // ----- cull loop ----------------------------------------------------
-  const trashCurrent = useCallback(async () => {
-    if (currentIndex < 0 || currentIndex >= files.length) return;
-    const victim = files[currentIndex];
+  const trashIndex = useCallback(async (index) => {
+    if (index < 0 || index >= files.length) return;
+    const victim = files[index];
     // Optimistic: drop from list, advance.
-    setFiles((prev) => prev.filter((_, i) => i !== currentIndex));
+    setFiles((prev) => prev.filter((_, i) => i !== index));
     setCurrentIndex((prev) => {
       const nextLen = files.length - 1;
       if (nextLen === 0) return -1;
@@ -313,7 +319,9 @@ export function CullingModule({ node }) {
       // Re-fetch to recover correct state on failure.
       if (lastQueryRef.current) loadList(lastQueryRef.current, { keepIndex: true });
     }
-  }, [api, currentIndex, files, loadList, refreshStatsDebounced]);
+  }, [api, files, loadList, refreshStatsDebounced]);
+
+  const trashCurrent = useCallback(() => trashIndex(currentIndex), [trashIndex, currentIndex]);
 
   const undoTrash = useCallback(async () => {
     // Pop until a still-trashed id restores - ids restored via the trash view
@@ -381,15 +389,18 @@ export function CullingModule({ node }) {
         undoTrash();
         return;
       }
-      if (e.metaKey || e.ctrlKey || e.altKey) return;
+      // Alt is allowed (it pages); Cmd/Ctrl are not.
+      if (e.metaKey || e.ctrlKey) return;
 
-      if (e.key === 'ArrowDown' || e.key === 'j') {
+      // Next: →/↓/j, Previous: ←/↑/k. Alt+direction pages by PAGE_STEP.
+      const step = e.altKey ? PAGE_STEP : 1;
+      if (e.key === 'ArrowDown' || e.key === 'ArrowRight' || e.key === 'j') {
         e.preventDefault();
-        setCurrentIndex((i) => Math.min(i + 1, files.length - 1));
-      } else if (e.key === 'ArrowUp' || e.key === 'k') {
+        setCurrentIndex((i) => Math.min(i + step, files.length - 1));
+      } else if (e.key === 'ArrowUp' || e.key === 'ArrowLeft' || e.key === 'k') {
         e.preventDefault();
-        setCurrentIndex((i) => Math.max(i - 1, 0));
-      } else if (e.key === 'Delete' || e.key === 'Backspace' || e.key.toLowerCase() === 'x') {
+        setCurrentIndex((i) => Math.max(i - step, 0));
+      } else if (!e.altKey && (e.key === 'Delete' || e.key === 'Backspace' || e.key.toLowerCase() === 'x')) {
         e.preventDefault();
         trashCurrent();
       }
@@ -421,6 +432,26 @@ export function CullingModule({ node }) {
     document.addEventListener('keydown', onEnterCapture, true);
     return () => document.removeEventListener('keydown', onEnterCapture, true);
   }, [node, showTrash, currentIndex, beginEdit]);
+
+  // Dismiss the context menu on any click, a fresh right-click elsewhere,
+  // scroll, resize, or Escape.
+  useEffect(() => {
+    if (!menu) return;
+    const close = () => setMenu(null);
+    const onKey = (e) => { if (e.key === 'Escape') setMenu(null); };
+    window.addEventListener('click', close);
+    window.addEventListener('contextmenu', close);
+    window.addEventListener('scroll', close, true);
+    window.addEventListener('resize', close);
+    document.addEventListener('keydown', onKey, true);
+    return () => {
+      window.removeEventListener('click', close);
+      window.removeEventListener('contextmenu', close);
+      window.removeEventListener('scroll', close, true);
+      window.removeEventListener('resize', close);
+      document.removeEventListener('keydown', onKey, true);
+    };
+  }, [menu]);
 
   // ----- trash view --------------------------------------------------
   const openTrash = useCallback(async () => {
@@ -646,6 +677,12 @@ export function CullingModule({ node }) {
                   className={i === currentIndex ? 'active' : ''}
                   onClick={() => setCurrentIndex(i)}
                   onDoubleClick={() => beginEdit(i)}
+                  onContextMenu={(e) => {
+                    e.preventDefault();
+                    e.stopPropagation();
+                    setCurrentIndex(i);
+                    setMenu({ x: e.clientX, y: e.clientY, path: f.path });
+                  }}
                 >
                   {editPath === f.path ? (
                     <input
@@ -688,6 +725,45 @@ export function CullingModule({ node }) {
           </div>
           </div>
         </div>
+      )}
+
+      {menu && (
+        <ul
+          className="culling-context-menu"
+          style={{ left: menu.x, top: menu.y }}
+          onClick={(e) => e.stopPropagation()}
+        >
+          <li onClick={() => { setMenu(null); setCurrentIndex((i) => Math.max(i - 1, 0)); }}>
+            <span>Föregående</span><span className="culling-menu-keys"><kbd>←</kbd><kbd>↑</kbd></span>
+          </li>
+          <li onClick={() => { setMenu(null); setCurrentIndex((i) => Math.min(i + 1, files.length - 1)); }}>
+            <span>Nästa</span><span className="culling-menu-keys"><kbd>→</kbd><kbd>↓</kbd></span>
+          </li>
+          <li onClick={() => { setMenu(null); setCurrentIndex((i) => Math.max(i - PAGE_STEP, 0)); }}>
+            <span>Hoppa bakåt</span><span className="culling-menu-keys"><kbd>⌥</kbd><kbd>←</kbd></span>
+          </li>
+          <li onClick={() => { setMenu(null); setCurrentIndex((i) => Math.min(i + PAGE_STEP, files.length - 1)); }}>
+            <span>Hoppa framåt</span><span className="culling-menu-keys"><kbd>⌥</kbd><kbd>→</kbd></span>
+          </li>
+          <li className="culling-menu-sep" role="separator" />
+          <li onClick={() => {
+            setMenu(null);
+            const idx = files.findIndex((f) => f.path === menu.path);
+            if (idx >= 0) beginEdit(idx);
+          }}>
+            <span>Byt namn</span><span className="culling-menu-keys"><kbd>Enter</kbd></span>
+          </li>
+          <li onClick={() => {
+            setMenu(null);
+            const idx = files.findIndex((f) => f.path === menu.path);
+            if (idx >= 0) trashIndex(idx);
+          }}>
+            <span>Gallra</span><span className="culling-menu-keys"><kbd>X</kbd><kbd>⌦</kbd></span>
+          </li>
+          <li onClick={() => { setMenu(null); undoTrash(); }}>
+            <span>Ångra senaste</span><span className="culling-menu-keys"><kbd>⌘</kbd><kbd>Z</kbd></span>
+          </li>
+        </ul>
       )}
     </div>
   );

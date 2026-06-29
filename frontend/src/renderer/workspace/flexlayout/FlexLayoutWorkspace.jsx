@@ -99,6 +99,19 @@ const SHORTCUT_SECTIONS = [
     ]
   },
   {
+    id: 'culling',
+    title: 'Gallra spelare',
+    modules: ['culling'],
+    shortcuts: [
+      { keys: ['→', '↓'], desc: 'Next image', sep: ' / ' },
+      { keys: ['←', '↑'], desc: 'Previous image', sep: ' / ' },
+      { keys: ['Alt', '←→↑↓'], desc: 'Page (jump 10)' },
+      { keys: ['X', 'Delete'], desc: 'Cull to trash', sep: ' / ' },
+      { keys: ['Enter'], desc: 'Rename file (double-click)' },
+      { keys: ['Cmd', 'Z'], desc: 'Undo last cull' }
+    ]
+  },
+  {
     id: 'general',
     title: 'General',
     modules: [],
