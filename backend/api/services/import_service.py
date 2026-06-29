@@ -10,6 +10,7 @@ degrades to an empty volume list / disabled eject elsewhere.
 """
 
 import asyncio
+import filecmp
 import logging
 import os
 import plistlib
@@ -21,6 +22,14 @@ from ..websocket.progress import broadcast_event
 from .rename_service import find_sidecar_files
 
 logger = logging.getLogger(__name__)
+
+
+def _same_file(a: Path, b: Path) -> bool:
+    """True if two files are byte-identical (filecmp short-circuits on size)."""
+    try:
+        return filecmp.cmp(str(a), str(b), shallow=False)
+    except OSError:
+        return False
 
 VOLUMES_ROOT = Path("/Volumes")
 SIDECAR_EXTENSIONS = ["xmp"]
@@ -100,6 +109,17 @@ class ImportService:
             pass
         return count, size
 
+    @staticmethod
+    def _free_target(dest: Path, name: str) -> Path:
+        """Next non-colliding target: DSC0001.NEF -> DSC0001-1.NEF, -2, ..."""
+        stem, suffix = os.path.splitext(name)
+        i = 1
+        while True:
+            cand = dest / f"{stem}-{i}{suffix}"
+            if not cand.exists():
+                return cand
+            i += 1
+
     # ----- transfer -----------------------------------------------------
 
     async def run_import(
@@ -136,15 +156,21 @@ class ImportService:
         loop = asyncio.get_event_loop()
 
         for i, src in enumerate(nefs, 1):
-            target = dest / src.name
             try:
-                if target.exists():
-                    skipped.append({"path": str(src), "reason": "finns redan i målmappen"})
+                target = dest / src.name
+                if target.exists() and await loop.run_in_executor(None, _same_file, src, target):
+                    # Genuine re-import of the same file — safe to skip.
+                    skipped.append({"path": str(src), "reason": "identisk fil finns redan"})
                 else:
+                    if target.exists():
+                        # A DISTINCT file sharing a camera basename (DCIM rollover
+                        # or a second card into the same folder). Disambiguate
+                        # instead of silently dropping it — never lose a frame.
+                        target = self._free_target(dest, src.name)
                     await loop.run_in_executor(None, op, str(src), str(target))
-                    # Carry .xmp sidecars (best-effort; never blocks the main file).
+                    # Carry .xmp sidecars, named after the (possibly renamed) target.
                     for sc in find_sidecar_files(src, SIDECAR_EXTENSIONS):
-                        sc_target = dest / sc.name
+                        sc_target = dest / f"{target.stem}{sc.suffix}"
                         if not sc_target.exists():
                             try:
                                 await loop.run_in_executor(None, op, str(sc), str(sc_target))
@@ -164,7 +190,13 @@ class ImportService:
 
         ejected = False
         if eject and not errors:
-            ejected = await self._eject(volume_mount)
+            # Re-validate ejectable here (defense-in-depth): keep the "never the
+            # internal/boot disk" guarantee local to the destructive call, not only
+            # in list_volumes.
+            if self._is_ejectable(self._diskutil_info(volume_mount)):
+                ejected = await self._eject(volume_mount)
+            else:
+                logger.warning("[Import] eject skipped — volume not ejectable: %s", volume_mount)
 
         return {
             "transferred": transferred,
