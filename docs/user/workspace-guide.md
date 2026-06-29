@@ -170,9 +170,11 @@ antal.
    (`jpg`/`nef`/`raw`) i balken — `nef`/`raw` används för allmän gallring på
    råfiler innan namn satts (förhandsvisas via NEF→JPG-konvertering;
    spelar-menyn är då tom och du filtrerar på mapp/datum/glob).
-3. Bläddra i fillistan till vänster (`↑`/`↓`); bilden visas maximerad till höger.
-   Tryck `x` (eller `Delete`) för att flytta bilden till papperskorgen och gå
-   vidare. `Cmd+Z` ångrar.
+3. Bläddra i fillistan i mitten (`↑`/`↓`); bilden visas maximerad till höger.
+   Längst till vänster visas en **levande spelarräkning** för det aktuella
+   urvalet som uppdateras direkt när du gallrar — så du ser hur varje spelares
+   antal förändras. Tryck `x` (eller `Delete`) för att flytta bilden till
+   papperskorgen och gå vidare. `Cmd+Z` ångrar.
 4. Papperskorgen (knappen **Papperskorg**) listar gallrade bilder och återställer
    dem till ursprungsplatsen, eller tömmer permanent.
 

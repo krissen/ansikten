@@ -14,9 +14,16 @@ This changelog is initialized from git commit history after `v1.0.0` and can be 
 - **Importera** module: detect the mounted camera card, transfer its NEFs (+ `.xmp` sidecars) to a destination folder with live progress (move or copy, selectable), then eject the card. Skips files already present; ejects only after a zero-error transfer. macOS (`diskutil`) (#48-followup).
 - **Byt namn** module: rename NEFs from EXIF `CreateDate` to `YYMMDD_HHMMSS.NEF` (rename_nef GUI), with a preview (dry-run) and confirm. Carries `.xmp` sidecars, disambiguates identical timestamps (`-NN`), skips files without a `CreateDate`, and never overwrites an existing target (restores the original on collision).
 
+### Added
+- **Gallra spelare** now shows a live per-player count column on the left for the current scope (calls the player-count endpoint), updating immediately as you cull or restore files — so you can see each player's balance shift while you work.
+
 ### Changed
+- Workflow steps launched from the startup landing page now open in a layout suited to the step: the self-contained modules (Importera · Byt namn · Räkna spelare · Gallra spelare) fill the workspace instead of docking beside the empty Review panel, and "Granska ansikten" opens the review layout.
 - Räkna spelare / Gallra spelare filter controls: the primary "Räkna"/"Visa" buttons now use the themed button style (previously rendered as unstyled native buttons), and checkboxes are restyled to match the theme. Changing the player/filetype dropdown, or toggling "Inkl. undermappar" / "Per match", now re-runs immediately — no need to click the button.
 - Documentation: established [CLAUDE.md](CLAUDE.md) as the canonical agent-instructions file; [AGENTS.md](AGENTS.md) and `.github/copilot-instructions.md` now point to it.
+
+### Fixed
+- Gallra spelare CSS referenced undefined `--border-color` / `--accent` variables, so borders fell back to nothing and the active file row rendered a non-theme blue; it now uses the theme variables (the active row uses the theme accent in both light and dark).
 
 ## [1.3.0] - 2026-06-27
 
