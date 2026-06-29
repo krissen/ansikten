@@ -292,6 +292,13 @@ function createApplicationMenu(mainWindow) {
           }
         },
         {
+          label: 'Byt namn (NEF)',
+          accelerator: 'CmdOrCtrl+Shift+B',
+          click: () => {
+            sendMenuCommand('open-rename-nef');
+          }
+        },
+        {
           label: 'Räkna spelare',
           accelerator: 'CmdOrCtrl+Shift+K',
           click: () => {

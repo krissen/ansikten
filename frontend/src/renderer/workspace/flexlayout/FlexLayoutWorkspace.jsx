@@ -27,6 +27,7 @@ import { RefineFacesModule } from '../../components/RefineFacesModule.jsx';
 import { PlayerCountModule } from '../../components/PlayerCountModule.jsx';
 import { CullingModule } from '../../components/CullingModule.jsx';
 import { ImportModule } from '../../components/ImportModule.jsx';
+import { RenameNefModule } from '../../components/RenameNefModule.jsx';
 
 
 // Storage key for layout persistence
@@ -180,7 +181,8 @@ const MODULE_COMPONENTS = {
   'preferences': PreferencesModule,
   'player-count': PlayerCountModule,
   'culling': CullingModule,
-  'import': ImportModule
+  'import': ImportModule,
+  'rename-nef': RenameNefModule
 };
 
 // Module titles
@@ -197,7 +199,8 @@ const MODULE_TITLES = {
   'preferences': 'Preferences',
   'player-count': 'Räkna spelare',
   'culling': 'Gallra spelare',
-  'import': 'Importera'
+  'import': 'Importera',
+  'rename-nef': 'Byt namn'
 };
 
 // Module-specific default layout ratios
@@ -257,6 +260,11 @@ const MODULE_LAYOUT = {
   },
   'import': {
     widthRatio: 0.40,     // compact form
+    heightRatio: 0.70,    // Primary row
+    row: 1
+  },
+  'rename-nef': {
+    widthRatio: 0.50,     // preview table
     heightRatio: 0.70,    // Primary row
     row: 1
   }
@@ -481,7 +489,8 @@ export function FlexLayoutWorkspace() {
     'theme-editor',
     'player-count',
     'culling',
-    'import'
+    'import',
+    'rename-nef'
   ]);
 
   // Open a module tab
@@ -1150,6 +1159,9 @@ export function FlexLayoutWorkspace() {
           break;
         case 'open-import':
           openModule('import');
+          break;
+        case 'open-rename-nef':
+          openModule('rename-nef');
           break;
         case 'open-database-management':
           openModule('database-management');
