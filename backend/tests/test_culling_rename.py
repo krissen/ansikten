@@ -64,20 +64,22 @@ def test_rename_same_name_is_noop(service, tmp_path):
     assert a.exists()
 
 
-def test_rename_does_not_clobber_existing_sidecar(service, tmp_path):
+def test_rename_refuses_when_sidecar_target_occupied(service, tmp_path):
     img = tmp_path / "a.jpg"
     img.write_bytes(b"a")
     (tmp_path / "a.xmp").write_text("a-side")
-    # A sidecar already occupies the target stem's name.
+    # An unrelated sidecar already occupies the target stem's name.
     occupied = tmp_path / "b.xmp"
     occupied.write_text("keep-me")
 
-    service.rename(str(img), "b.jpg")
+    # Fail-fast: refuse rather than half-apply (main renamed, sidecar orphaned).
+    with pytest.raises(ValueError):
+        service.rename(str(img), "b.jpg")
 
-    assert (tmp_path / "b.jpg").exists()
-    # The pre-existing b.xmp is preserved (not overwritten by a.xmp's content).
+    # Nothing moved.
+    assert img.exists()
+    assert not (tmp_path / "b.jpg").exists()
     assert occupied.read_text() == "keep-me"
-    # a.xmp stays put since its target was occupied.
     assert (tmp_path / "a.xmp").read_text() == "a-side"
 
 

@@ -221,16 +221,20 @@ class CullingService:
         if dst.exists() and not dst.samefile(src):
             raise ValueError("En fil med det namnet finns redan")
 
-        # Find sidecars before the move; rename each to follow the new stem.
+        # Preflight sidecar destinations BEFORE moving the main file, so we never
+        # half-apply: renaming the main file but leaving a sidecar behind would
+        # pair the image with an unrelated <new-stem>.xmp and orphan its own.
         sidecars = find_sidecar_files(src, SIDECAR_EXTENSIONS)
-        self._safe_rename(src, dst)
+        sidecar_moves = []
         for sc in sidecars:
             sc_dst = dst.with_name(dst.stem + sc.suffix)
-            # Don't clobber an unrelated existing sidecar at the target name
-            # (samefile allows a case-only rename of the sidecar itself).
+            # samefile allows a case-only rename of the sidecar itself.
             if sc_dst.exists() and not sc_dst.samefile(sc):
-                logger.warning("Sidecar target exists, skipping: %s", sc_dst)
-                continue
+                raise ValueError("En sidecar-fil med målnamnet finns redan")
+            sidecar_moves.append((sc, sc_dst))
+
+        self._safe_rename(src, dst)
+        for sc, sc_dst in sidecar_moves:
             try:
                 self._safe_rename(sc, sc_dst)
             except Exception:

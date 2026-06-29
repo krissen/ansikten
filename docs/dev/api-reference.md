@@ -721,7 +721,8 @@ Move files (and their `.xmp` sidecars) to the app trash.
 
 Rename a single file (and its `.xmp` sidecars) to a new basename within the same
 folder. The basename must be a bare filename (no path separators / `..`); the
-request is rejected if the target already exists.
+request is rejected if the target file — or any sidecar's target — already
+exists (so a rename never half-applies). Case-only renames are supported.
 
 **Request:** `{ "path": "/path/250601_100000_Anna,_Bo.jpg", "new_basename": "250601_100000_Anna.jpg" }`
 
