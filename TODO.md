@@ -35,7 +35,13 @@ GUI-onboarding av CLI-skript (en PR per steg):
 - [ ] **Backend distance-optimering** - Optimera distansberäkningar för bättre prestanda
 - [ ] **Duplicate cleanup tool** - Verktyg för att hitta och hantera duplicerade ansikten i databasen
 - [ ] Utveckla smidigare stöd för terminal-interaktion med backend (synkat med frontend)
-- [ ] **Landningssida vid uppstart** (tom kö / inga filer angivna, eller kön töms vid uppstart pga saknade filer): knappar för arbetsflödesstegen. Import-knappen *aktiv* när kortvolym syns, annars *nedtonad/inaktiv*; övriga steg motsvarande.
+- [ ] **Landningssida vid uppstart** — visas i arbetsytan när appen startar utan kö/filer (eller när kön töms vid uppstart för att filerna saknas). Knappar för arbetsflödesstegen i ordning som öppnar respektive modul:
+  - Steg (ordning): **Importera · Byt namn · Granska ansikten** (File Queue/Review) **· Räkna spelare · Gallra spelare**.
+  - **Aktiv/nedtonad:** Import-knappen aktiv endast när en kortvolym syns (`GET /api/v1/import/volumes` ≠ tom), annars nedtonad/inaktiv. Övriga steg nedtonas om en förutsättning saknas, annars aktiva. (Polla/uppdatera kortstatus så Import tänds när ett kort sätts i.)
+  - **Single-instance/fokus:** de flesta vyer är singletons (`SINGLETON_MODULES`) — en knapp ska *fokusera* befintlig instans om den är öppen, annars öppna en ny. `FlexLayoutWorkspace.openModule` gör redan detta; återanvänd den + `handleMenuCommand`-kommandona (`open-import`, `open-rename-nef`, `open-file-queue`/`open-review-module`, `open-player-count`, `open-culling`).
+  - **Var:** rendera som tomt-läge i FlexLayout-arbetsytan; försvinner när en modul öppnas eller filer laddas. Se befintlig uppstarts-/tomt-logik (StartupStatus, FlexLayoutWorkspace, ev. `get-initial-file`).
+  - **Återanvänd:** modulregistret (`MODULE_COMPONENTS`/`MODULE_TITLES`) för steglistan, import-volym-endpointen för aktiv/nedtonad, ikon/knapp-stilarna från befintliga moduler.
+  - Egen PR.
 - [ ] **Arbetsflödes-layoutpresets** — spara flerfönsterkonfigurationer per uppgift (t.ex. NEF-culling = fillista vänster + maximal preview höger). De flesta vyer är single-instance: öppna inte flera, skifta fokus till befintlig.
 - [ ] **Positions-/progressindikator i culling** — visa var i listan användaren står (fil X/N; granskade gröna, resten grå) i fillistan eller filterraden.
 - [ ] **Omfattande docs-uppdatering** — TODO.md/övriga docs är inaktuella; genomgång + uppdatering (stort jobb, egen PR).
