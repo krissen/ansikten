@@ -103,6 +103,13 @@ Workspace är ett modulärt gränssnitt byggt med FlexLayout. Paneler kan dockas
 
 ## Arbetsflöde
 
+> **Startsida:** När appen startar utan filer i kön visas en startsida i
+> arbetsytan med knappar för arbetsflödesstegen i ordning (**Importera · Byt
+> namn · Granska ansikten · Räkna spelare · Gallra spelare**). Varje knapp
+> öppnar (eller fokuserar) respektive modul. **Importera** är aktiv bara när ett
+> minneskort sitter i (uppdateras automatiskt) — övriga är alltid valbara.
+> Startsidan försvinner så fort du öppnar en modul eller laddar en bild.
+
 ### 0. Importera från minneskort (valfritt)
 
 1. Öppna **Importera** (`Cmd+Shift+I`). Modulen listar isatta minneskort med antal NEF.

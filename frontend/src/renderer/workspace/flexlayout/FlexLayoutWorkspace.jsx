@@ -28,6 +28,7 @@ import { PlayerCountModule } from '../../components/PlayerCountModule.jsx';
 import { CullingModule } from '../../components/CullingModule.jsx';
 import { ImportModule } from '../../components/ImportModule.jsx';
 import { RenameNefModule } from '../../components/RenameNefModule.jsx';
+import { StartupLanding } from '../../components/StartupLanding.jsx';
 
 
 // Storage key for layout persistence
@@ -343,6 +344,9 @@ export function FlexLayoutWorkspace() {
   const [model, setModel] = useState(null);
   const [ready, setReady] = useState(false);
   const [showShortcutsHelp, setShowShortcutsHelp] = useState(false);
+  // Startup landing page: shown on an empty workspace, dismissed once a module
+  // is opened or an image is loaded.
+  const [showLanding, setShowLanding] = useState(true);
   const moduleAPI = useModuleAPI();
 
   // Initialize model
@@ -504,6 +508,9 @@ export function FlexLayoutWorkspace() {
       debugError('FlexLayout', `Module not found: ${moduleId}`);
       return;
     }
+
+    // Opening any module dismisses the startup landing page.
+    setShowLanding(false);
 
     // Check if module is a singleton and already exists
     const isSingleton = SINGLETON_MODULES.has(moduleId);
@@ -1202,8 +1209,15 @@ export function FlexLayoutWorkspace() {
 
     window.ansiktenAPI.on('menu-command', handleMenuCommand);
 
+    // A loaded image dismisses the landing. Listen on the past-tense
+    // 'image-loaded' (emitted by ImageViewer after a load), NOT the imperative
+    // 'load-image' command: FileQueue uses hasListeners('load-image') to detect
+    // when ImageViewer has mounted, and a permanent listener here would defeat
+    // that guard and reintroduce a lost-event race on first queue load.
+    const unsubscribeImageLoaded = moduleAPI.on('image-loaded', () => setShowLanding(false));
+
     return () => {
-      // Cleanup if needed
+      unsubscribeImageLoaded();
     };
   }, [ready, loadLayout, addTabset, removeEmptyTabset, openModule, moduleAPI, moveToNewTabset]);
 
@@ -1258,6 +1272,7 @@ export function FlexLayoutWorkspace() {
         onModelChange={handleModelChange}
         onAction={handleAction}
       />
+      {showLanding && <StartupLanding onOpenModule={openModule} />}
       {showShortcutsHelp && (
         <ShortcutsHelpOverlay
           onClose={() => setShowShortcutsHelp(false)}

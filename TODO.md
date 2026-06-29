@@ -35,7 +35,7 @@ GUI-onboarding av CLI-skript (en PR per steg):
 - [ ] **Backend distance-optimering** - Optimera distansberäkningar för bättre prestanda
 - [ ] **Duplicate cleanup tool** - Verktyg för att hitta och hantera duplicerade ansikten i databasen
 - [ ] Utveckla smidigare stöd för terminal-interaktion med backend (synkat med frontend)
-- [ ] **Landningssida vid uppstart** — visas i arbetsytan när appen startar utan kö/filer (eller när kön töms vid uppstart för att filerna saknas). Knappar för arbetsflödesstegen i ordning som öppnar respektive modul:
+- [x] **Landningssida vid uppstart** (2026-06-29) — overlay-tomtläge i FlexLayout-arbetsytan med arbetsflödesknappar (Importera · Byt namn · Granska ansikten · Räkna spelare · Gallra spelare); Import villkoras av kortvolym (pollas), övriga alltid aktiva; försvinner när en modul öppnas eller en bild laddas. Knappar via `FlexLayoutWorkspace.openModule`. Ursprunglig spec:
   - Steg (ordning): **Importera · Byt namn · Granska ansikten** (File Queue/Review) **· Räkna spelare · Gallra spelare**.
   - **Aktiv/nedtonad:** Import-knappen aktiv endast när en kortvolym syns (`GET /api/v1/import/volumes` ≠ tom), annars nedtonad/inaktiv. Övriga steg nedtonas om en förutsättning saknas, annars aktiva. (Polla/uppdatera kortstatus så Import tänds när ett kort sätts i.)
   - **Single-instance/fokus:** de flesta vyer är singletons (`SINGLETON_MODULES`) — en knapp ska *fokusera* befintlig instans om den är öppen, annars öppna en ny. `FlexLayoutWorkspace.openModule` gör redan detta; återanvänd den + `handleMenuCommand`-kommandona (`open-import`, `open-rename-nef`, `open-file-queue`/`open-review-module`, `open-player-count`, `open-culling`).
