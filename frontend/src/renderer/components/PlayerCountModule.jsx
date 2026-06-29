@@ -29,6 +29,9 @@ export function PlayerCountModule() {
 
   // Params of the last submitted query, so auto-refresh re-runs the same thing.
   const lastParamsRef = useRef(null);
+  // Monotonic id so a slower older request can't overwrite a newer result
+  // (e.g. toggling Per match / filters quickly on a large folder).
+  const reqSeqRef = useRef(0);
   const watchedDirsRef = useRef(new Set());
   const debounceRef = useRef(null);
 
@@ -47,18 +50,23 @@ export function PlayerCountModule() {
 
   const runCount = useCallback(
     async (params, { silent = false } = {}) => {
+      const seq = ++reqSeqRef.current;
       if (silent) setIsRefreshing(true);
       else setIsLoading(true);
       try {
         const data = await api.post('/api/v1/players/count', params);
+        if (seq !== reqSeqRef.current) return; // superseded by a newer request
         setResult(data);
         setError(null);
       } catch (err) {
+        if (seq !== reqSeqRef.current) return;
         setError(err.message || String(err));
       } finally {
-        setIsLoading(false);
-        setIsRefreshing(false);
-        setHasRun(true);
+        if (seq === reqSeqRef.current) {
+          setIsLoading(false);
+          setIsRefreshing(false);
+          setHasRun(true);
+        }
       }
     },
     [api]
@@ -91,12 +99,30 @@ export function PlayerCountModule() {
     watchedDirsRef.current = desired;
   }, []);
 
-  const handleSubmit = useCallback(() => {
-    const params = buildParams(input, perMatch);
-    lastParamsRef.current = params;
-    runCount(params);
-    updateWatches(watchDirsFor(input));
-  }, [input, perMatch, buildParams, runCount, updateWatches, watchDirsFor]);
+  const submitWith = useCallback(
+    (inp, includePerMatch) => {
+      const params = buildParams(inp, includePerMatch);
+      lastParamsRef.current = params;
+      runCount(params);
+      updateWatches(watchDirsFor(inp));
+    },
+    [buildParams, runCount, updateWatches, watchDirsFor]
+  );
+
+  const handleSubmit = useCallback(
+    () => submitWith(input, perMatch),
+    [submitWith, input, perMatch]
+  );
+
+  // Select/checkbox changes from the InputBar apply immediately, but only once a
+  // query has run (otherwise there's nothing to recompute yet).
+  const handleAutoApply = useCallback(
+    (nextInput) => {
+      setInput(nextInput);
+      if (lastParamsRef.current) submitWith(nextInput, perMatch);
+    },
+    [submitWith, perMatch]
+  );
 
   // Open the culling workspace filtered to a player (from the stats table).
   const openCullForPlayer = useCallback(
@@ -148,7 +174,11 @@ export function PlayerCountModule() {
             <input
               type="checkbox"
               checked={perMatch}
-              onChange={(e) => setPerMatch(e.target.checked)}
+              onChange={(e) => {
+                const v = e.target.checked;
+                setPerMatch(v);
+                if (lastParamsRef.current) submitWith(input, v);
+              }}
             />
             Per match
           </label>
@@ -156,7 +186,13 @@ export function PlayerCountModule() {
         </div>
       </div>
 
-      <InputBar value={input} onChange={setInput} onSubmit={handleSubmit} busy={isLoading} />
+      <InputBar
+        value={input}
+        onChange={setInput}
+        onSubmit={handleSubmit}
+        onAutoApply={handleAutoApply}
+        busy={isLoading}
+      />
 
       <div className="module-body player-count-body">
         {error && <div className="status-message error">Fel: {error}</div>}

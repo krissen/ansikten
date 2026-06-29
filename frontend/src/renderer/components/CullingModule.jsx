@@ -55,6 +55,10 @@ export function CullingModule({ node }) {
 
   // Latest filter params for auto-refresh; undo stack of trashed ids.
   const lastQueryRef = useRef(null);
+  // Monotonic id so out-of-order list responses (e.g. switching players fast on
+  // a large folder) can't clobber a newer result — critical here because the
+  // list drives which files `x`/Delete trashes.
+  const reqSeqRef = useRef(0);
   const undoStackRef = useRef([]);
   const watchedDirsRef = useRef(new Set());
   const debounceRef = useRef(null);
@@ -63,8 +67,10 @@ export function CullingModule({ node }) {
   // The editable glob is a Finder-style basename filter (name_glob) over the
   // resolved files, NOT an independent filesystem glob. The scan source is
   // roots (+ any path-globs carried from the stats module).
+  // `overrides` lets callers run with a just-changed value before the matching
+  // setState has flushed (e.g. auto-apply on a dropdown change).
   const buildQuery = useCallback(
-    () => ({
+    (overrides = {}) => ({
       roots,
       globs: carriedGlobs,
       extension_preset: preset,
@@ -75,6 +81,7 @@ export function CullingModule({ node }) {
       // names can't conflate players; name_glob is the extra editable refinement.
       player: player || null,
       name_glob: glob.trim() || null,
+      ...overrides,
     }),
     [roots, carriedGlobs, preset, recursive, dateFrom, dateTo, player, glob]
   );
@@ -103,9 +110,11 @@ export function CullingModule({ node }) {
   // ----- listing ------------------------------------------------------
   const loadList = useCallback(
     async (query, { keepIndex = false } = {}) => {
+      const seq = ++reqSeqRef.current;
       setIsLoading(true);
       try {
         const data = await api.post('/api/v1/culling/files', query);
+        if (seq !== reqSeqRef.current) return; // a newer request superseded this one
         setFiles(data.files);
         setPlayers(data.players);
         setError(null);
@@ -115,17 +124,21 @@ export function CullingModule({ node }) {
           return 0;
         });
       } catch (err) {
+        if (seq !== reqSeqRef.current) return;
         setError(err.message || String(err));
       } finally {
-        setIsLoading(false);
-        setHasRun(true);
+        // Leave isLoading true if a newer request is still in flight (it will clear it).
+        if (seq === reqSeqRef.current) {
+          setIsLoading(false);
+          setHasRun(true);
+        }
       }
     },
     [api]
   );
 
-  const runFilter = useCallback(() => {
-    const query = buildQuery();
+  const runFilter = useCallback((overrides = {}) => {
+    const query = buildQuery(overrides);
     lastQueryRef.current = query;
     loadList(query);
     updateWatches(watchDirs());
@@ -406,7 +419,12 @@ export function CullingModule({ node }) {
         <select
           className="form-select"
           value={preset}
-          onChange={(e) => setPreset(e.target.value)}
+          onChange={(e) => {
+            const v = e.target.value;
+            setPreset(v);
+            // Auto-apply once a scope exists (a query has run).
+            if (lastQueryRef.current) runFilter({ extension_preset: v });
+          }}
           title="Filtyp"
         >
           <option value="jpg">jpg / jpeg</option>
@@ -416,7 +434,15 @@ export function CullingModule({ node }) {
         <select
           className="form-select"
           value={player}
-          onChange={(e) => selectPlayer(e.target.value)}
+          onChange={(e) => {
+            const name = e.target.value;
+            selectPlayer(name);
+            // Picking a player applies immediately — no need to press Visa.
+            if (lastQueryRef.current) {
+              const g = name ? `*${name}*` : '';
+              runFilter({ player: name || null, name_glob: g || null });
+            }
+          }}
           title="Spelare"
         >
           <option value="">Alla spelare</option>
@@ -432,12 +458,12 @@ export function CullingModule({ node }) {
           onChange={(e) => { setGlob(e.target.value); setPlayer(''); }}
           onKeyDown={(e) => { if (e.key === 'Enter') runFilter(); }}
         />
-        <button className="btn-primary" onClick={runFilter} disabled={!canFilter || isLoading}>
+        <button className="btn-action" onClick={() => runFilter()} disabled={!canFilter || isLoading}>
           {isLoading ? '…' : 'Visa'}
         </button>
         <span className="culling-spacer" />
         <button
-          className={showTrash ? 'btn-primary' : 'btn-secondary'}
+          className={showTrash ? 'btn-action' : 'btn-secondary'}
           onClick={() => (showTrash ? setShowTrash(false) : openTrash())}
         >
           Papperskorg
