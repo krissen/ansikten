@@ -25,7 +25,11 @@ sys.path.insert(0, str(Path(__file__).parent.parent.parent))
 from rakna_spelare import parse_filename  # noqa: E402
 
 from .file_resolver import TRASH_DIR, preset_extensions, resolve_files  # noqa: E402
-from .rename_service import extract_filename_datetime, find_sidecar_files  # noqa: E402
+from .rename_service import (  # noqa: E402
+    extract_filename_datetime,
+    find_sidecar_files,
+    validate_path_security,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -188,6 +192,43 @@ class CullingService:
             trashed.append({"id": tid, "original_path": str(src), "basename": src.name})
 
         return {"trashed": trashed, "errors": errors}
+
+    # ----- rename --------------------------------------------------------
+
+    def rename(self, path: str, new_basename: str) -> dict:
+        """Rename a single file (+ matching sidecars) within its folder.
+
+        `new_basename` is the full target filename including extension. Returns
+        {path, basename} for the renamed file. Raises ValueError on bad input
+        (invalid name, existing target, missing source).
+        """
+        ok, err = validate_path_security(path)
+        if not ok:
+            raise ValueError(err)
+
+        # The target must be a bare filename living in the same directory.
+        if not new_basename or "\0" in new_basename or new_basename != Path(new_basename).name:
+            raise ValueError("Ogiltigt filnamn")
+        if new_basename in (".", ".."):
+            raise ValueError("Ogiltigt filnamn")
+
+        src = Path(path)
+        dst = src.with_name(new_basename)
+        if dst.name == src.name:
+            return {"path": str(src), "basename": src.name}
+        if dst.exists():
+            raise ValueError("En fil med det namnet finns redan")
+
+        # Find sidecars before the move; rename each to follow the new stem.
+        sidecars = find_sidecar_files(src, SIDECAR_EXTENSIONS)
+        src.rename(dst)
+        for sc in sidecars:
+            try:
+                sc.rename(dst.with_name(dst.stem + sc.suffix))
+            except Exception:
+                logger.exception("Failed to rename sidecar %s", sc)
+
+        return {"path": str(dst), "basename": dst.name}
 
     def list_trash(self) -> dict:
         """Return active trash entries, newest first."""
