@@ -6,6 +6,14 @@ This changelog is initialized from git commit history after `v1.0.0` and can be 
 
 ## [Unreleased]
 
+### Added
+- **Räkna spelare** module: counts images per named player from filenames (no face recognition) with median-baseline over/under-representation stats; folder/glob input with extension presets and a filename-date span; live auto-refresh when the watched folder changes (#46).
+- **Gallra spelare** culling workspace: filter by player or a Finder-style glob, file list beside a maximized preview, keystroke culling (`x`/Delete) with auto-advance and `Cmd+Z` undo, backed by an app-managed trash with restore-to-original (#46). Extended to NEF/RAW via the existing NEF→JPG preview pipeline, with debounced conversion on fast stepping (#47).
+- Folder-level file-watching IPC and a folder-path dialog, shared by the new modules.
+
+### Changed
+- Documentation: established [CLAUDE.md](CLAUDE.md) as the canonical agent-instructions file; [AGENTS.md](AGENTS.md) and `.github/copilot-instructions.md` now point to it.
+
 ## [1.3.0] - 2026-06-27
 
 ### Added
