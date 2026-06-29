@@ -210,7 +210,7 @@ async def health_check():
 API_V1_PREFIX = "/api/v1"
 
 # Import routes
-from .routes import detection, status, database, statistics, management, preprocessing, files, startup, refinement, player_count, culling, imports
+from .routes import detection, status, database, statistics, management, preprocessing, files, startup, refinement, player_count, culling, imports, rename_nef
 app.include_router(detection.router, prefix=API_V1_PREFIX, tags=["detection"])
 app.include_router(status.router, prefix=API_V1_PREFIX, tags=["status"])
 app.include_router(database.router, prefix=API_V1_PREFIX, tags=["database"])
@@ -218,6 +218,7 @@ app.include_router(statistics.router, prefix=API_V1_PREFIX, tags=["statistics"])
 app.include_router(player_count.router, prefix=API_V1_PREFIX, tags=["players"])
 app.include_router(culling.router, prefix=API_V1_PREFIX, tags=["culling"])
 app.include_router(imports.router, prefix=API_V1_PREFIX, tags=["import"])
+app.include_router(rename_nef.router, prefix=API_V1_PREFIX, tags=["rename-nef"])
 app.include_router(management.router, prefix=API_V1_PREFIX, tags=["management"])
 app.include_router(refinement.router, prefix=API_V1_PREFIX, tags=["refinement"])
 app.include_router(preprocessing.router, prefix=f"{API_V1_PREFIX}/preprocessing", tags=["preprocessing"])
