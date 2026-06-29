@@ -55,6 +55,10 @@ export function CullingModule({ node }) {
 
   // Latest filter params for auto-refresh; undo stack of trashed ids.
   const lastQueryRef = useRef(null);
+  // Monotonic id so out-of-order list responses (e.g. switching players fast on
+  // a large folder) can't clobber a newer result — critical here because the
+  // list drives which files `x`/Delete trashes.
+  const reqSeqRef = useRef(0);
   const undoStackRef = useRef([]);
   const watchedDirsRef = useRef(new Set());
   const debounceRef = useRef(null);
@@ -106,9 +110,11 @@ export function CullingModule({ node }) {
   // ----- listing ------------------------------------------------------
   const loadList = useCallback(
     async (query, { keepIndex = false } = {}) => {
+      const seq = ++reqSeqRef.current;
       setIsLoading(true);
       try {
         const data = await api.post('/api/v1/culling/files', query);
+        if (seq !== reqSeqRef.current) return; // a newer request superseded this one
         setFiles(data.files);
         setPlayers(data.players);
         setError(null);
@@ -118,10 +124,14 @@ export function CullingModule({ node }) {
           return 0;
         });
       } catch (err) {
+        if (seq !== reqSeqRef.current) return;
         setError(err.message || String(err));
       } finally {
-        setIsLoading(false);
-        setHasRun(true);
+        // Leave isLoading true if a newer request is still in flight (it will clear it).
+        if (seq === reqSeqRef.current) {
+          setIsLoading(false);
+          setHasRun(true);
+        }
       }
     },
     [api]

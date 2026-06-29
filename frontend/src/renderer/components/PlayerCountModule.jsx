@@ -29,6 +29,9 @@ export function PlayerCountModule() {
 
   // Params of the last submitted query, so auto-refresh re-runs the same thing.
   const lastParamsRef = useRef(null);
+  // Monotonic id so a slower older request can't overwrite a newer result
+  // (e.g. toggling Per match / filters quickly on a large folder).
+  const reqSeqRef = useRef(0);
   const watchedDirsRef = useRef(new Set());
   const debounceRef = useRef(null);
 
@@ -47,18 +50,23 @@ export function PlayerCountModule() {
 
   const runCount = useCallback(
     async (params, { silent = false } = {}) => {
+      const seq = ++reqSeqRef.current;
       if (silent) setIsRefreshing(true);
       else setIsLoading(true);
       try {
         const data = await api.post('/api/v1/players/count', params);
+        if (seq !== reqSeqRef.current) return; // superseded by a newer request
         setResult(data);
         setError(null);
       } catch (err) {
+        if (seq !== reqSeqRef.current) return;
         setError(err.message || String(err));
       } finally {
-        setIsLoading(false);
-        setIsRefreshing(false);
-        setHasRun(true);
+        if (seq === reqSeqRef.current) {
+          setIsLoading(false);
+          setIsRefreshing(false);
+          setHasRun(true);
+        }
       }
     },
     [api]
