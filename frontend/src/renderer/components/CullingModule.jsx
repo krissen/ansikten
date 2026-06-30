@@ -15,7 +15,7 @@ import { useBackend } from '../context/BackendContext.jsx';
 import { useModuleEvent } from '../hooks/useModuleEvent.js';
 import { namesInBasename, removeNamesFromBasename } from './culling-names.js';
 import { preferences } from '../workspace/preferences.js';
-import { getScanScope, setScanScope, scanScopeHasSelection } from '../shared/scanScope.js';
+import { getScanScope, setScanScope, scanScopeHasSelection, takeExternalLoad } from '../shared/scanScope.js';
 import './CullingModule.css';
 
 const REFRESH_DEBOUNCE_MS = 400;
@@ -322,6 +322,9 @@ export function CullingModule({ node }) {
     'cull-player',
     (data) => {
       if (!data) return;
+      // We are the external load the adopt effect deferred to — clear the flag
+      // (covers the case where culling was already mounted so adopt didn't run).
+      takeExternalLoad();
       const nextRoots = data.roots || [];
       const nextGlobs = data.globs || [];
       const nextRecursive = data.recursive ?? true;
@@ -397,6 +400,10 @@ export function CullingModule({ node }) {
         setCurrentIndex(-1);
         setStats(null);
         setHasRun(false);
+        // The discarded adopt load left isLoading true (its finally skips the
+        // seq-mismatched response); reset it so the cleared workspace shows the
+        // "välj mapp" hint instead of a stuck "…".
+        setIsLoading(false);
         lastQueryRef.current = null;
         // Clear the shared scope too, so Räkna spelare (or a culling remount)
         // doesn't adopt the now-discarded selection.
@@ -428,6 +435,10 @@ export function CullingModule({ node }) {
   // action still takes over; the player/name filter is never inherited.
   useEffect(() => {
     if (hasRun || roots.length > 0) return;
+    // A cull-player hand-off (clicking a player in Räkna spelare) is about to
+    // load the player-filtered query — skip the unfiltered adopt load so the
+    // folder isn't scanned twice and the unfiltered list doesn't flash.
+    if (takeExternalLoad()) return;
     const s = getScanScope();
     if (!scanScopeHasSelection(s)) return;
     setRoots(s.roots || []);

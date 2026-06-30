@@ -11,7 +11,7 @@ import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { useBackend } from '../context/BackendContext.jsx';
 import { useModuleAPI } from '../hooks/useModuleEvent.js';
 import { InputBar, EMPTY_INPUT } from './InputBar.jsx';
-import { getScanScope, setScanScope, scanScopeHasSelection } from '../shared/scanScope.js';
+import { getScanScope, setScanScope, scanScopeHasSelection, signalExternalLoad } from '../shared/scanScope.js';
 import './PlayerCountModule.css';
 
 const REFRESH_DEBOUNCE_MS = 400;
@@ -159,6 +159,9 @@ export function PlayerCountModule() {
   const openCullForPlayer = useCallback(
     async (name) => {
       const params = lastParamsRef.current || buildParams(input, perMatch);
+      // Tell culling's adopt-on-mount that we'll immediately load the
+      // player-filtered query, so it skips its own unfiltered scan.
+      signalExternalLoad();
       window.workspace?.openModule?.('culling');
       // The culling module subscribes on mount; wait so the event isn't missed.
       await waitForListeners('cull-player', 3000);

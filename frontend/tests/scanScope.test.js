@@ -1,5 +1,5 @@
 import { describe, it, expect, beforeEach } from 'vitest';
-import { getScanScope, setScanScope, scanScopeHasSelection } from '../src/renderer/shared/scanScope.js';
+import { getScanScope, setScanScope, scanScopeHasSelection, signalExternalLoad, takeExternalLoad } from '../src/renderer/shared/scanScope.js';
 
 describe('scanScope store', () => {
   beforeEach(() => setScanScope(null));
@@ -34,5 +34,16 @@ describe('scanScopeHasSelection', () => {
   it('true when a folder or path-glob is present', () => {
     expect(scanScopeHasSelection({ roots: ['/a'], globs: [] })).toBe(true);
     expect(scanScopeHasSelection({ roots: [], globs: ['*.jpg'] })).toBe(true);
+  });
+});
+
+describe('external-load signal', () => {
+  beforeEach(() => { takeExternalLoad(); }); // clear
+
+  it('is false until signalled, then one-shot true', () => {
+    expect(takeExternalLoad()).toBe(false);
+    signalExternalLoad();
+    expect(takeExternalLoad()).toBe(true);
+    expect(takeExternalLoad()).toBe(false); // consumed
   });
 });

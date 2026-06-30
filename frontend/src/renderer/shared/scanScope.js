@@ -32,3 +32,22 @@ export function scanScopeHasSelection(scope) {
     (Array.isArray(scope.globs) && scope.globs.length > 0)
   );
 }
+
+// One-shot signal: when Räkna spelare opens culling for a specific player it
+// immediately emits `cull-player` with the player-filtered query. This lets
+// culling's adopt-on-mount skip its own (unfiltered) load so the folder isn't
+// scanned twice / the unfiltered list doesn't briefly flash before collapsing
+// to the filtered set.
+let externalLoadPending = false;
+
+/** Mark that an external loader (cull-player hand-off) is about to load. */
+export function signalExternalLoad() {
+  externalLoadPending = true;
+}
+
+/** Read and clear the pending-external-load flag. */
+export function takeExternalLoad() {
+  const v = externalLoadPending;
+  externalLoadPending = false;
+  return v;
+}
