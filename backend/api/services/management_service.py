@@ -157,11 +157,14 @@ def _pair_separability(
 
     Combines both label sets and, for each vector, checks whether its nearest
     other vector (cosine) shares its label. Returns ``(accuracy, margin)`` where
-    accuracy in [0,1] (≈1.0 = cleanly separable → different people who look
-    alike; ≈0.5 = indistinguishable → likely the same person) and margin =
-    mean nearest cross-set distance − mean nearest within-set distance (>0 when
-    separable). Returns None when either set has <2 usable vectors or shapes
-    mismatch — i.e. when separability can't be meaningfully estimated.
+    accuracy is the **balanced** 1-NN LOO accuracy — the mean of the two
+    per-person recalls — in [0,1] (≈1.0 = cleanly separable → different people
+    who look alike; ≈0.5 = indistinguishable → likely the same person). Using
+    balanced accuracy (not the pooled rate) keeps a large class from dominating:
+    a true duplicate where one name has many photos and the other has 2 would
+    otherwise score high and be mis-flagged as distinct. margin = mean nearest
+    cross-set distance − mean nearest within-set distance (>0 when separable).
+    Returns None when either set has <2 usable vectors or shapes mismatch.
     """
     if len(vecs_a) < 2 or len(vecs_b) < 2:
         return None
@@ -176,7 +179,10 @@ def _pair_separability(
     np.fill_diagonal(dist, np.inf)  # exclude self from nearest-neighbour
 
     nn = np.argmin(dist, axis=1)
-    accuracy = float(np.mean(labels[nn] == labels))
+    correct = labels[nn] == labels
+    recall_a = float(np.mean(correct[labels == 0]))
+    recall_b = float(np.mean(correct[labels == 1]))
+    accuracy = 0.5 * (recall_a + recall_b)
 
     same = labels[:, None] == labels[None, :]
     within = np.where(same, dist, np.inf).min(axis=1)
@@ -203,7 +209,7 @@ def _load_distinct_pairs() -> set:
     return {
         tuple(sorted(p))
         for p in data
-        if isinstance(p, list) and len(p) == 2
+        if isinstance(p, list) and len(p) == 2 and all(isinstance(x, str) for x in p)
     }
 
 

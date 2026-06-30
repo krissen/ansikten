@@ -73,6 +73,17 @@ def test_separability_none_when_too_few_samples():
     assert _pair_separability([], [_unit(2), _unit(3)]) is None
 
 
+def test_separability_balanced_for_imbalanced_same_person():
+    # Same person, but one name has many photos and the other just 2. A pooled
+    # 1-NN rate would be dominated by the large class (~0.98) and mis-flag this
+    # true duplicate as distinct; balanced accuracy stays near 0.5.
+    base = _unit(0)
+    big = _norm_list(range(0, 100), base=base, jitter=0.02, jseed=1)
+    small = _norm_list(range(0, 2), base=base, jitter=0.02, jseed=900)
+    acc, _ = _pair_separability(big, small)
+    assert acc < 0.75
+
+
 def test_strided_sample_caps_length():
     vecs = [np.zeros(4) for _ in range(1000)]
     assert len(m._strided_sample(vecs, 200)) == 200
@@ -125,6 +136,13 @@ async def test_add_distinct_pair_order_independent_and_validated(service):
     assert (await service.list_distinct_pairs())["count"] == 1
     with pytest.raises(ValueError):
         await service.add_distinct_pair("Same", "Same")
+
+
+def test_load_ignores_non_string_entries(service):
+    # A two-item entry with a non-string (e.g. ["C", 1]) must not crash sorted();
+    # only valid string pairs survive.
+    m.DISTINCT_PAIRS_PATH.write_text('[["A", "B"], ["C", 1], [1, 2], "x", ["only"]]')
+    assert m._load_distinct_pairs() == {("A", "B")}
 
 
 @pytest.mark.asyncio
