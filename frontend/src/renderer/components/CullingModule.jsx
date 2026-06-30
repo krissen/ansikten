@@ -387,12 +387,15 @@ export function CullingModule({ node }) {
       setDateTo(null);
 
       if (nextRoots.length === 0) {
-        // Bare --clear: empty the list and stop watching.
+        // Bare --clear: empty the list and stop watching. Clear the shared
+        // scope too, so Räkna spelare (or a culling remount) doesn't adopt the
+        // now-discarded selection instead of the intentionally empty workspace.
         setFiles([]);
         setCurrentIndex(-1);
         setStats(null);
         setHasRun(false);
         lastQueryRef.current = null;
+        setScanScope(null);
         updateWatches(new Set());
         return;
       }
@@ -441,7 +444,14 @@ export function CullingModule({ node }) {
     lastQueryRef.current = query;
     loadList(query);
     loadStats(statsScopeFromQuery(query));
-    updateWatches(new Set(s.roots || []));
+    // Watch roots AND each path-glob's base dir, so a glob-only mirrored scope
+    // (e.g. adopted from Räkna spelare) still auto-refreshes on file changes.
+    const dirs = new Set(s.roots || []);
+    for (const g of (s.globs || [])) {
+      const base = globBaseDir(g);
+      if (base) dirs.add(base);
+    }
+    updateWatches(dirs);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
