@@ -89,12 +89,35 @@ class DuplicatePair(BaseModel):
     distance: float
     count_a: int
     count_b: int
+    separability: Optional[float] = None
+    margin: Optional[float] = None
+    likely_distinct: bool = False
 
 
 class FindDuplicatesResponse(BaseModel):
     pairs: List[DuplicatePair]
     threshold: float
     people_compared: int
+
+
+class DistinctPairRequest(BaseModel):
+    name_a: str
+    name_b: str
+
+
+class DistinctPairEntry(BaseModel):
+    name_a: str
+    name_b: str
+
+
+class DistinctPairsResponse(BaseModel):
+    pairs: List[DistinctPairEntry]
+    count: int
+
+
+class DistinctPairOperationResponse(BaseModel):
+    status: str
+    count: int
 
 
 class RecentFile(BaseModel):
@@ -176,6 +199,41 @@ async def find_duplicates(threshold: float = Query(0.35, ge=0, le=2)):
 
     except Exception as e:
         logger.error(f"[Management] Error finding duplicates: {e}", exc_info=True)
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@router.get("/management/distinct-pairs", response_model=DistinctPairsResponse)
+async def list_distinct_pairs():
+    """List confirmed-distinct name-pairs (excluded from duplicate suggestions)."""
+    try:
+        result = await management_service.list_distinct_pairs()
+        return DistinctPairsResponse(**result)
+    except Exception as e:
+        logger.error(f"[Management] Error listing distinct pairs: {e}", exc_info=True)
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@router.post("/management/distinct-pair", response_model=DistinctPairOperationResponse)
+async def add_distinct_pair(request: DistinctPairRequest):
+    """Mark a name-pair as confirmed-distinct (not a duplicate); the scanner skips it."""
+    try:
+        result = await management_service.add_distinct_pair(request.name_a, request.name_b)
+        return DistinctPairOperationResponse(**result)
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+    except Exception as e:
+        logger.error(f"[Management] Error adding distinct pair: {e}", exc_info=True)
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@router.post("/management/distinct-pair/remove", response_model=DistinctPairOperationResponse)
+async def remove_distinct_pair(request: DistinctPairRequest):
+    """Remove a confirmed-distinct pair (undo) so it can be suggested again."""
+    try:
+        result = await management_service.remove_distinct_pair(request.name_a, request.name_b)
+        return DistinctPairOperationResponse(**result)
+    except Exception as e:
+        logger.error(f"[Management] Error removing distinct pair: {e}", exc_info=True)
         raise HTTPException(status_code=500, detail=str(e))
 
 

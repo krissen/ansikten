@@ -7,6 +7,7 @@ Ports functionality from hantera_ansikten.py to API-friendly format.
 
 import fnmatch
 import hashlib
+import json
 import logging
 import sys
 import threading
@@ -18,7 +19,16 @@ import numpy as np
 # Add parent directory to path to import CLI modules
 sys.path.insert(0, str(Path(__file__).parent.parent.parent))
 
-from faceid_db import load_database, save_database
+from faceid_db import BASE_DIR, load_database, save_database
+
+# Persisted set of confirmed-distinct name-pairs (e.g. identical twins): people
+# the duplicate scanner must never suggest merging. Each pair is stored as a
+# sorted 2-list. Module-level so tests can monkeypatch the path.
+DISTINCT_PAIRS_PATH = BASE_DIR / "distinct_pairs.json"
+
+# Head-to-head 1-NN separability at/above which a centroid-close pair is treated
+# as "likely distinct" (different people who merely look alike), not a duplicate.
+SEPARABILITY_CUTOFF = 0.9
 
 logger = logging.getLogger(__name__)
 
@@ -71,16 +81,11 @@ def _filter_encodings_by_backend(encodings: List, backend: Optional[str]) -> Lis
     return filtered
 
 
-def _person_centroid(
-    encodings: List, backend_filter: Optional[str]
-) -> Optional[tuple[np.ndarray, int]]:
-    """Unit-sphere centroid of a person's encodings, for cosine comparison.
+def _usable_unit_vectors(encodings: List, backend_filter: Optional[str]) -> List[np.ndarray]:
+    """L2-normalized encoding vectors of one backend, for cosine comparison.
 
-    Each encoding is L2-normalized before averaging and the mean is projected
-    back onto the unit sphere, mirroring RefinementService's centroid. Manual
-    faces (``encoding is None``) and other-backend / wrong-shape entries are
-    skipped. Returns ``(centroid, n_used)`` or ``None`` when no usable
-    encoding remains (e.g. a person with only manual faces).
+    Skips manual faces (``encoding is None``), other-backend entries, non-1D and
+    mismatched-shape (the first usable shape wins) and zero-norm vectors.
     """
     vecs: List[np.ndarray] = []
     dim: Optional[int] = None
@@ -98,21 +103,100 @@ def _person_centroid(
         if dim is None:
             dim = arr.shape[0]
         elif arr.shape[0] != dim:
-            # Skip mismatched-shape stragglers; the majority shape wins.
             continue
         norm = np.linalg.norm(arr)
         if norm < 1e-6:
             continue
         vecs.append(arr / norm)
+    return vecs
 
+
+def _centroid_from_vecs(vecs: List[np.ndarray]) -> Optional[np.ndarray]:
+    """Unit-sphere centroid of pre-normalized vectors, or None if empty/degenerate."""
     if not vecs:
         return None
-
     centroid = np.mean(np.stack(vecs), axis=0)
     cnorm = np.linalg.norm(centroid)
     if cnorm < 1e-6:
         return None
-    return centroid / cnorm, len(vecs)
+    return centroid / cnorm
+
+
+def _person_centroid(
+    encodings: List, backend_filter: Optional[str]
+) -> Optional[tuple[np.ndarray, int]]:
+    """Unit-sphere centroid of a person's encodings + the count used, or None.
+
+    Mirrors RefinementService's centroid. See `_usable_unit_vectors` for which
+    entries are skipped. Returns None when no usable encoding remains.
+    """
+    vecs = _usable_unit_vectors(encodings, backend_filter)
+    centroid = _centroid_from_vecs(vecs)
+    if centroid is None:
+        return None
+    return centroid, len(vecs)
+
+
+def _pair_separability(
+    vecs_a: List[np.ndarray], vecs_b: List[np.ndarray]
+) -> Optional[tuple[float, float]]:
+    """Head-to-head separability of two people's encodings (1-NN leave-one-out).
+
+    Combines both label sets and, for each vector, checks whether its nearest
+    other vector (cosine) shares its label. Returns ``(accuracy, margin)`` where
+    accuracy in [0,1] (≈1.0 = cleanly separable → different people who look
+    alike; ≈0.5 = indistinguishable → likely the same person) and margin =
+    mean nearest cross-set distance − mean nearest within-set distance (>0 when
+    separable). Returns None when either set has <2 usable vectors or shapes
+    mismatch — i.e. when separability can't be meaningfully estimated.
+    """
+    if len(vecs_a) < 2 or len(vecs_b) < 2:
+        return None
+    a = np.stack(vecs_a)
+    b = np.stack(vecs_b)
+    if a.shape[1] != b.shape[1]:
+        return None
+
+    allv = np.vstack([a, b])
+    labels = np.array([0] * len(a) + [1] * len(b))
+    dist = 1.0 - (allv @ allv.T)
+    np.fill_diagonal(dist, np.inf)  # exclude self from nearest-neighbour
+
+    nn = np.argmin(dist, axis=1)
+    accuracy = float(np.mean(labels[nn] == labels))
+
+    same = labels[:, None] == labels[None, :]
+    within = np.where(same, dist, np.inf).min(axis=1)
+    cross = np.where(~same, dist, np.inf).min(axis=1)
+    margin = float(np.mean(cross) - np.mean(within))
+
+    return round(accuracy, 4), round(margin, 4)
+
+
+def _load_distinct_pairs() -> set:
+    """Load the confirmed-distinct name-pairs as a set of sorted 2-tuples."""
+    if not DISTINCT_PAIRS_PATH.exists():
+        return set()
+    try:
+        with open(DISTINCT_PAIRS_PATH, "r") as f:
+            data = json.load(f)
+    except (json.JSONDecodeError, OSError):
+        logger.warning("[ManagementService] Could not read %s", DISTINCT_PAIRS_PATH)
+        return set()
+    return {
+        tuple(sorted(p))
+        for p in data
+        if isinstance(p, list) and len(p) == 2
+    }
+
+
+def _save_distinct_pairs(pairs: set) -> None:
+    """Persist the confirmed-distinct name-pairs (atomic write)."""
+    BASE_DIR.mkdir(parents=True, exist_ok=True)
+    tmp = DISTINCT_PAIRS_PATH.with_suffix(".json.tmp")
+    with open(tmp, "w") as f:
+        json.dump([list(p) for p in sorted(pairs)], f, ensure_ascii=False, indent=2)
+    tmp.replace(DISTINCT_PAIRS_PATH)
 
 
 class ManagementService:
@@ -331,44 +415,90 @@ class ManagementService:
         """
         self.reload_database()
 
+        distinct = _load_distinct_pairs()
+        vecs_by_name: Dict[str, List[np.ndarray]] = {}
         centroids: Dict[str, np.ndarray] = {}
         counts: Dict[str, int] = {}
         for name, encodings in self.known_faces.items():
-            result = _person_centroid(encodings, backend_filter)
-            if result is None:
+            vecs = _usable_unit_vectors(encodings, backend_filter)
+            centroid = _centroid_from_vecs(vecs)
+            if centroid is None:
                 continue
-            centroid, n_used = result
+            vecs_by_name[name] = vecs
             centroids[name] = centroid
-            counts[name] = n_used
+            counts[name] = len(vecs)
 
         names = sorted(centroids)
         pairs: List[Dict[str, Any]] = []
+        excluded = 0
         for i in range(len(names)):
             a = names[i]
             for j in range(i + 1, len(names)):
-                b = names[j]
+                b = names[j]  # a < b lexically, matching the sorted registry key
                 if centroids[a].shape != centroids[b].shape:
                     continue
                 distance = float(1.0 - np.dot(centroids[a], centroids[b]))
-                if distance <= threshold:
-                    pairs.append({
-                        "name_a": a,
-                        "name_b": b,
-                        "distance": round(distance, 4),
-                        "count_a": counts[a],
-                        "count_b": counts[b],
-                    })
+                if distance > threshold:
+                    continue
+                if (a, b) in distinct:
+                    excluded += 1
+                    continue
+                # Head-to-head: a centroid-close pair that is cleanly separable on
+                # their confirmed photos is likely two people who look alike, not a
+                # duplicate. None when either side has too few photos to tell.
+                sep = _pair_separability(vecs_by_name[a], vecs_by_name[b])
+                separability = sep[0] if sep else None
+                margin = sep[1] if sep else None
+                pairs.append({
+                    "name_a": a,
+                    "name_b": b,
+                    "distance": round(distance, 4),
+                    "count_a": counts[a],
+                    "count_b": counts[b],
+                    "separability": separability,
+                    "margin": margin,
+                    "likely_distinct": separability is not None and separability >= SEPARABILITY_CUTOFF,
+                })
 
-        pairs.sort(key=lambda p: (p["distance"], p["name_a"], p["name_b"]))
+        # True merge candidates first (closest first); separable "look-alike" pairs
+        # sink to the bottom.
+        pairs.sort(key=lambda p: (p["likely_distinct"], p["distance"], p["name_a"], p["name_b"]))
 
         logger.info(
             f"[ManagementService] Duplicate scan: {len(pairs)} pair(s) "
-            f"<= {threshold} across {len(names)} people"
+            f"<= {threshold} across {len(names)} people ({excluded} excluded as distinct)"
         )
         return {
             "pairs": pairs,
             "threshold": threshold,
             "people_compared": len(names),
+        }
+
+    async def add_distinct_pair(self, name_a: str, name_b: str) -> Dict[str, Any]:
+        """Record a confirmed-distinct name-pair so the scanner stops suggesting it."""
+        a, b = name_a.strip(), name_b.strip()
+        if not a or not b or a == b:
+            raise ValueError("A distinct pair needs two different names")
+        pairs = _load_distinct_pairs()
+        pairs.add(tuple(sorted((a, b))))
+        _save_distinct_pairs(pairs)
+        logger.info(f"[ManagementService] Marked '{a}' / '{b}' as distinct (not a duplicate)")
+        return {"status": "success", "count": len(pairs)}
+
+    async def remove_distinct_pair(self, name_a: str, name_b: str) -> Dict[str, Any]:
+        """Drop a confirmed-distinct pair (undo) so it can be suggested again."""
+        pair = tuple(sorted((name_a.strip(), name_b.strip())))
+        pairs = _load_distinct_pairs()
+        pairs.discard(pair)
+        _save_distinct_pairs(pairs)
+        return {"status": "success", "count": len(pairs)}
+
+    async def list_distinct_pairs(self) -> Dict[str, Any]:
+        """List the confirmed-distinct name-pairs, sorted."""
+        pairs = sorted(_load_distinct_pairs())
+        return {
+            "pairs": [{"name_a": a, "name_b": b} for a, b in pairs],
+            "count": len(pairs),
         }
 
     async def delete_person(self, name: str) -> Dict[str, Any]:
