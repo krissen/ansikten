@@ -364,12 +364,14 @@ export function FlexLayoutWorkspace() {
   const [ready, setReady] = useState(false);
   const [showShortcutsHelp, setShowShortcutsHelp] = useState(false);
   // Startup landing page: shown on an empty workspace, dismissed once a module
-  // is opened or an image is loaded. Skipped entirely when the app was launched
-  // with a CLI target (a verb, file args, or --clear) — the landing is
-  // irrelevant then and would only flash before the target opens.
+  // is opened or an image is loaded. Skipped only when the launch will actually
+  // dispatch a handoff (file args or --clear) — the main process opens the
+  // target then, so the landing would only flash. A bare verb (`ansikten
+  // culling` with no paths and no --clear) sends no handoff, so the landing must
+  // stay, or the user is stranded with no way to pick a workflow.
   const launchIntent = window.ansiktenAPI?.launchIntent;
   const hasLaunchIntent = !!launchIntent &&
-    (!!launchIntent.verb || launchIntent.clear || launchIntent.hasFiles);
+    (launchIntent.hasFiles || launchIntent.clear);
   const [showLanding, setShowLanding] = useState(!hasLaunchIntent);
   const moduleAPI = useModuleAPI();
   // Image paths whose Review has unsaved confirmations/ignores (mirrors the
