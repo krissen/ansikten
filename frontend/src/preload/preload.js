@@ -15,10 +15,12 @@ contextBridge.exposeInMainWorld("ansiktenAPI", {
 
   on: (channel, callback) => {
     const allowedChannels = ["show-wait-overlay", "hide-wait-overlay", "apply-view", "load-initial-file", "menu-command", "devtools-state-changed", "queue-files", "open-culling"];
-    if (allowedChannels.includes(channel)) {
-      // Strip event object for security
-      ipcRenderer.on(channel, (event, ...args) => callback(...args));
-    }
+    if (!allowedChannels.includes(channel)) return undefined;
+    // Strip event object for security. Return a disposer so callers can clean
+    // up in effect teardown and avoid stacking duplicate listeners on re-runs.
+    const handler = (event, ...args) => callback(...args);
+    ipcRenderer.on(channel, handler);
+    return () => ipcRenderer.removeListener(channel, handler);
   },
 
   // Invoke IPC handlers (request-response pattern)

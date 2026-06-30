@@ -6,9 +6,11 @@
 // app, second-instance forwarding). Kept dependency-free so it can be unit
 // tested without spinning up Electron.
 //
-// Grammar:  ansikten [VERB] [--clear|-c] [-s|--start] PATH...
+// Grammar:  ansikten [VERB] [--clear|-c] [--recursive|-r] [-s|--start] PATH...
 //   VERB  faces (default) | culling (alias cull)
-//   --clear/-c  empty the target's working set first (alone = just empty)
+//   --clear/-c      empty the target's working set first (alone = just empty)
+//   --recursive/-r  culling only: also scan sub-folders (default: just the
+//                   named folder, matching shell-glob intuition)
 // faces-specific position flags (--queue/-q, --queue-start/-qs, --queue-end/-qe)
 // are kept for back-compat and ignored by the culling target.
 
@@ -49,6 +51,7 @@ function shouldSkipArg(arg) {
  *   queuePosition: 'start' | 'end' | 'sorted' | null,
  *   startQueue: boolean,
  *   clear: boolean,                     // empty the target working set first
+ *   recursive: boolean,                 // culling: scan sub-folders too (default off)
  * }}
  */
 function parseCliArgs(argv) {
@@ -58,6 +61,7 @@ function parseCliArgs(argv) {
     queuePosition: null,
     startQueue: false,
     clear: false,
+    recursive: false,
   };
 
   for (let i = 0; i < argv.length; i++) {
@@ -73,6 +77,8 @@ function parseCliArgs(argv) {
       result.startQueue = true;
     } else if (arg === "--clear" || arg === "-c") {
       result.clear = true;
+    } else if (arg === "--recursive" || arg === "-r") {
+      result.recursive = true;
     } else if (arg.startsWith("-")) {
       continue;
     } else if (shouldSkipArg(arg)) {

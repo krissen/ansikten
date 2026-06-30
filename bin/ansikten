@@ -21,12 +21,14 @@ ansikten [faces|culling] [--clear] PATH...
 
   ansikten *.NEF                 face queue + start (default)
   ansikten faces --clear *.NEF   replace the face queue, then start
-  ansikten culling DIR           open DIR for culling (append)
+  ansikten culling DIR           open DIR for culling (just DIR, not subfolders)
+  ansikten culling -r DIR        ...including subfolders (recursive)
   ansikten culling --clear DIR   replace the culling folder set with DIR
   ansikten culling --clear       empty the culling workspace
 
 Verbs: faces (default), culling (alias cull). --clear/-c resets the
-target's working set first; without it paths are appended.
+target's working set first; without it paths are appended. --recursive/-r
+(culling) scans subfolders too; the default is just the named folder.
 EOF
 }
 

@@ -132,6 +132,15 @@ ansikten culling --clear          # töm gallrings-arbetsytan
 
 Utan `--clear` är standard att **lägga till** i befintlig arbetsmängd.
 
+**`--recursive` / `-r`** (endast culling): scanna även undermappar. Standard är
+**bara den angivna mappen** (matchar shell-globens intuition — `ansikten culling
+~/Bilder/match/` tar mappens filer, inte hela trädet under den):
+
+```sh
+ansikten culling MAPP             # bara MAPP
+ansikten culling -r MAPP          # MAPP + alla undermappar
+```
+
 **Installation:** kommandot är skriptet [`bin/ansikten`](../../bin/ansikten) i
 repot. Länka in det i din PATH:
 

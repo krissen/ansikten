@@ -190,13 +190,14 @@ function sendFilesToQueue(files, position, startQueue, clear = false) {
 }
 
 // Send a culling scope (folders) to the renderer. clear=true replaces the
-// current roots; otherwise the folders are appended.
-function sendCullingScope(roots, clear = false) {
+// current roots; otherwise the folders are appended. recursive controls whether
+// sub-folders are scanned (default off — just the named folder).
+function sendCullingScope(roots, clear = false, recursive = false) {
   if (!mainWindow) return;
   console.log(
-    `[Main] Sending ${roots.length} folder(s) to culling (clear: ${clear})`,
+    `[Main] Sending ${roots.length} folder(s) to culling (clear: ${clear}, recursive: ${recursive})`,
   );
-  mainWindow.webContents.send("open-culling", { roots, clear });
+  mainWindow.webContents.send("open-culling", { roots, clear, recursive });
 }
 
 /**
@@ -287,7 +288,7 @@ app.on("second-instance", async (event, argv, workingDirectory) => {
     // Culling target: resolve folders and hand the scope to the culling module.
     const roots = expandFolderPaths(args.files);
     if (roots.length > 0 || args.clear) {
-      sendCullingScope(roots, args.clear);
+      sendCullingScope(roots, args.clear, args.recursive);
     }
   } else if (args.files.length > 0 || args.clear) {
     const files = await expandFilePaths(args.files);
@@ -368,7 +369,7 @@ app.whenReady().then(async () => {
     if (roots.length > 0 || initialArgs.clear) {
       mainWindow.webContents.once("did-finish-load", () => {
         setTimeout(() => {
-          sendCullingScope(roots, initialArgs.clear);
+          sendCullingScope(roots, initialArgs.clear, initialArgs.recursive);
         }, 1000); // Give the culling module time to mount
       });
     }

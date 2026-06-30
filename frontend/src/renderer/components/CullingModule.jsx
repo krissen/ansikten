@@ -302,8 +302,12 @@ export function CullingModule({ node }) {
       const nextRoots = data.clear
         ? incoming
         : Array.from(new Set([...roots, ...incoming]));
+      // CLI controls recursion explicitly (default off — just the named
+      // folder); reflect it in the toggle so the user sees the active scope.
+      const nextRecursive = data.recursive ?? false;
 
       setRoots(nextRoots);
+      setRecursive(nextRecursive);
       // CLI scope is a plain folder pick — drop any glob/player/date carried
       // from a previous stats hand-off so it can't silently mix in.
       setCarriedGlobs([]);
@@ -327,7 +331,7 @@ export function CullingModule({ node }) {
         roots: nextRoots,
         globs: [],
         extension_preset: preset,
-        recursive,
+        recursive: nextRecursive,
         date_from: null,
         date_to: null,
         player: null,
@@ -338,7 +342,7 @@ export function CullingModule({ node }) {
       loadStats(statsScopeFromQuery(query));
       updateWatches(new Set(nextRoots));
     },
-    [roots, preset, recursive, loadList, loadStats, updateWatches]
+    [roots, preset, loadList, loadStats, updateWatches]
   );
 
   // ----- cull loop ----------------------------------------------------
