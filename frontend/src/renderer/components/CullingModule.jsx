@@ -441,16 +441,20 @@ export function CullingModule({ node }) {
     if (takeExternalLoad()) return;
     const s = getScanScope();
     if (!scanScopeHasSelection(s)) return;
+    // Culling's file-type control only knows jpg/nef/raw; Räkna also offers
+    // images/all. Map a preset culling can't represent to jpg, so the dropdown
+    // isn't desynced and the list doesn't include types culling never exposes.
+    const preset = ['jpg', 'nef', 'raw'].includes(s.extension_preset) ? s.extension_preset : 'jpg';
     setRoots(s.roots || []);
     setCarriedGlobs(s.globs || []);
     setRecursive(s.recursive ?? true);
     setDateFrom(s.date_from || null);
     setDateTo(s.date_to || null);
-    setPreset(s.extension_preset || 'jpg');
+    setPreset(preset);
     const query = {
       roots: s.roots || [],
       globs: s.globs || [],
-      extension_preset: s.extension_preset || 'jpg',
+      extension_preset: preset,
       recursive: s.recursive ?? true,
       date_from: s.date_from || null,
       date_to: s.date_to || null,
