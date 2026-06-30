@@ -239,6 +239,20 @@ def _drop_from_distinct_pairs(*names: str) -> None:
         _save_distinct_pairs(kept)
 
 
+def _reconcile_distinct_pairs(valid_names: set) -> set:
+    """Drop registry pairs referencing a name that no longer exists, and persist.
+
+    Self-heals against *any* person-removal path (delete, move-to-ignore, undo,
+    purge-to-empty) so a stale exclusion can't silently suppress a real duplicate
+    if the name is later recreated. Returns the reconciled set.
+    """
+    pairs = _load_distinct_pairs()
+    kept = {p for p in pairs if p[0] in valid_names and p[1] in valid_names}
+    if len(kept) != len(pairs):
+        _save_distinct_pairs(kept)
+    return kept
+
+
 class ManagementService:
     """Service for database management operations"""
 
@@ -462,7 +476,8 @@ class ManagementService:
         """
         self.reload_database()
 
-        distinct = _load_distinct_pairs()
+        # Self-heal stale exclusions (names removed by any path) before using them.
+        distinct = _reconcile_distinct_pairs(set(self.known_faces.keys()))
         vecs_by_name: Dict[str, List[np.ndarray]] = {}
         centroids: Dict[str, np.ndarray] = {}
         counts: Dict[str, int] = {}
@@ -526,6 +541,12 @@ class ManagementService:
         a, b = name_a.strip(), name_b.strip()
         if not a or not b or a == b:
             raise ValueError("A distinct pair needs two different names")
+        # Both must currently exist — otherwise a stale row or API typo could
+        # persist a phantom exclusion that later hides a real duplicate candidate.
+        self.reload_database()
+        missing = [n for n in (a, b) if n not in self.known_faces]
+        if missing:
+            raise ValueError(f"Unknown person(s): {', '.join(missing)}")
         pairs = _load_distinct_pairs()
         pairs.add(tuple(sorted((a, b))))
         _save_distinct_pairs(pairs)
@@ -541,8 +562,9 @@ class ManagementService:
         return {"status": "success", "count": len(pairs)}
 
     async def list_distinct_pairs(self) -> Dict[str, Any]:
-        """List the confirmed-distinct name-pairs, sorted."""
-        pairs = sorted(_load_distinct_pairs())
+        """List the confirmed-distinct name-pairs, sorted (stale names pruned)."""
+        self.reload_database()
+        pairs = sorted(_reconcile_distinct_pairs(set(self.known_faces.keys())))
         return {
             "pairs": [{"name_a": a, "name_b": b} for a, b in pairs],
             "count": len(pairs),

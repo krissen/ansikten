@@ -27,6 +27,11 @@ def _entry(vec):
     return {"encoding": np.asarray(vec, dtype=float), "backend": "insightface"}
 
 
+def _people(*names, seed0=0):
+    """Minimal known_faces with one usable encoding per named person."""
+    return {n: [_entry(_unit(seed0 + i))] for i, n in enumerate(names)}
+
+
 @pytest.fixture
 def service(tmp_path, monkeypatch):
     monkeypatch.setattr(m, "DISTINCT_PAIRS_PATH", tmp_path / "distinct_pairs.json")
@@ -89,6 +94,7 @@ def test_separability_bounded_for_many_encodings(monkeypatch):
 
 @pytest.mark.asyncio
 async def test_registry_add_remove_list_roundtrip(service):
+    service.known_faces = _people("Wilmer", "Maximilian")
     assert (await service.list_distinct_pairs())["count"] == 0
     await service.add_distinct_pair("Wilmer", "Maximilian")
     listed = await service.list_distinct_pairs()
@@ -103,6 +109,7 @@ async def test_registry_add_remove_list_roundtrip(service):
 async def test_load_tolerates_malformed_registry(service, bad):
     # A corrupt/hand-edited file (non-list or invalid JSON) must degrade to empty,
     # never raise out of list/add/find.
+    service.known_faces = _people("A", "B")
     m.DISTINCT_PAIRS_PATH.write_text(bad)
     assert (await service.list_distinct_pairs())["count"] == 0
     # add still works (overwrites the bad file)
@@ -112,11 +119,31 @@ async def test_load_tolerates_malformed_registry(service, bad):
 
 @pytest.mark.asyncio
 async def test_add_distinct_pair_order_independent_and_validated(service):
+    service.known_faces = _people("A name", "B name")
     await service.add_distinct_pair("B name", "A name")
     await service.add_distinct_pair("A name", "B name")  # same pair, no dup
     assert (await service.list_distinct_pairs())["count"] == 1
     with pytest.raises(ValueError):
         await service.add_distinct_pair("Same", "Same")
+
+
+@pytest.mark.asyncio
+async def test_add_rejects_unknown_person(service):
+    service.known_faces = _people("Real")
+    with pytest.raises(ValueError):
+        await service.add_distinct_pair("Real", "Ghost")
+    assert (await service.list_distinct_pairs())["count"] == 0
+
+
+@pytest.mark.asyncio
+async def test_find_and_list_prune_stale_pairs(service):
+    # A pair whose member is removed by an unsynced path (here, a direct deletion)
+    # is self-healed away on the next find/list, so a recreated name isn't hidden.
+    service.known_faces = _people("Wilmer", "Maximilian")
+    await service.add_distinct_pair("Wilmer", "Maximilian")
+    del service.known_faces["Maximilian"]  # e.g. move-to-ignore / undo emptied them
+    await service.find_duplicate_people(0.35)
+    assert (await service.list_distinct_pairs())["count"] == 0
 
 
 @pytest.mark.asyncio
@@ -165,7 +192,7 @@ async def test_find_duplicates_flags_likely_distinct_and_sorts_last(service):
 
 @pytest.mark.asyncio
 async def test_rename_rewrites_distinct_pair(service):
-    service.known_faces = {"Wilmer": [_entry(_unit(0))], "Other": [_entry(_unit(1))]}
+    service.known_faces = _people("Wilmer", "Maximilian")
     await service.add_distinct_pair("Wilmer", "Maximilian")
     await service.rename_person("Wilmer", "Wilmer B")
     assert (await service.list_distinct_pairs())["pairs"] == [
@@ -175,7 +202,7 @@ async def test_rename_rewrites_distinct_pair(service):
 
 @pytest.mark.asyncio
 async def test_delete_drops_distinct_pair(service):
-    service.known_faces = {"Wilmer": [_entry(_unit(0))]}
+    service.known_faces = _people("Wilmer", "Maximilian")
     await service.add_distinct_pair("Wilmer", "Maximilian")
     await service.delete_person("Wilmer")
     assert (await service.list_distinct_pairs())["count"] == 0
