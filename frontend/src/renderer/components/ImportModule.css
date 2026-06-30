@@ -71,18 +71,18 @@
   flex-direction: column;
   gap: 4px;
   padding: 10px;
-  border: 1px solid var(--border-color);
+  border: 1px solid var(--border-subtle);
   border-radius: 6px;
   background: var(--bg-secondary);
   font-size: 0.9em;
 }
 
-.import-ok { color: var(--success, #3ba55d); }
-.import-warn { color: var(--warning, #d9a441); }
+.import-ok { color: var(--color-success); }
+.import-warn { color: var(--color-warning); }
 
 .import-errors {
   font-size: 0.85em;
-  color: var(--error, #d65b5b);
+  color: var(--color-error);
 }
 
 .import-errors ul {

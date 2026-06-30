@@ -10,7 +10,7 @@
   gap: 8px;
   padding: 8px 12px;
   background: var(--bg-secondary);
-  border-bottom: 1px solid var(--border-color);
+  border-bottom: 1px solid var(--border-subtle);
   flex-wrap: wrap;
 }
 
@@ -24,7 +24,7 @@
   flex-wrap: wrap;
   gap: 6px;
   padding: 6px 12px;
-  border-bottom: 1px solid var(--border-color);
+  border-bottom: 1px solid var(--border-subtle);
 }
 
 .rename-nef-chip {
@@ -34,7 +34,7 @@
   padding: 2px 6px 2px 8px;
   border-radius: 12px;
   background: var(--bg-tertiary, var(--bg-primary));
-  border: 1px solid var(--border-color);
+  border: 1px solid var(--border-subtle);
   font-size: 0.8em;
 }
 
@@ -73,7 +73,7 @@
 
 .rename-nef-table th {
   color: var(--text-secondary);
-  border-bottom: 1px solid var(--border-color);
+  border-bottom: 1px solid var(--border-subtle);
 }
 
 .rename-nef-arrow {
@@ -99,5 +99,5 @@
 }
 
 .rename-nef-errors {
-  color: var(--error, #d65b5b);
+  color: var(--color-error);
 }
