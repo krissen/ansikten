@@ -96,11 +96,14 @@ export function CullingModule({ node }) {
   const [trashFilter, setTrashFilter] = useState('all'); // 'all' | 'jpg' | 'nef'
 
   // Widths of the two resizable column boundaries, restored from localStorage.
+  // leftWidthPct is clamped to the drag range on read; statsWidth gets a lower
+  // bound here and is additionally clamped against the live window width on
+  // mount (a width saved on a wide window must not squash a narrow one).
   const [statsWidth, setStatsWidth] = useState(() =>
-    readStoredNumber(STATS_WIDTH_KEY, STATS_WIDTH_DEFAULT)
+    Math.max(STATS_WIDTH_MIN, readStoredNumber(STATS_WIDTH_KEY, STATS_WIDTH_DEFAULT))
   );
   const [leftWidthPct, setLeftWidthPct] = useState(() =>
-    readStoredNumber(LIST_PCT_KEY, LIST_PCT_DEFAULT)
+    Math.min(70, Math.max(15, readStoredNumber(LIST_PCT_KEY, LIST_PCT_DEFAULT)))
   );
 
   // Resolved preview for the right pane. JPEGs load directly; RAW goes through
@@ -634,6 +637,17 @@ export function CullingModule({ node }) {
     try { localStorage.setItem(LIST_PCT_KEY, String(leftWidthPct)); } catch { /* ignore */ }
   }, [leftWidthPct]);
 
+  // On mount, clamp a restored stats width against the current window so a width
+  // saved on a wide window can't squash list+preview on a narrow one (the drag
+  // handler only clamps live, not on restore).
+  useEffect(() => {
+    const body = bodyRef.current;
+    if (!body) return;
+    const max = Math.max(STATS_WIDTH_MIN, body.getBoundingClientRect().width - 300);
+    setStatsWidth((w) => Math.min(w, max));
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
   const current = currentIndex >= 0 ? files[currentIndex] : null;
   const filteredTrash =
     trashFilter === 'all'
@@ -1031,6 +1045,12 @@ function CullingExcluded({ excluded }) {
 function CullingStats({ stats, selected, onSelect, width }) {
   const players = stats?.players || [];
   const maxCount = players.reduce((m, p) => Math.max(m, p.count), 1);
+  // Show excluded groups even when no player clears the threshold (small folders,
+  // or after culling everyone below min_images) — otherwise the section this
+  // change is meant to surface would be hidden behind the empty "—".
+  const excluded = stats?.excluded || null;
+  const hasExcluded = !!excluded &&
+    Object.keys(EXCLUDED_LABELS).some((k) => excluded[k] && excluded[k].length > 0);
   return (
     <div className="culling-stats" style={{ flex: `0 0 ${width}px` }}>
       <div className="culling-stats-header">
@@ -1041,10 +1061,11 @@ function CullingStats({ stats, selected, onSelect, width }) {
           </span>
         )}
       </div>
-      {players.length === 0 ? (
+      {players.length === 0 && !hasExcluded ? (
         <div className="culling-stats-empty">—</div>
       ) : (
         <div className="culling-stats-scroll">
+          {players.length > 0 && (
           <table className="culling-stats-table">
             <thead>
               <tr>
@@ -1081,7 +1102,8 @@ function CullingStats({ stats, selected, onSelect, width }) {
               ))}
             </tbody>
           </table>
-          <CullingExcluded excluded={stats?.excluded} />
+          )}
+          <CullingExcluded excluded={excluded} />
         </div>
       )}
     </div>
