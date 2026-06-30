@@ -154,6 +154,21 @@ async def test_add_rejects_unknown_person(service):
 
 
 @pytest.mark.asyncio
+async def test_scan_reloads_before_pruning(service, monkeypatch):
+    # Guards against deleting a valid pair off a stale cache: the in-memory
+    # known_faces is missing a person, but the forced disk reload restores them,
+    # so the scan/list must NOT prune the still-valid exclusion.
+    service.known_faces = _people("Wilmer", "Maximilian")
+    await service.add_distinct_pair("Wilmer", "Maximilian")
+    fresh = _people("Wilmer", "Maximilian")
+    service.known_faces = {"Wilmer": fresh["Wilmer"]}  # stale: Maximilian dropped
+    monkeypatch.setattr(service, "_reload_from_disk",
+                        lambda: service.known_faces.update(fresh))
+    await service.find_duplicate_people(0.35)
+    assert (await service.list_distinct_pairs())["count"] == 1
+
+
+@pytest.mark.asyncio
 async def test_find_and_list_prune_stale_pairs(service):
     # A pair whose member is removed by an unsynced path (here, a direct deletion)
     # is self-healed away on the next find/list, so a recreated name isn't hidden.

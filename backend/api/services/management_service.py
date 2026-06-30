@@ -480,7 +480,10 @@ class ManagementService:
         usable encoding (e.g. only manual faces) are skipped. Pairs are sorted
         closest-first.
         """
-        self.reload_database()
+        # Force a fresh load: reconcile persists a pruned registry, so it must
+        # run against ground truth, never a stale TTL cache (which could delete a
+        # valid pair whose person merely wasn't in this instance's cache yet).
+        self._reload_from_disk()
 
         # Self-heal stale exclusions (names removed by any path) before using them.
         distinct = _reconcile_distinct_pairs(set(self.known_faces.keys()))
@@ -549,7 +552,8 @@ class ManagementService:
             raise ValueError("A distinct pair needs two different names")
         # Both must currently exist — otherwise a stale row or API typo could
         # persist a phantom exclusion that later hides a real duplicate candidate.
-        self.reload_database()
+        # Force a fresh load so a stale cache can't wrongly reject a valid name.
+        self._reload_from_disk()
         missing = [n for n in (a, b) if n not in self.known_faces]
         if missing:
             raise ValueError(f"Unknown person(s): {', '.join(missing)}")
@@ -569,7 +573,7 @@ class ManagementService:
 
     async def list_distinct_pairs(self) -> Dict[str, Any]:
         """List the confirmed-distinct name-pairs, sorted (stale names pruned)."""
-        self.reload_database()
+        self._reload_from_disk()  # prune persists → reconcile against ground truth
         pairs = sorted(_reconcile_distinct_pairs(set(self.known_faces.keys())))
         return {
             "pairs": [{"name_a": a, "name_b": b} for a, b in pairs],
