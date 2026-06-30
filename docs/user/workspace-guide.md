@@ -214,9 +214,13 @@ antal.
 
 1. Öppna **Räkna spelare** (`Cmd+Shift+K`). Ange en mapp och/eller ett wildcard
    i balken högst upp, välj filtyp (vanligen `jpg / jpeg`) och ev. datum-span,
-   och klicka **Räkna**. Tabellen visar antal bilder per spelare och avvikelse
-   från medianen (grön/gul/röd). Statistiken uppdateras automatiskt när filer
-   läggs till, tas bort eller byter namn i mappen.
+   och klicka **Räkna**. Tabellen visar antal bilder per spelare, andel, avvikelse
+   från medianen i procent (Δ%, grön/gul/röd) och antal (ΔN), en fördelningsstapel
+   relativt baslinjen (baslinjen = halva stapeln) samt en **tidslinje** som visar
+   när spelarens bilder togs under passet. Bocka i **Per match** för samma
+   uppställning per automatiskt detekterad match. Tabellen speglar `rakna_spelare`-
+   CLI:t. Statistiken uppdateras automatiskt när filer läggs till, tas bort eller
+   byter namn i mappen.
 2. Klicka på en spelare i tabellen för att öppna **Gallra spelare**
    (`Cmd+Shift+G`) filtrerad på den spelaren. Filtret kan finjusteras med
    spelar-menyn eller ett eget glob (t.ex. `*ArvidW*`) i balken. Välj filtyp
