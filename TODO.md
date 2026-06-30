@@ -91,6 +91,7 @@ CLI-paritet — launch-kommandot mot fler arbetsflöden:
 - [x] ~~Saknas undo/redo för ansiktsbekräftelser~~ (2026-01-11, Cmd+Z undo, ESC cancels detection)
 - [x] ~~Lokalisera ReviewModule match-case-etiketter till svenska~~ (2026-06-30) — `Manuellt tillagd`, `Trolig ignorering`, `Okänd`, `Tvilling-särskiljning` (kvar: `ign` som domän-förkortning).
 - [ ] **Resterande engelska strängar i ReviewModule** — bekräftelsedialoger (`Confirm name change`, `Best match`, `You chose…`) och status-toaster är fortfarande på engelska; bör översättas till svenska (egen i18n-PR, bredare svep än match-case-blocket).
+- [ ] **CLI launch: landing döljs vid sökväg som expanderar till tomt** — renderaren härleder landningssidans suppression från råa arg-antalet (`hasFiles`), men huvudprocessen skickar bara handoff efter sökvägsexpansion (`expandFolderPaths`/`expandFilePaths` → `length>0 || clear`). En syntaktiskt giltig men icke-matchande sökväg (t.ex. `ansikten culling /typo` eller en glob utan träffar) döljer landningen utan att öppna något → användaren hamnar i default-layouten istället. Ren fix: låt huvudprocessen beräkna post-expansion-villkoret och exponera den boolean:en som launch intent istället för att renderaren gissar från råa argument (kräver async-hantering för faces). Pre-existerande edge (user-error), icke-blockerande; flaggad i PR #67-granskningen.
 
 ---
 
