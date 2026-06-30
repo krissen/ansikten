@@ -123,6 +123,7 @@ export function DatabaseManagement() {
       });
       showSuccess(result.message);
       setDatabaseState(result.new_state);
+      loadDistinctPairs(); // a rename rewrites the exclusion registry
       renameForm.reset();
     } catch (err) {
       showError('Rename failed: ' + err.message);
@@ -153,6 +154,7 @@ export function DatabaseManagement() {
       }
       showSuccess(msg);
       setDatabaseState(result.new_state);
+      loadDistinctPairs(); // a merge transfers/drops exclusion registry entries
       mergeForm.reset();
     } catch (err) {
       showError('Merge failed: ' + err.message);
@@ -202,6 +204,7 @@ export function DatabaseManagement() {
       // Re-scan: the dropped name is gone, which invalidates other pairs too.
       // Buttons stay disabled until this lands so a stale pair can't be merged
       // against a name this merge just removed (which would resurrect it).
+      loadDistinctPairs(); // the merge may have transferred/dropped exclusions
       await handleFindDuplicates();
     } catch (err) {
       showError('Merge failed: ' + err.message);
@@ -281,6 +284,7 @@ export function DatabaseManagement() {
       const result = await api.post('/api/v1/management/delete-person', { name: name.trim() });
       showSuccess(result.message);
       setDatabaseState(result.new_state);
+      loadDistinctPairs(); // a delete drops the person's exclusion registry entries
       deleteForm.reset();
     } catch (err) {
       showError('Delete failed: ' + err.message);

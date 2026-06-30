@@ -427,8 +427,12 @@ class ManagementService:
                 del self.known_faces[name]
 
         self.save()
-        # Sources that disappeared into the target can't anchor an exclusion anymore.
-        _drop_from_distinct_pairs(*[n for n in source_names if n != target_name])
+        # A source merged into the target is asserted to BE the target, so any
+        # "distinct from X" exclusion it anchored transfers to the target (a
+        # pair that collapses onto one name is dropped by the rewrite).
+        for name in source_names:
+            if name != target_name:
+                _rename_in_distinct_pairs(name, target_name)
 
         final_by_backend = _count_encodings_by_backend(encodings_unique)
         warning = None

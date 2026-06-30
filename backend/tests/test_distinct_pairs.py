@@ -182,7 +182,9 @@ async def test_delete_drops_distinct_pair(service):
 
 
 @pytest.mark.asyncio
-async def test_merge_drops_distinct_pair_for_vanished_source(service):
+async def test_merge_transfers_distinct_pair_to_target(service):
+    # A is distinct from C; merging A into B asserts A≡B, so B inherits "distinct
+    # from C" — the exclusion transfers to the canonical name, not dropped.
     service.known_faces = {
         "A": [_entry(_unit(0))],
         "B": [_entry(_unit(1))],
@@ -190,4 +192,16 @@ async def test_merge_drops_distinct_pair_for_vanished_source(service):
     }
     await service.add_distinct_pair("A", "C")
     await service.merge_people(["A"], "B")  # A vanishes into B
+    assert (await service.list_distinct_pairs())["pairs"] == [
+        {"name_a": "B", "name_b": "C"}
+    ]
+
+
+@pytest.mark.asyncio
+async def test_merge_drops_pair_that_collapses_onto_target(service):
+    # Merging A into B where (A,B) itself was marked distinct collapses the pair
+    # onto one name → dropped.
+    service.known_faces = {"A": [_entry(_unit(0))], "B": [_entry(_unit(1))]}
+    await service.add_distinct_pair("A", "B")
+    await service.merge_people(["A"], "B")
     assert (await service.list_distinct_pairs())["count"] == 0
