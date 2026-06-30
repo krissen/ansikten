@@ -605,6 +605,14 @@ export function PreferencesModule({ api }) {
         max={3650}
         step={1}
       />
+
+      <SectionHeader title="Gallra spelare" />
+      <CheckboxField
+        label="Auto-advance after rename"
+        hint="Move to the next file after renaming in culling (inline rename or ⌘↵ name removal)"
+        checked={prefs.culling?.autoAdvanceAfterRename ?? true}
+        onChange={(v) => updatePref('culling.autoAdvanceAfterRename', v)}
+      />
     </>
   );
 

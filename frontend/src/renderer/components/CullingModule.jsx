@@ -14,6 +14,7 @@ import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { useBackend } from '../context/BackendContext.jsx';
 import { useModuleEvent } from '../hooks/useModuleEvent.js';
 import { namesInBasename, removeNamesFromBasename } from './culling-names.js';
+import { preferences } from '../workspace/preferences.js';
 import './CullingModule.css';
 
 const REFRESH_DEBOUNCE_MS = 400;
@@ -442,6 +443,15 @@ export function CullingModule({ node }) {
 
   const cancelEdit = useCallback(() => setEditPath(null), []);
 
+  // After a successful rename, optionally advance to the next file (user
+  // preference, default on). The index is bumped here; the subsequent
+  // loadList({ keepIndex: true }) clamps it to the reloaded list length.
+  const maybeAdvanceAfterRename = useCallback(() => {
+    if (preferences.get('culling.autoAdvanceAfterRename') !== false) {
+      setCurrentIndex((i) => i + 1);
+    }
+  }, []);
+
   const commitEdit = useCallback(async () => {
     const path = editPath;
     setEditPath(null);
@@ -453,12 +463,13 @@ export function CullingModule({ node }) {
     if (!next || newBasename === basename(path)) return; // no-op
     try {
       await api.post('/api/v1/culling/rename', { path, new_basename: newBasename });
+      maybeAdvanceAfterRename();
       if (lastQueryRef.current) loadList(lastQueryRef.current, { keepIndex: true });
       refreshStatsDebounced();
     } catch (err) {
       setError(err.message || String(err));
     }
-  }, [api, editPath, editValue, loadList, refreshStatsDebounced]);
+  }, [api, editPath, editValue, loadList, refreshStatsDebounced, maybeAdvanceAfterRename]);
 
   // ----- keyboard ----------------------------------------------------
   useEffect(() => {
@@ -711,12 +722,13 @@ export function CullingModule({ node }) {
     try {
       await api.post('/api/v1/culling/rename', { path, new_basename: newBasename });
       setRemovedNames(new Set());
+      maybeAdvanceAfterRename();
       if (lastQueryRef.current) loadList(lastQueryRef.current, { keepIndex: true });
       refreshStatsDebounced();
     } catch (err) {
       setError(err.message || String(err));
     }
-  }, [api, current, removedNames, loadList, refreshStatsDebounced]);
+  }, [api, current, removedNames, loadList, refreshStatsDebounced, maybeAdvanceAfterRename]);
   // Latest commit fn for the keydown handler without re-subscribing on every
   // toggle/selection change.
   const commitNameToggleRef = useRef(null);
