@@ -80,13 +80,13 @@
 }
 
 /* Deviation levels mirror the CLI color thresholds (ok/warn/high). */
-.player-bar-fill.level-ok { background: var(--success, #3ba55d); }
-.player-bar-fill.level-warn { background: var(--warning, #d9a441); }
-.player-bar-fill.level-high { background: var(--error, #d65b5b); }
+.player-bar-fill.level-ok { background: var(--color-success); }
+.player-bar-fill.level-warn { background: var(--color-warning); }
+.player-bar-fill.level-high { background: var(--color-error); }
 
-.delta.delta-ok { color: var(--success, #3ba55d); }
-.delta.delta-warn { color: var(--warning, #d9a441); }
-.delta.delta-high { color: var(--error, #d65b5b); }
+.delta.delta-ok { color: var(--color-success); }
+.delta.delta-warn { color: var(--color-warning); }
+.delta.delta-high { color: var(--color-error); }
 
 .player-count-excluded,
 .player-count-matches {

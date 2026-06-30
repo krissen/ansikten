@@ -129,8 +129,12 @@
 
 .culling-stat-row.clickable { cursor: pointer; }
 .culling-stat-row:hover { background: var(--bg-tertiary, var(--bg-secondary)); }
+/* Mark the active row with a left accent bar + faint tint rather than a solid
+   fill: a strong fill (e.g. the gold --bg-active) drowns the warn-level deviation
+   text (yellow-on-gold). The subtle tint keeps all three delta hues legible. */
 .culling-stat-row.active {
-  background: var(--bg-active);
+  background: var(--accent-primary-alpha-20);
+  box-shadow: inset 3px 0 0 var(--accent-primary);
   font-weight: 600;
 }
 
@@ -150,13 +154,13 @@
   border-radius: 4px;
 }
 
-.culling-bar-fill.level-ok { background: var(--success, #3ba55d); }
-.culling-bar-fill.level-warn { background: var(--warning, #d9a441); }
-.culling-bar-fill.level-high { background: var(--error, #d65b5b); }
+.culling-bar-fill.level-ok { background: var(--color-success); }
+.culling-bar-fill.level-warn { background: var(--color-warning); }
+.culling-bar-fill.level-high { background: var(--color-error); }
 
-.culling-stats-table .delta.delta-ok { color: var(--success, #3ba55d); }
-.culling-stats-table .delta.delta-warn { color: var(--warning, #d9a441); }
-.culling-stats-table .delta.delta-high { color: var(--error, #d65b5b); }
+.culling-stats-table .delta.delta-ok { color: var(--color-success); }
+.culling-stats-table .delta.delta-warn { color: var(--color-warning); }
+.culling-stats-table .delta.delta-high { color: var(--color-error); }
 
 /* Excluded groups (coaches / group photos / audience / below-threshold). */
 .culling-stats-excluded {
@@ -220,6 +224,10 @@
   overflow-y: auto;
   flex: 1;
 }
+
+/* The list is focusable (tabIndex=-1) so keyboard nav can be handed back to it
+   after using a control; the active row already signals selection, so no ring. */
+.culling-files:focus { outline: none; }
 
 .culling-files li {
   padding: 4px 10px;
@@ -399,7 +407,7 @@
 
 /* Pending (uncommitted) preview gets a distinct, warning-tinted background. */
 .culling-name-preview.pending {
-  background: color-mix(in srgb, var(--warning, #d9a441) 22%, transparent);
+  background: color-mix(in srgb, var(--color-warning) 22%, transparent);
   color: var(--text-primary);
 }
 
