@@ -247,10 +247,13 @@ antal.
      att en namngiven spelare inte längre är med i bild. `.xmp`-sidecars följer
      med, och befintliga filnamn skrivs aldrig över.
    - **Snabb bortbockning av namn:** överst i förhandsvisningen visas filens
-     namn som ikryssade chips. Bocka av ett namn för att förhandsvisa filnamnet
-     utan det (förhandsvisningen får en avvikande bakgrund så länge den inte är
-     sparad); `Cmd+Enter` döper om filen på riktigt. Snabbare än manuell
-     redigering när bara en spelare ska bort ur ett beskuret foto.
+     namn som ikryssade chips. Bocka av ett namn så uppdateras filnamnet **live
+     i fillistan till vänster** — den aktuella raden blir orange så länge
+     ändringen inte är sparad. `Cmd+Enter` döper om filen på riktigt. Snabbare än
+     manuell redigering när bara en spelare ska bort ur ett beskuret foto. Om du
+     navigerar vidare med en osparad ändring frågar en dialog: `Cmd+Enter`
+     sparar, `Enter` kastar (förval), `Esc` avbryter — så en påbörjad omdöpning
+     inte tappas av misstag.
    - **Auto-advance efter namnbyte:** efter ett namnbyte (både `Enter`-redigering
      och `Cmd+Enter`-bortbockning) hoppar markeringen vidare till nästa fil, så
      du kan jobba dig igenom serien. Stängs av under Inställningar → Files →
