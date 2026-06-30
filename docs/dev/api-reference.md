@@ -351,6 +351,23 @@ name-pairs.
   are equal/empty or either person doesn't currently exist).
 - `POST /api/management/distinct-pair/remove` `{name_a, name_b}` → un-exclude.
 
+### `GET /api/management/redundant-encodings`
+
+Per-person count of redundant encodings *within* a person. `threshold` (query,
+default `0.0`, cosine distance): `0.0` counts only exact (byte-identical)
+duplicates; higher also counts near-identical ones. Manual faces are never
+counted. Lists only people with redundancy.
+
+**Response:** `{ people: [{name, total, redundant, kept}], threshold, total_redundant }`.
+
+### `POST /api/management/dedup-people`
+
+Remove redundant encodings from the named people, keeping one per group.
+
+**Request:** `{ names: ["Anna", …], threshold: 0.0, dry_run: false }`. With
+`dry_run: true` nothing is removed (preview). Returns `OperationResponse` with
+`removed_per_person`, `total_removed`, and `new_state`.
+
 ### `POST /api/management/rename-person`
 
 Rename person in database.
