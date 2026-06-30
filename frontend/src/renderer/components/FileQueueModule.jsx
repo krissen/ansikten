@@ -1782,8 +1782,13 @@ export function FileQueueModule({ node }) {
   }, [addFiles, queue.length, startNextEligible, showToast]);
 
   useEffect(() => {
-    const handleQueueFiles = ({ files, position, startQueue }) => {
-      debug('FileQueue', `Received ${files.length} files from main process (position: ${position})`);
+    const handleQueueFiles = ({ files, position, startQueue, clear }) => {
+      debug('FileQueue', `Received ${files.length} files from main process (position: ${position}, clear: ${clear})`);
+      // --clear empties the queue first; alone (no files) it just empties.
+      if (clear) {
+        clearQueue();
+        if (files.length === 0) return;
+      }
       addFiles(files, position || 'default');
       if (startQueue && files.length > 0) {
         setTimeout(() => startNextEligible(), 100);
@@ -1791,7 +1796,7 @@ export function FileQueueModule({ node }) {
     };
 
     window.ansiktenAPI?.on('queue-files', handleQueueFiles);
-  }, [addFiles, startNextEligible]);
+  }, [addFiles, startNextEligible, clearQueue]);
 
   // Expose fileQueue API globally for programmatic access
   useEffect(() => {

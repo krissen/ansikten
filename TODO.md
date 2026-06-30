@@ -22,6 +22,11 @@ GUI-onboarding av CLI-skript (en PR per steg):
 - [x] **Import-modul** — överför NEF från minneskort → målmapp + mata ut (flytta/kopiera väljbart); macOS `diskutil`.
 - [x] **rename_nef → GUI** — EXIF `CreateDate` → `YYMMDD_HHMMSS.NEF` (+ `-NN` vid krock), preview + bekräfta.
 
+CLI-paritet — launch-kommandot mot fler arbetsflöden:
+
+- [x] **CLI-subkommandon `faces` / `culling`** (2026-06-30) — terminal-launchern (`ansikten`) väljer arbetsflöde via verb istället för att alltid köa till ansikten. `ansikten culling MAPP` öppnar/fokuserar Gallra spelare och laddar mappen; `faces` är standard (bakåtkompatibelt med `ansikten *.NEF`). `--clear`/`-c` nollställer arbetsmängden (ensam = töm). Launchern är nu skriptet `bin/ansikten` i repot (ersätter zsh-funktionen); parsing i `src/main/cli-args.js`, routing i `frontend/src/main/index.js` → IPC `open-culling` / `queue-files`.
+  - [ ] **Import-subkommando** — `ansikten import [MÅL]` öppnar Import-modulen. PATH-semantiken skiljer sig (import tar en *destination*, källan är autodetekterat kort), så det kräver egen design. Lämnades utanför första PR:en.
+
 ### Mellan sikt
 
 - [x] Rebrand till "Ansikten" (2026-01-11)

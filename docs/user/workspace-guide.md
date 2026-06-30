@@ -101,6 +101,48 @@ Workspace är ett modulärt gränssnitt byggt med FlexLayout. Paneler kan dockas
 
 ---
 
+## Kommandorad (CLI)
+
+Appen kan öppnas från terminalen med `ansikten`-kommandot, som väljer rätt
+arbetsflöde via ett subkommando. Är appen redan igång skickas argumenten till
+det körande fönstret (rätt modul öppnas/fokuseras automatiskt).
+
+```sh
+ansikten faces *.NEF          # köa NEF för ansiktsgranskning och börja bearbeta
+ansikten *.NEF                # samma sak — faces är standard när inget verb anges
+ansikten culling MAPP         # öppna MAPP i Gallra spelare
+ansikten cull MAPP            # alias för culling
+```
+
+**Mål (verb):**
+
+| Verb | Arbetsmängd | Standard |
+|------|-------------|----------|
+| `faces` (standard) | Ansiktskön (filer) | Lägg till + börja bearbeta |
+| `culling` / `cull` | Gallra-mappar (roots) | Lägg till mappen |
+
+**`--clear` / `-c`** nollställer målets arbetsmängd *före* tillägg. Ensam (utan
+sökväg) tömmer den bara:
+
+```sh
+ansikten faces --clear *.NEF      # töm ansiktskön, köa de nya filerna, starta
+ansikten culling --clear MAPP     # ersätt gallrings-mapparna med MAPP
+ansikten culling --clear          # töm gallrings-arbetsytan
+```
+
+Utan `--clear` är standard att **lägga till** i befintlig arbetsmängd.
+
+**Installation:** kommandot är skriptet [`bin/ansikten`](../../bin/ansikten) i
+repot. Länka in det i din PATH:
+
+```sh
+ln -s "$PWD/bin/ansikten" ~/bin/ansikten   # kör från repo-roten
+```
+
+Skriptet kräver att appen är installerad i `/Applications/Ansikten.app` (macOS).
+
+---
+
 ## Arbetsflöde
 
 > **Startsida:** När appen startar utan filer i kön visas en startsida i

@@ -291,6 +291,56 @@ export function CullingModule({ node }) {
     [loadList, loadStats, updateWatches]
   );
 
+  // CLI hand-off (`ansikten culling DIR`): set the folder scope and run.
+  // clear replaces the current roots; otherwise the folders are appended.
+  // A bare clear (no roots) empties the workspace.
+  useModuleEvent(
+    'culling-load',
+    (data) => {
+      if (!data) return;
+      const incoming = data.roots || [];
+      const nextRoots = data.clear
+        ? incoming
+        : Array.from(new Set([...roots, ...incoming]));
+
+      setRoots(nextRoots);
+      // CLI scope is a plain folder pick — drop any glob/player/date carried
+      // from a previous stats hand-off so it can't silently mix in.
+      setCarriedGlobs([]);
+      setPlayer('');
+      setGlob('');
+      setDateFrom(null);
+      setDateTo(null);
+
+      if (nextRoots.length === 0) {
+        // Bare --clear: empty the list and stop watching.
+        setFiles([]);
+        setCurrentIndex(-1);
+        setStats(null);
+        setHasRun(false);
+        lastQueryRef.current = null;
+        updateWatches(new Set());
+        return;
+      }
+
+      const query = {
+        roots: nextRoots,
+        globs: [],
+        extension_preset: preset,
+        recursive,
+        date_from: null,
+        date_to: null,
+        player: null,
+        name_glob: null,
+      };
+      lastQueryRef.current = query;
+      loadList(query);
+      loadStats(statsScopeFromQuery(query));
+      updateWatches(new Set(nextRoots));
+    },
+    [roots, preset, recursive, loadList, loadStats, updateWatches]
+  );
+
   // ----- cull loop ----------------------------------------------------
   const trashIndex = useCallback(async (index) => {
     if (index < 0 || index >= files.length) return;
