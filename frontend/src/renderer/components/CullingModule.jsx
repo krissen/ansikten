@@ -473,8 +473,10 @@ export function CullingModule({ node }) {
     const newBasename = next + extOf(basename(path));
     if (!next || newBasename === basename(path)) return; // no-op
     try {
-      await api.post('/api/v1/culling/rename', { path, new_basename: newBasename });
-      const newPath = path.slice(0, path.lastIndexOf('/') + 1) + newBasename;
+      const res = await api.post('/api/v1/culling/rename', { path, new_basename: newBasename });
+      // Use the backend's actual new path (native separators) for identity;
+      // fall back to a separator-agnostic dir swap if absent.
+      const newPath = res?.path || path.replace(/[^/\\]+$/, '') + newBasename;
       if (lastQueryRef.current) loadList(lastQueryRef.current, reloadOptsAfterRename(newPath));
       refreshStatsDebounced();
     } catch (err) {
@@ -731,9 +733,11 @@ export function CullingModule({ node }) {
     if (!newBasename || newBasename === current.basename) return;
     const path = current.path;
     try {
-      await api.post('/api/v1/culling/rename', { path, new_basename: newBasename });
+      const res = await api.post('/api/v1/culling/rename', { path, new_basename: newBasename });
       setRemovedNames(new Set());
-      const newPath = path.slice(0, path.lastIndexOf('/') + 1) + newBasename;
+      // Use the backend's actual new path (native separators) for identity;
+      // fall back to a separator-agnostic dir swap if absent.
+      const newPath = res?.path || path.replace(/[^/\\]+$/, '') + newBasename;
       if (lastQueryRef.current) loadList(lastQueryRef.current, reloadOptsAfterRename(newPath));
       refreshStatsDebounced();
     } catch (err) {
