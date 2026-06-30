@@ -863,6 +863,12 @@ class ManagementService:
 
             self.known_faces[name] = [e for i, e in enumerate(encodings) if i not in to_remove]
             self.save()
+            # Purging to an empty list leaves a face-less person whose name could
+            # later be reused for someone else; drop their exclusions so a stale
+            # pair can't hide a real duplicate. (An empty list is distinct from a
+            # manual-only person, who still has entries.)
+            if not self.known_faces[name]:
+                _drop_from_distinct_pairs(name)
 
             logger.info(f"[ManagementService] Purged {count} encodings from '{name}'")
 

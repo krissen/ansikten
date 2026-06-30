@@ -288,6 +288,17 @@ async def test_remove_then_recreate_does_not_suppress(service):
 
 
 @pytest.mark.asyncio
+async def test_purge_to_empty_drops_distinct_pair(service):
+    # Purging all of a person's encodings leaves a face-less name that could be
+    # reused; the exclusion must drop so it can't hide a future duplicate.
+    service.known_faces = _people("Wilmer", "Maximilian")  # one encoding each
+    await service.add_distinct_pair("Wilmer", "Maximilian")
+    await service.purge_encodings("Wilmer", 1)
+    assert service.known_faces["Wilmer"] == []
+    assert (await service.list_distinct_pairs())["count"] == 0
+
+
+@pytest.mark.asyncio
 async def test_merge_transfers_distinct_pair_to_target(service):
     # A is distinct from C; merging A into B asserts A≡B, so B inherits "distinct
     # from C" — the exclusion transfers to the canonical name, not dropped.
