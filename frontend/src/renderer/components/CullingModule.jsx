@@ -178,6 +178,12 @@ export function CullingModule({ node }) {
   // ----- listing ------------------------------------------------------
   const loadList = useCallback(
     async (query, { keepIndex = false, advancePastPath = null } = {}) => {
+      // A fresh load (a deliberate (re)query, not a keepIndex folder-refresh or
+      // a rename advance) drops any pending rename-advance, so a query issued
+      // while a rename reload is still in flight resets to the top instead of
+      // inheriting that stale target. The folder-watch refresh keeps it — that's
+      // the race the ref must win.
+      if (!keepIndex && !advancePastPath) pendingAdvanceRef.current = null;
       const seq = ++reqSeqRef.current;
       setIsLoading(true);
       try {
