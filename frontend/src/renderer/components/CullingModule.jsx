@@ -483,11 +483,10 @@ export function CullingModule({ node }) {
           // Finder convention: ⌘⌫ moves the current file to trash.
           e.preventDefault();
           trashCurrent();
-        } else if (e.key === 'Enter') {
-          // ⌘↵ commits the previewed name removal as a real rename.
-          e.preventDefault();
-          commitNameToggleRef.current?.();
         }
+        // ⌘↵ (commit name removal) is handled in the capture-phase Enter
+        // handler below, so it can stop the event before ReviewModule's
+        // document handler treats it as confirming a face.
         return;
       }
 
@@ -510,20 +509,23 @@ export function CullingModule({ node }) {
     return () => window.removeEventListener('keydown', handler);
   }, [node, files.length, showTrash, trashCurrent, undoTrash]);
 
-  // Enter starts inline rename of the selected file (Finder muscle memory).
-  // Handled on document in the CAPTURE phase so it preempts other modules'
-  // document-level Enter handlers (e.g. ReviewModule confirming a face) — a
-  // window/bubble listener would fire too late. Only acts when culling is the
-  // active tabset, so an inactive culling panel never steals Enter.
+  // Enter handling for culling, on document in the CAPTURE phase so it preempts
+  // other modules' document-level Enter handlers (e.g. ReviewModule confirming a
+  // face) — a window/bubble listener would fire too late. Plain Enter starts an
+  // inline rename; Cmd/Ctrl+Enter commits the previewed name removal. BOTH must
+  // be claimed here (stopImmediatePropagation) when culling is the active
+  // tabset, so a modified Enter can't also reach Review and silently confirm a
+  // face. Only acts when culling is the active tabset, so an inactive culling
+  // panel never steals Enter.
   useEffect(() => {
     const onEnterCapture = (e) => {
       if (e.key !== 'Enter') return;
-      // Cmd/Ctrl+Enter is the name-toggle commit, handled by the window keydown
-      // handler — don't start an inline rename on it.
-      if (e.metaKey || e.ctrlKey) return;
       if (node && !node.isVisible?.()) return;
       const tag = e.target?.tagName;
-      if (tag === 'INPUT' || tag === 'SELECT' || tag === 'TEXTAREA') return;
+      // Text fields (rename input, glob, dropdown) handle Enter themselves and
+      // already stop their own propagation; don't intercept them. A checkbox in
+      // the name overlay is fine to intercept.
+      if ((tag === 'INPUT' && e.target.type !== 'checkbox') || tag === 'TEXTAREA' || tag === 'SELECT') return;
       if (showTrash || currentIndex < 0) return;
       const activeTabsetId = node?.getModel?.().getActiveTabset?.()?.getId?.();
       const myTabsetId = node?.getParent?.()?.getId?.();
@@ -531,7 +533,8 @@ export function CullingModule({ node }) {
       e.preventDefault();
       e.stopPropagation();
       e.stopImmediatePropagation?.();
-      beginEdit(currentIndex);
+      if (e.metaKey || e.ctrlKey) commitNameToggleRef.current?.();
+      else beginEdit(currentIndex);
     };
     document.addEventListener('keydown', onEnterCapture, true);
     return () => document.removeEventListener('keydown', onEnterCapture, true);
