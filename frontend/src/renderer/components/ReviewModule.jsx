@@ -1210,6 +1210,14 @@ function FaceCard({ face, index, isActive, imagePath, people, cardRef, inputRef,
             {face.person_name || face.match_alternatives?.[0]?.name || 'Unknown'} / ign ({face.ignore_confidence}%)
           </div>
         )}
+        {face.disambiguated && !face.is_confirmed && (
+          <div
+            className="match-case twin-disambig"
+            title={`Look-alikes ${face.disambiguated.between.join(' / ')} — chosen by k-NN vote over confirmed photos`}
+          >
+            Twin tie-break → {face.disambiguated.chosen}
+          </div>
+        )}
       </div>
 
       {/* Match alternatives - only shown on active unconfirmed face */}

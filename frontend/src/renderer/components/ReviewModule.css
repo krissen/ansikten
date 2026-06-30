@@ -197,6 +197,11 @@
   color: var(--color-warning);
 }
 
+.match-case.twin-disambig {
+  background: color-mix(in srgb, var(--accent-primary) 22%, transparent);
+  color: var(--accent-primary);
+}
+
 /* Face card inline alternatives */
 .face-alternatives {
   display: flex;
