@@ -90,6 +90,22 @@ describe('parseCliArgs', () => {
       expect(r.queuePosition).toBe(null);
       expect(r.startQueue).toBe(false);
     });
+
+    it('defaults to non-recursive', () => {
+      expect(parseCliArgs([APP, 'culling', '/photos/match1']).recursive).toBe(false);
+    });
+
+    it('--recursive / -r opts in', () => {
+      expect(parseCliArgs([APP, 'culling', '--recursive', '/d']).recursive).toBe(true);
+      expect(parseCliArgs([APP, 'culling', '-r', '/d']).recursive).toBe(true);
+    });
+
+    it('--recursive composes with --clear', () => {
+      const r = parseCliArgs([APP, 'culling', '--clear', '-r', '/d']);
+      expect(r.clear).toBe(true);
+      expect(r.recursive).toBe(true);
+      expect(r.files).toEqual(['/d']);
+    });
   });
 
   describe('verb detection edge cases', () => {

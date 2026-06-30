@@ -1795,7 +1795,8 @@ export function FileQueueModule({ node }) {
       }
     };
 
-    window.ansiktenAPI?.on('queue-files', handleQueueFiles);
+    const off = window.ansiktenAPI?.on('queue-files', handleQueueFiles);
+    return () => off?.();
   }, [addFiles, startNextEligible, clearQueue]);
 
   // Expose fileQueue API globally for programmatic access
