@@ -1127,8 +1127,11 @@ function globBaseDir(pattern) {
   return slash === -1 ? '' : literal.slice(0, slash);
 }
 
+// Separator-agnostic basename so paths with Windows backslashes resolve too
+// (the backend returns native str(Path) values). Without this, the inline-rename
+// no-op guard never matches on Windows and an unchanged rename would advance.
 function basename(p) {
-  const parts = p.replace(/\/+$/, '').split('/');
+  const parts = p.replace(/[/\\]+$/, '').split(/[/\\]/);
   return parts[parts.length - 1] || p;
 }
 
