@@ -242,6 +242,31 @@ async def test_delete_drops_distinct_pair(service):
 
 
 @pytest.mark.asyncio
+async def test_move_to_ignore_drops_distinct_pair(service):
+    # Removing a person via move-to-ignore must clear their exclusions at delete
+    # time, so a recreated same-name person can't inherit the stale pair.
+    service.known_faces = _people("Wilmer", "Maximilian")
+    await service.add_distinct_pair("Wilmer", "Maximilian")
+    await service.move_to_ignore("Wilmer")
+    assert "Wilmer" not in service.known_faces
+    assert (await service.list_distinct_pairs())["count"] == 0
+
+
+@pytest.mark.asyncio
+async def test_undo_file_drops_emptied_person_pair(service):
+    h = "deadbeef"
+    service.known_faces = {
+        "Wilmer": [{"encoding": _unit(0), "backend": "insightface", "hash": h}],
+        "Maximilian": [_entry(_unit(1))],
+    }
+    service.processed_files = [{"name": "260101_120000.NEF", "hash": h}]
+    await service.add_distinct_pair("Wilmer", "Maximilian")
+    await service.undo_file("260101_120000.NEF")
+    assert "Wilmer" not in service.known_faces
+    assert (await service.list_distinct_pairs())["count"] == 0
+
+
+@pytest.mark.asyncio
 async def test_merge_transfers_distinct_pair_to_target(service):
     # A is distinct from C; merging A into B asserts A≡B, so B inherits "distinct
     # from C" — the exclusion transfers to the canonical name, not dropped.

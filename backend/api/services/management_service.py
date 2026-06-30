@@ -634,16 +634,24 @@ class ManagementService:
 
         self.ignored_faces.extend(to_move)
 
+        removed = False
         if backend_filter:
             remaining = [e for e in all_encodings if e not in to_move]
             if remaining:
                 self.known_faces[name] = remaining
             else:
                 del self.known_faces[name]
+                removed = True
         else:
             del self.known_faces[name]
+            removed = True
 
         self.save()
+        if removed:
+            # Clear exclusions at removal time, so a later recreated name can't
+            # inherit a stale "distinct" pair (existence-reconcile alone misses
+            # the remove-then-recreate-before-scan case).
+            _drop_from_distinct_pairs(name)
 
         moved_by_backend = _count_encodings_by_backend(to_move)
         logger.info(f"[ManagementService] Moved '{name}' to ignored ({len(to_move)} encodings)")
@@ -752,6 +760,7 @@ class ManagementService:
         removed_total = 0
 
         # Remove encodings by file hash (preferred method - exact match)
+        emptied: list[str] = []
         if file_hashes_to_remove:
             # Remove from known_faces
             for name in list(self.known_faces.keys()):
@@ -764,6 +773,7 @@ class ManagementService:
                 # Clean up empty entries
                 if not self.known_faces[name]:
                     del self.known_faces[name]
+                    emptied.append(name)
 
             # Remove from ignored_faces
             original_ignored = len(self.ignored_faces)
@@ -774,6 +784,8 @@ class ManagementService:
             removed_total += original_ignored - len(self.ignored_faces)
 
         self.save()
+        if emptied:
+            _drop_from_distinct_pairs(*emptied)
 
         logger.info(f"[ManagementService] Undid {len(matched_files)} files, removed {removed_total} encodings")
 

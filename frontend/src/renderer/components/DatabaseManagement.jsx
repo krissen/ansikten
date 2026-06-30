@@ -308,6 +308,7 @@ export function DatabaseManagement() {
       });
       showSuccess(result.message);
       setDatabaseState(result.new_state);
+      loadDistinctPairs(); // moving a person to ignored can drop registry entries
       moveToIgnoreForm.reset();
     } catch (err) {
       showError('Move to ignore failed: ' + err.message);
@@ -357,6 +358,7 @@ export function DatabaseManagement() {
       }
       showSuccess(message);
       setDatabaseState(result.new_state);
+      loadDistinctPairs(); // undo can empty (remove) a person, dropping registry entries
       undoForm.reset();
     } catch (err) {
       showError('Undo failed: ' + err.message);
