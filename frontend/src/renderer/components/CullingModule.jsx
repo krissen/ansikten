@@ -18,14 +18,33 @@ import './CullingModule.css';
 const REFRESH_DEBOUNCE_MS = 400;
 // Rows to jump when paging the file list with Alt+arrow.
 const PAGE_STEP = 10;
+
+// Persisted widths of the two resizable internal column boundaries: the stats
+// column (px) and the list/preview split (percent of the list+preview area).
+const STATS_WIDTH_KEY = 'ansikten.culling.statsWidth';
+const LIST_PCT_KEY = 'ansikten.culling.listPct';
+const STATS_WIDTH_DEFAULT = 240;
+const STATS_WIDTH_MIN = 150;
+const LIST_PCT_DEFAULT = 32;
+
+function readStoredNumber(key, fallback) {
+  try {
+    const v = parseFloat(localStorage.getItem(key));
+    return Number.isFinite(v) ? v : fallback;
+  } catch {
+    return fallback;
+  }
+}
 // Delay RAW conversion until the selection settles, so fast keyboard stepping
 // only converts the file the user rests on, not every file passed through.
 const PREVIEW_DEBOUNCE_MS = 150;
 
 // The live stats panel counts every player in the folder, so it uses the
 // scan scope only — not the player/name_glob filter that narrows the file list.
-// min_images: 1 overrides the count endpoint's default of 3 so players culled
-// down to 1-2 images stay visible (the whole point is watching counts shrink).
+// It deliberately keeps the count endpoint's defaults (min_images, exclusions)
+// so the included-player set matches `rakna_spelare.py` and the Räkna spelare
+// page exactly — coaches/audience and below-threshold names land in `excluded`,
+// not in the live count.
 function statsScopeFromQuery(q) {
   if (!q) return null;
   return {
@@ -35,7 +54,6 @@ function statsScopeFromQuery(q) {
     recursive: q.recursive,
     date_from: q.date_from,
     date_to: q.date_to,
-    min_images: 1,
   };
 }
 
@@ -77,7 +95,16 @@ export function CullingModule({ node }) {
   const [trashItems, setTrashItems] = useState([]);
   const [trashFilter, setTrashFilter] = useState('all'); // 'all' | 'jpg' | 'nef'
 
-  const [leftWidthPct, setLeftWidthPct] = useState(32);
+  // Widths of the two resizable column boundaries, restored from localStorage.
+  // leftWidthPct is clamped to the drag range on read; statsWidth gets a lower
+  // bound here and is additionally clamped against the live window width on
+  // mount (a width saved on a wide window must not squash a narrow one).
+  const [statsWidth, setStatsWidth] = useState(() =>
+    Math.max(STATS_WIDTH_MIN, readStoredNumber(STATS_WIDTH_KEY, STATS_WIDTH_DEFAULT))
+  );
+  const [leftWidthPct, setLeftWidthPct] = useState(() =>
+    Math.min(70, Math.max(15, readStoredNumber(LIST_PCT_KEY, LIST_PCT_DEFAULT)))
+  );
 
   // Resolved preview for the right pane. JPEGs load directly; RAW goes through
   // the NEF->JPG pipeline, so resolution is async.
@@ -97,6 +124,7 @@ export function CullingModule({ node }) {
   const debounceRef = useRef(null);
   const statsDebounceRef = useRef(null);
   const mainRef = useRef(null);
+  const bodyRef = useRef(null);
 
   // The editable glob is a Finder-style basename filter (name_glob) over the
   // resolved files, NOT an independent filesystem glob. The scan source is
@@ -562,9 +590,10 @@ export function CullingModule({ node }) {
   }, [api]);
 
   // ----- divider drag ------------------------------------------------
+  // List/preview split: percent of the list+preview area (excludes the stats
+  // column, which is sized separately by startStatsDrag).
   const startDrag = useCallback((e) => {
     e.preventDefault();
-    // Measure against the list+preview area (excludes the fixed stats column).
     const main = mainRef.current;
     if (!main) return;
     const onMove = (ev) => {
@@ -578,6 +607,45 @@ export function CullingModule({ node }) {
     };
     window.addEventListener('mousemove', onMove);
     window.addEventListener('mouseup', onUp);
+  }, []);
+
+  // Stats column width: absolute pixels measured from the body's left edge,
+  // capped so the list+preview area keeps a usable minimum.
+  const startStatsDrag = useCallback((e) => {
+    e.preventDefault();
+    const body = bodyRef.current;
+    if (!body) return;
+    const onMove = (ev) => {
+      const rect = body.getBoundingClientRect();
+      const px = ev.clientX - rect.left;
+      const max = Math.max(STATS_WIDTH_MIN, rect.width - 300);
+      setStatsWidth(Math.min(max, Math.max(STATS_WIDTH_MIN, px)));
+    };
+    const onUp = () => {
+      window.removeEventListener('mousemove', onMove);
+      window.removeEventListener('mouseup', onUp);
+    };
+    window.addEventListener('mousemove', onMove);
+    window.addEventListener('mouseup', onUp);
+  }, []);
+
+  // Persist column widths so they survive restarts.
+  useEffect(() => {
+    try { localStorage.setItem(STATS_WIDTH_KEY, String(statsWidth)); } catch { /* ignore */ }
+  }, [statsWidth]);
+  useEffect(() => {
+    try { localStorage.setItem(LIST_PCT_KEY, String(leftWidthPct)); } catch { /* ignore */ }
+  }, [leftWidthPct]);
+
+  // On mount, clamp a restored stats width against the current window so a width
+  // saved on a wide window can't squash list+preview on a narrow one (the drag
+  // handler only clamps live, not on restore).
+  useEffect(() => {
+    const body = bodyRef.current;
+    if (!body) return;
+    const max = Math.max(STATS_WIDTH_MIN, body.getBoundingClientRect().width - 300);
+    setStatsWidth((w) => Math.min(w, max));
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   const current = currentIndex >= 0 ? files[currentIndex] : null;
@@ -750,8 +818,22 @@ export function CullingModule({ node }) {
           )}
         </div>
       ) : (
-        <div className="culling-body">
-          <CullingStats stats={stats} selected={player} />
+        <div className="culling-body" ref={bodyRef}>
+          <CullingStats
+            stats={stats}
+            selected={player}
+            width={statsWidth}
+            onSelect={(name) => {
+              selectPlayer(name);
+              // Clicking a player filters the list immediately (same hand-off as
+              // the player dropdown); clicking the active one clears the filter.
+              if (lastQueryRef.current) {
+                const g = name ? `*${name}*` : '';
+                runFilter({ player: name || null, name_glob: g || null });
+              }
+            }}
+          />
+          <div className="culling-stats-divider" onMouseDown={startStatsDrag} />
           <div className="culling-main" ref={mainRef}>
           <div className="culling-list" style={{ width: `${leftWidthPct}%` }}>
             <div className="culling-list-header">
@@ -919,15 +1001,58 @@ function stripExt(name) {
   return i > 0 ? name.slice(0, i) : name;
 }
 
+const EXCLUDED_LABELS = {
+  tranare: 'Tränare',
+  grupp: 'Gruppbilder',
+  publik: 'Publik',
+  below_threshold: 'Under tröskeln',
+};
+
+/** Collapsible groups for names the count excludes (coaches, group photos,
+ *  audience, below-threshold) — visible but separated from the live counts,
+ *  matching the Räkna spelare page. */
+function CullingExcluded({ excluded }) {
+  if (!excluded) return null;
+  const groups = Object.entries(EXCLUDED_LABELS).filter(
+    ([key]) => excluded[key] && excluded[key].length > 0
+  );
+  if (groups.length === 0) return null;
+  return (
+    <div className="culling-stats-excluded">
+      {groups.map(([key, label]) => (
+        <details key={key} className="culling-stats-group">
+          <summary>{label} ({excluded[key].length})</summary>
+          <ul>
+            {excluded[key].map((e) => (
+              <li key={e.name}>{e.name}: {e.count} ({e.pct}%)</li>
+            ))}
+          </ul>
+        </details>
+      ))}
+    </div>
+  );
+}
+
 /**
  * Live per-player count for the current scope, shown left of the file list.
- * `stats` is the /players/count response (or null); `selected` highlights the
- * player currently filtered in the list.
+ * Mirrors the Räkna spelare table (name · count · % · Δ% · distribution bar)
+ * so the same numbers are in front of the user while culling. `stats` is the
+ * /players/count response (or null); `selected` highlights the player currently
+ * filtered in the list; `onSelect(name)` filters the list to that player (or
+ * clears it when the active player is clicked again); `width` is the column's
+ * pixel width (resizable via the stats divider).
  */
-function CullingStats({ stats, selected }) {
+function CullingStats({ stats, selected, onSelect, width }) {
   const players = stats?.players || [];
+  const maxCount = players.reduce((m, p) => Math.max(m, p.count), 1);
+  // Show excluded groups even when no player clears the threshold (small folders,
+  // or after culling everyone below min_images) — otherwise the section this
+  // change is meant to surface would be hidden behind the empty "—".
+  const excluded = stats?.excluded || null;
+  const hasExcluded = !!excluded &&
+    Object.keys(EXCLUDED_LABELS).some((k) => excluded[k] && excluded[k].length > 0);
   return (
-    <div className="culling-stats">
+    <div className="culling-stats" style={{ flex: `0 0 ${width}px` }}>
       <div className="culling-stats-header">
         <span>Spelare</span>
         {stats?.baseline != null && (
@@ -936,21 +1061,50 @@ function CullingStats({ stats, selected }) {
           </span>
         )}
       </div>
-      {players.length === 0 ? (
+      {players.length === 0 && !hasExcluded ? (
         <div className="culling-stats-empty">—</div>
       ) : (
-        <ul className="culling-stats-list">
-          {players.map((p) => (
-            <li
-              key={p.name}
-              className={`culling-stat delta-${p.level || 'ok'}${p.name === selected ? ' active' : ''}`}
-              title={`${p.name}: ${p.count}`}
-            >
-              <span className="culling-stat-name">{p.name}</span>
-              <span className="culling-stat-count">{p.count}</span>
-            </li>
-          ))}
-        </ul>
+        <div className="culling-stats-scroll">
+          {players.length > 0 && (
+          <table className="culling-stats-table">
+            <thead>
+              <tr>
+                <th>Namn</th>
+                <th className="num">Antal</th>
+                <th className="num">%</th>
+                <th className="num">Δ%</th>
+                <th className="bar-col">Fördelning</th>
+              </tr>
+            </thead>
+            <tbody>
+              {players.map((p) => (
+                <tr
+                  key={p.name}
+                  className={`culling-stat-row${onSelect ? ' clickable' : ''}${p.name === selected ? ' active' : ''}`}
+                  onClick={onSelect ? () => onSelect(p.name === selected ? '' : p.name) : undefined}
+                  title={onSelect ? `Filtrera på ${p.name}` : `${p.name}: ${p.count}`}
+                >
+                  <td className="culling-stat-name">{p.name}</td>
+                  <td className="num">{p.count}</td>
+                  <td className="num">{p.pct}%</td>
+                  <td className={`num delta delta-${p.level || 'ok'}`}>
+                    {p.delta_pct > 0 ? '+' : ''}{p.delta_pct}%
+                  </td>
+                  <td className="bar-col">
+                    <div className="culling-bar-track">
+                      <div
+                        className={`culling-bar-fill level-${p.level || 'ok'}`}
+                        style={{ width: `${(p.count / maxCount) * 100}%` }}
+                      />
+                    </div>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+          )}
+          <CullingExcluded excluded={excluded} />
+        </div>
       )}
     </div>
   );

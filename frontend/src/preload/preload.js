@@ -5,6 +5,12 @@ const { contextBridge, ipcRenderer } = require("electron");
 
 // Expose safe, limited APIs to renderer
 contextBridge.exposeInMainWorld("ansiktenAPI", {
+  // Launch intent parsed from the command line, resolved synchronously at
+  // preload time so the renderer can decide whether to show the startup
+  // landing page before its first paint (avoids a landing flash on
+  // `ansikten culling ...` / `ansikten <files>`).
+  launchIntent: ipcRenderer.sendSync("get-launch-intent-sync"),
+
   // IPC communication - only specific channels allowed
   send: (channel, data) => {
     const allowedChannels = ["bild-visad", "sync-view", "renderer-log", "update-menu-state"];

@@ -364,9 +364,20 @@ export function FlexLayoutWorkspace() {
   const [ready, setReady] = useState(false);
   const [showShortcutsHelp, setShowShortcutsHelp] = useState(false);
   // Startup landing page: shown on an empty workspace, dismissed once a module
-  // is opened or an image is loaded.
-  const [showLanding, setShowLanding] = useState(true);
+  // is opened or an image is loaded. Skipped only when the launch will actually
+  // dispatch a handoff (file args or --clear) — the main process opens the
+  // target then, so the landing would only flash. A bare verb (`ansikten
+  // culling` with no paths and no --clear) sends no handoff, so the landing must
+  // stay, or the user is stranded with no way to pick a workflow.
+  const launchIntent = window.ansiktenAPI?.launchIntent;
+  const hasLaunchIntent = !!launchIntent &&
+    (launchIntent.hasFiles || launchIntent.clear);
+  const [showLanding, setShowLanding] = useState(!hasLaunchIntent);
   const moduleAPI = useModuleAPI();
+  // Image paths whose Review has unsaved confirmations/ignores (mirrors the
+  // 'review-dirty' signal the file queue uses). Consulted before auto-closing
+  // the Review panel so culling can't silently drop partially reviewed faces.
+  const reviewDirtyRef = useRef(new Set());
 
   // Initialize model
   useEffect(() => {
@@ -556,10 +567,25 @@ export function FlexLayoutWorkspace() {
       config: { moduleId }
     };
 
-    // Find target tabset or use active one
-    const activeTabset = model.getActiveTabset();
-    if (activeTabset) {
-      model.doAction(Actions.addNode(tabJson, activeTabset.getId(), DockLocation.CENTER, -1));
+    // Find target tabset. getActiveTabset() is undefined until the user clicks a
+    // tabset (e.g. a fresh load) or when the previously-active tabset was just
+    // closed — fall back to the LARGEST tabset by area so the module lands in
+    // the main working area, not a narrow side column (e.g. the 15% Review
+    // column of the default layout), and is never silently dropped.
+    let targetTabset = model.getActiveTabset();
+    if (!targetTabset) {
+      let bestArea = -1;
+      model.visitNodes((node) => {
+        if (node.getType() !== 'tabset') return;
+        const rect = node.getRect?.();
+        const area = rect ? rect.width * rect.height : 0;
+        if (area > bestArea) { bestArea = area; targetTabset = node; }
+      });
+    }
+    if (targetTabset) {
+      model.doAction(Actions.addNode(tabJson, targetTabset.getId(), DockLocation.CENTER, -1));
+    } else {
+      debugWarn('FlexLayout', `No tabset to host module: ${moduleId}`);
     }
 
     debug('FlexLayout', `Opened new module: ${moduleId}${isSingleton ? ' (singleton)' : ''}`);
@@ -574,6 +600,22 @@ export function FlexLayoutWorkspace() {
       model.doAction(Actions.deleteTab(panelId));
       debug('FlexLayout', `Closed panel: ${panelId}`);
     }
+  }, [model]);
+
+  // Close any open tab(s) of a module by its component id, leaving the rest of
+  // the workspace untouched (unlike loadLayout/openModuleSolo, which replace the
+  // whole layout). Returns true if anything was closed.
+  const closeModule = useCallback((moduleId) => {
+    if (!model) return false;
+    const ids = [];
+    model.visitNodes((node) => {
+      if (node.getType() === 'tab' && node.getComponent?.() === moduleId) {
+        ids.push(node.getId());
+      }
+    });
+    ids.forEach((id) => model.doAction(Actions.deleteTab(id)));
+    if (ids.length) debug('FlexLayout', `Closed module: ${moduleId} (${ids.length})`);
+    return ids.length > 0;
   }, [model]);
 
   // Factory function for FlexLayout
@@ -1251,17 +1293,37 @@ export function FlexLayoutWorkspace() {
 
     const offMenuCommand = window.ansiktenAPI.on('menu-command', handleMenuCommand);
 
-    // CLI culling target (`ansikten culling DIR`): open/focus the culling
-    // module, then hand it the folder scope once it has subscribed. Using
-    // waitForListeners avoids a lost-event race on a cold start where the
-    // module hasn't mounted yet — same guard the FileQueue→ImageViewer
-    // handshake uses for 'load-image'.
+    // CLI culling target (`ansikten culling DIR`): close the face-review panel
+    // (culling is a different workflow — Review shouldn't sit in the layout
+    // while culling) and open/focus the culling module as a tab, leaving every
+    // OTHER open tab untouched. Then hand it the folder scope once it has
+    // subscribed. Using waitForListeners avoids a lost-event race on a cold
+    // start where the module hasn't mounted yet — same guard the
+    // FileQueue→ImageViewer handshake uses for 'load-image'.
     const handleOpenCulling = async ({ roots, clear, recursive }) => {
+      // Open culling FIRST so it docks into the still-valid active tabset.
+      // Closing Review first could delete the active tabset, leaving openModule
+      // with no host (getActiveTabset() → undefined) and silently dropping the
+      // culling tab — so the order matters.
       openModule('culling');
+      // Then close Review — but not while it has unsaved confirmations/ignores,
+      // which live in ReviewModule state and would be silently dropped. In that
+      // case leave the panel open; the user can save and re-issue the command.
+      if (reviewDirtyRef.current.size === 0) {
+        closeModule('review-module');
+      }
       await moduleAPI.waitForListeners('culling-load', 2000);
       moduleAPI.emit('culling-load', { roots, clear, recursive });
     };
     const offOpenCulling = window.ansiktenAPI.on('open-culling', handleOpenCulling);
+
+    // Track which files have unsaved Review changes so the culling hand-off
+    // above won't close Review and discard them.
+    const offReviewDirty = moduleAPI.on('review-dirty', ({ imagePath, dirty }) => {
+      if (!imagePath) return;
+      if (dirty) reviewDirtyRef.current.add(imagePath);
+      else reviewDirtyRef.current.delete(imagePath);
+    });
 
     // A loaded image dismisses the landing. Listen on the past-tense
     // 'image-loaded' (emitted by ImageViewer after a load), NOT the imperative
@@ -1274,8 +1336,9 @@ export function FlexLayoutWorkspace() {
       unsubscribeImageLoaded();
       offMenuCommand?.();
       offOpenCulling?.();
+      offReviewDirty?.();
     };
-  }, [ready, loadLayout, addTabset, removeEmptyTabset, openModule, moduleAPI, moveToNewTabset]);
+  }, [ready, loadLayout, addTabset, removeEmptyTabset, openModule, closeModule, moduleAPI, moveToNewTabset]);
 
   // Expose workspace API globally for debugging
   useEffect(() => {
