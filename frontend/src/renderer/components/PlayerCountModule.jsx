@@ -11,6 +11,7 @@ import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { useBackend } from '../context/BackendContext.jsx';
 import { useModuleAPI } from '../hooks/useModuleEvent.js';
 import { InputBar, EMPTY_INPUT } from './InputBar.jsx';
+import { getScanScope, setScanScope, scanScopeHasSelection, signalExternalLoad } from '../shared/scanScope.js';
 import './PlayerCountModule.css';
 
 const REFRESH_DEBOUNCE_MS = 400;
@@ -103,6 +104,15 @@ export function PlayerCountModule() {
     (inp, includePerMatch) => {
       const params = buildParams(inp, includePerMatch);
       lastParamsRef.current = params;
+      // Publish the scan scope so Gallra spelare mirrors the same selection.
+      setScanScope({
+        roots: params.roots,
+        globs: params.globs,
+        recursive: params.recursive,
+        date_from: params.date_from,
+        date_to: params.date_to,
+        extension_preset: params.extension_preset,
+      });
       runCount(params);
       updateWatches(watchDirsFor(inp));
     },
@@ -113,6 +123,27 @@ export function PlayerCountModule() {
     () => submitWith(input, perMatch),
     [submitWith, input, perMatch]
   );
+
+  // On open, adopt the shared scan scope (e.g. coming from Gallra spelare) when
+  // the panel is still empty, so it shows the same files instead of starting
+  // blank. Translates the scan scope into the InputBar shape (path-glob array →
+  // single glob string; null dates → empty).
+  useEffect(() => {
+    if (lastParamsRef.current) return;
+    const s = getScanScope();
+    if (!scanScopeHasSelection(s)) return;
+    const adopted = {
+      roots: s.roots || [],
+      glob: (s.globs && s.globs[0]) || '',
+      preset: s.extension_preset || 'jpg',
+      dateFrom: s.date_from || '',
+      dateTo: s.date_to || '',
+      recursive: s.recursive ?? true,
+    };
+    setInput(adopted);
+    submitWith(adopted, perMatch);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   // Select/checkbox changes from the InputBar apply immediately, but only once a
   // query has run (otherwise there's nothing to recompute yet).
@@ -128,6 +159,9 @@ export function PlayerCountModule() {
   const openCullForPlayer = useCallback(
     async (name) => {
       const params = lastParamsRef.current || buildParams(input, perMatch);
+      // Tell culling's adopt-on-mount that we'll immediately load the
+      // player-filtered query, so it skips its own unfiltered scan.
+      signalExternalLoad();
       window.workspace?.openModule?.('culling');
       // The culling module subscribes on mount; wait so the event isn't missed.
       await waitForListeners('cull-player', 3000);

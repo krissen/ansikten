@@ -15,6 +15,7 @@ import { useBackend } from '../context/BackendContext.jsx';
 import { useModuleEvent } from '../hooks/useModuleEvent.js';
 import { namesInBasename, removeNamesFromBasename } from './culling-names.js';
 import { preferences } from '../workspace/preferences.js';
+import { getScanScope, setScanScope, scanScopeHasSelection, takeExternalLoad } from '../shared/scanScope.js';
 import './CullingModule.css';
 
 const REFRESH_DEBOUNCE_MS = 400;
@@ -197,6 +198,8 @@ export function CullingModule({ node }) {
       // inheriting that stale target. The folder-watch refresh keeps it — that's
       // the race the ref must win.
       if (!keepIndex && !advancePastPath) pendingAdvanceRef.current = null;
+      // Publish the scan scope so Räkna spelare mirrors the same selection.
+      setScanScope(statsScopeFromQuery(query));
       const seq = ++reqSeqRef.current;
       setIsLoading(true);
       try {
@@ -319,6 +322,9 @@ export function CullingModule({ node }) {
     'cull-player',
     (data) => {
       if (!data) return;
+      // We are the external load the adopt effect deferred to — clear the flag
+      // (covers the case where culling was already mounted so adopt didn't run).
+      takeExternalLoad();
       const nextRoots = data.roots || [];
       const nextGlobs = data.globs || [];
       const nextRecursive = data.recursive ?? true;
@@ -384,12 +390,24 @@ export function CullingModule({ node }) {
       setDateTo(null);
 
       if (nextRoots.length === 0) {
-        // Bare --clear: empty the list and stop watching.
+        // Bare --clear: empty the list and stop watching. Bump the request seqs
+        // so an in-flight load/stats from the mount-adopt (which fires when this
+        // tab freshly mounts and a prior shared scope exists) is discarded when
+        // it returns — otherwise it would repopulate the just-cleared workspace.
+        ++reqSeqRef.current;
+        ++statsSeqRef.current;
         setFiles([]);
         setCurrentIndex(-1);
         setStats(null);
         setHasRun(false);
+        // The discarded adopt load left isLoading true (its finally skips the
+        // seq-mismatched response); reset it so the cleared workspace shows the
+        // "välj mapp" hint instead of a stuck "…".
+        setIsLoading(false);
         lastQueryRef.current = null;
+        // Clear the shared scope too, so Räkna spelare (or a culling remount)
+        // doesn't adopt the now-discarded selection.
+        setScanScope(null);
         updateWatches(new Set());
         return;
       }
@@ -411,6 +429,51 @@ export function CullingModule({ node }) {
     },
     [roots, preset, loadList, loadStats, updateWatches]
   );
+
+  // On open, adopt the shared scan scope (e.g. coming from Räkna spelare) when
+  // we have nothing of our own yet. A CLI culling-load (~1s later) or any user
+  // action still takes over; the player/name filter is never inherited.
+  useEffect(() => {
+    if (hasRun || roots.length > 0) return;
+    // A cull-player hand-off (clicking a player in Räkna spelare) is about to
+    // load the player-filtered query — skip the unfiltered adopt load so the
+    // folder isn't scanned twice and the unfiltered list doesn't flash.
+    if (takeExternalLoad()) return;
+    const s = getScanScope();
+    if (!scanScopeHasSelection(s)) return;
+    // Culling's file-type control only knows jpg/nef/raw; Räkna also offers
+    // images/all. Map a preset culling can't represent to jpg, so the dropdown
+    // isn't desynced and the list doesn't include types culling never exposes.
+    const preset = ['jpg', 'nef', 'raw'].includes(s.extension_preset) ? s.extension_preset : 'jpg';
+    setRoots(s.roots || []);
+    setCarriedGlobs(s.globs || []);
+    setRecursive(s.recursive ?? true);
+    setDateFrom(s.date_from || null);
+    setDateTo(s.date_to || null);
+    setPreset(preset);
+    const query = {
+      roots: s.roots || [],
+      globs: s.globs || [],
+      extension_preset: preset,
+      recursive: s.recursive ?? true,
+      date_from: s.date_from || null,
+      date_to: s.date_to || null,
+      player: null,
+      name_glob: null,
+    };
+    lastQueryRef.current = query;
+    loadList(query);
+    loadStats(statsScopeFromQuery(query));
+    // Watch roots AND each path-glob's base dir, so a glob-only mirrored scope
+    // (e.g. adopted from Räkna spelare) still auto-refreshes on file changes.
+    const dirs = new Set(s.roots || []);
+    for (const g of (s.globs || [])) {
+      const base = globBaseDir(g);
+      if (base) dirs.add(base);
+    }
+    updateWatches(dirs);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   // ----- cull loop ----------------------------------------------------
   const trashIndex = useCallback(async (index) => {
