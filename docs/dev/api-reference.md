@@ -336,8 +336,9 @@ the scanner stops suggesting them. Stored in `distinct_pairs.json` as sorted
 name-pairs.
 
 - `GET /api/management/distinct-pairs` → `{ pairs: [{name_a, name_b}], count }`.
-- `POST /api/management/distinct-pair` `{name_a, name_b}` → add (400 if the two
-  names are equal/empty).
+  Pairs whose names no longer exist are pruned (self-healing).
+- `POST /api/management/distinct-pair` `{name_a, name_b}` → add (400 if the names
+  are equal/empty or either person doesn't currently exist).
 - `POST /api/management/distinct-pair/remove` `{name_a, name_b}` → un-exclude.
 
 ### `POST /api/management/rename-person`
