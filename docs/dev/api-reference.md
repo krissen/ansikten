@@ -100,7 +100,9 @@ confirmed-distinct pair (see `distinct-pairs`) and nearly equidistant from the
 probe (within `twin_margin`), a k-NN vote over both people's confirmed photos
 re-decides the suggested name and this field records it:
 `{ "between": ["Wilmer", "Maximilian"], "chosen": "Wilmer", "method": "knn", "k": 5 }`.
-Tuned by `twin_margin` / `twin_knn_k` in `config.json`.
+When set, the chosen name is also moved to the front of `match_alternatives` (so
+the recommended option matches the decision); the remaining alternatives keep
+their distance order. Tuned by `twin_margin` / `twin_knn_k` in `config.json`.
 
 ### `GET /face-thumbnail`
 

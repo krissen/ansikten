@@ -245,8 +245,6 @@ class DetectionService:
         # Confirmed-distinct pairs (e.g. twins): load once per image for the
         # recognition tie-break below.
         distinct_pairs = _load_distinct_pairs()
-        twin_margin = self.config.get("twin_margin", 0.1)
-        twin_knn_k = self.config.get("twin_knn_k", 5)
         for i, (encoding, location) in enumerate(zip(face_encodings, face_locations)):
             top, right, bottom, left = location
 
@@ -275,29 +273,13 @@ class DetectionService:
             # single-nearest matcher can pick the wrong twin. Re-decide with a
             # k-NN vote over both people's confirmed faces.
             disambiguated = None
-            if (distinct_pairs and match_case in ("name", "uncertain_name")
-                    and len(match_alternatives) >= 2):
-                top1, top2 = match_alternatives[0], match_alternatives[1]
-                pair = tuple(sorted((top1["name"], top2["name"])))
-                if (not top1.get("is_ignored") and not top2.get("is_ignored")
-                        and pair in distinct_pairs
-                        and (top2["distance"] - top1["distance"]) <= twin_margin):
-                    chosen = self._disambiguate_distinct_pair(
-                        encoding, top1["name"], top2["name"], twin_knn_k
-                    )
-                    if chosen is not None:
-                        chosen_alt = next((a for a in match_alternatives if a["name"] == chosen), None)
-                        disambiguated = {
-                            "between": [top1["name"], top2["name"]],
-                            "chosen": chosen,
-                            "method": "knn",
-                            "k": min(twin_knn_k,
-                                     len(self._person_match_encodings(top1["name"]))
-                                     + len(self._person_match_encodings(top2["name"]))),
-                        }
-                        best_match = chosen
-                        if chosen_alt is not None:
-                            best_distance = chosen_alt["distance"]
+            disamb = self._maybe_disambiguate_twins(
+                encoding, match_alternatives, match_case, distinct_pairs
+            )
+            if disamb is not None:
+                best_match, chosen_distance, match_alternatives, disambiguated = disamb
+                if chosen_distance is not None:
+                    best_distance = chosen_distance
 
             full_encoding_hash = hashlib.sha1(encoding.tobytes()).hexdigest()
             face_id = f"face_{i}_{full_encoding_hash[:16]}"
@@ -387,6 +369,59 @@ class DetectionService:
             if enc is not None and be == self.backend.backend_name:
                 out.append(enc)
         return out
+
+    def _maybe_disambiguate_twins(
+        self,
+        encoding: np.ndarray,
+        match_alternatives: List[Dict[str, Any]],
+        match_case: Optional[str],
+        distinct_pairs: set,
+    ) -> Optional[Tuple[str, Optional[float], List[Dict[str, Any]], Dict[str, Any]]]:
+        """Apply the twin tie-break to one face, if it qualifies.
+
+        Returns ``(chosen, chosen_distance, reordered_alternatives, info)`` when
+        the top-2 candidates are a registered confirmed-distinct pair, neither is
+        ignored, both are plausible names and within ``twin_margin``, and the
+        k-NN vote yields a winner. The chosen alternative is moved to the front of
+        the returned list so the recommended option matches the decision; the rest
+        keep their order. Returns ``None`` when no override applies.
+        """
+        if not distinct_pairs or match_case not in ("name", "uncertain_name"):
+            return None
+        if len(match_alternatives) < 2:
+            return None
+        top1, top2 = match_alternatives[0], match_alternatives[1]
+        if top1.get("is_ignored") or top2.get("is_ignored"):
+            return None
+        pair = tuple(sorted((top1["name"], top2["name"])))
+        twin_margin = self.config.get("twin_margin", 0.1)
+        if pair not in distinct_pairs or (top2["distance"] - top1["distance"]) > twin_margin:
+            return None
+
+        twin_knn_k = self.config.get("twin_knn_k", 5)
+        chosen = self._disambiguate_distinct_pair(
+            encoding, top1["name"], top2["name"], twin_knn_k
+        )
+        if chosen is None:
+            return None
+
+        chosen_alt = next((a for a in match_alternatives if a["name"] == chosen), None)
+        chosen_distance = None
+        reordered = match_alternatives
+        if chosen_alt is not None:
+            chosen_distance = chosen_alt["distance"]
+            reordered = [chosen_alt] + [a for a in match_alternatives if a is not chosen_alt]
+        info = {
+            "between": [top1["name"], top2["name"]],
+            "chosen": chosen,
+            "method": "knn",
+            "k": min(
+                twin_knn_k,
+                len(self._person_match_encodings(top1["name"]))
+                + len(self._person_match_encodings(top2["name"])),
+            ),
+        }
+        return chosen, chosen_distance, reordered, info
 
     def _disambiguate_distinct_pair(
         self, encoding: np.ndarray, name_a: str, name_b: str, k: int

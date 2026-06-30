@@ -85,6 +85,55 @@ def test_person_match_encodings_filters_backend_and_manual():
     assert svc._person_match_encodings("missing") == []
 
 
+def _alt(name, distance):
+    return {"name": name, "distance": distance, "confidence": int((1 - distance) * 100), "is_ignored": False}
+
+
+def _twin_service():
+    svc = _service()
+    a = _unit(0)
+    b = a + 0.3 * _unit(99)
+    svc.known_faces = {
+        "Wilmer": _cluster(a, range(1, 6)),
+        "Maximilian": _cluster(b, range(10, 15)),
+    }
+    svc.config = {"twin_margin": 0.1, "twin_knn_k": 5}
+    return svc, a, b
+
+
+def test_maybe_disambiguate_overrides_and_reorders():
+    # The probe is really Maximilian but top1 (nearest single crop) is Wilmer.
+    # The override must choose Maximilian AND move it to the front of the
+    # alternatives so the "recommended" chip / `1` key agree (issue-001).
+    svc, a, b = _twin_service()
+    probe = np.asarray(_entry(b + 0.04 * _unit(11))["encoding"])
+    alts = [_alt("Wilmer", 0.20), _alt("Maximilian", 0.24), _alt("Other", 0.50)]
+    out = svc._maybe_disambiguate_twins(probe, alts, "name", {("Maximilian", "Wilmer")})
+    assert out is not None
+    chosen, chosen_distance, reordered, info = out
+    assert chosen == "Maximilian"
+    assert reordered[0]["name"] == "Maximilian"          # recommended chip now agrees
+    assert chosen_distance == 0.24
+    assert [a_["name"] for a_ in reordered] == ["Maximilian", "Wilmer", "Other"]
+    assert info["chosen"] == "Maximilian" and info["between"] == ["Wilmer", "Maximilian"]
+
+
+def test_maybe_disambiguate_skips_unregistered_or_wide_gap():
+    svc, a, b = _twin_service()
+    probe = np.asarray(_entry(a + 0.04 * _unit(2))["encoding"])
+    near = [_alt("Wilmer", 0.20), _alt("Maximilian", 0.24)]
+    # Not in registry → no override.
+    assert svc._maybe_disambiguate_twins(probe, near, "name", set()) is None
+    # Registered but gap exceeds twin_margin (0.1) → no override.
+    wide = [_alt("Wilmer", 0.20), _alt("Maximilian", 0.40)]
+    assert svc._maybe_disambiguate_twins(probe, wide, "name", {("Maximilian", "Wilmer")}) is None
+    # Wrong match_case → no override.
+    assert svc._maybe_disambiguate_twins(probe, near, "ign", {("Maximilian", "Wilmer")}) is None
+    # An ignored top candidate → no override.
+    ign = [{**_alt("Wilmer", 0.20), "is_ignored": True}, _alt("Maximilian", 0.24)]
+    assert svc._maybe_disambiguate_twins(probe, ign, "name", {("Maximilian", "Wilmer")}) is None
+
+
 def test_detected_face_model_carries_disambiguated():
     # The route model must pass the field through to clients (else the feature is
     # silently dropped before the frontend can render it).
