@@ -387,14 +387,19 @@ export function CullingModule({ node }) {
       setDateTo(null);
 
       if (nextRoots.length === 0) {
-        // Bare --clear: empty the list and stop watching. Clear the shared
-        // scope too, so Räkna spelare (or a culling remount) doesn't adopt the
-        // now-discarded selection instead of the intentionally empty workspace.
+        // Bare --clear: empty the list and stop watching. Bump the request seqs
+        // so an in-flight load/stats from the mount-adopt (which fires when this
+        // tab freshly mounts and a prior shared scope exists) is discarded when
+        // it returns — otherwise it would repopulate the just-cleared workspace.
+        ++reqSeqRef.current;
+        ++statsSeqRef.current;
         setFiles([]);
         setCurrentIndex(-1);
         setStats(null);
         setHasRun(false);
         lastQueryRef.current = null;
+        // Clear the shared scope too, so Räkna spelare (or a culling remount)
+        // doesn't adopt the now-discarded selection.
         setScanScope(null);
         updateWatches(new Set());
         return;
