@@ -246,7 +246,7 @@ export function PlayerCountModule() {
               <div className="empty-state">Inga matchande bilder hittades.</div>
             ) : (
               <>
-                <PlayerTable players={result.players} totalImages={totalImages} onPlayerClick={openCullForPlayer} />
+                <PlayerTable players={result.players} baseline={result.baseline} timeRange={result.time_range} onPlayerClick={openCullForPlayer} />
                 <ExcludedSections excluded={result.excluded} />
                 {perMatch && result.matches?.length > 0 && (
                   <MatchSections matches={result.matches} onPlayerClick={openCullForPlayer} />
@@ -279,8 +279,54 @@ function ResultSummary({ result }) {
   );
 }
 
-function PlayerTable({ players, totalImages, onPlayerClick }) {
+// Bin timestamps into `bins` density buckets across the [start, end] window.
+// Returns null when there's nothing to show. Pure (unit-tested).
+export function binTimestamps(timestamps, start, end, bins = 24) {
+  if (!timestamps || timestamps.length === 0 || !start || !end) return null;
+  const t0 = new Date(start).getTime();
+  const t1 = new Date(end).getTime();
+  if (Number.isNaN(t0) || Number.isNaN(t1)) return null;
+  const span = Math.max(1, t1 - t0);
+  const counts = new Array(bins).fill(0);
+  for (const ts of timestamps) {
+    const t = new Date(ts).getTime();
+    if (Number.isNaN(t)) continue;
+    let idx = Math.floor(((t - t0) / span) * bins);
+    if (idx < 0) idx = 0;
+    if (idx >= bins) idx = bins - 1;
+    counts[idx] += 1;
+  }
+  return counts;
+}
+
+// Temporal sparkline: a tiny density histogram of the player's timestamps across
+// the [start, end] window, mirroring the CLI's spark column (when were this
+// player's images taken across the session/match).
+function Spark({ timestamps, start, end, bins = 24 }) {
+  const counts = binTimestamps(timestamps, start, end, bins);
+  if (!counts) {
+    return <span className="player-spark player-spark-empty" />;
+  }
+  const max = Math.max(1, ...counts);
+  return (
+    <span className="player-spark" title={`${timestamps.length} bilder över tid`}>
+      {counts.map((c, i) => (
+        <span
+          key={i}
+          className="player-spark-bin"
+          style={{ height: c ? `${Math.max(8, (c / max) * 100)}%` : '0' }}
+        />
+      ))}
+    </span>
+  );
+}
+
+// `timeRange` is { start, end } (the session window, or a match's window) used
+// for the spark; `baseline` anchors the distribution bar at 50% of the track,
+// mirroring the CLI's baseline-relative bar (at-baseline = half-full, 2× = full).
+function PlayerTable({ players, baseline, timeRange, onPlayerClick }) {
   const maxCount = players.reduce((m, p) => Math.max(m, p.count), 1);
+  const ref = baseline > 0 ? baseline : maxCount; // bar reference (baseline → 50%)
   return (
     <table className="player-count-table">
       <thead>
@@ -289,7 +335,9 @@ function PlayerTable({ players, totalImages, onPlayerClick }) {
           <th className="num">Antal</th>
           <th className="num">%</th>
           <th className="num">Δ%</th>
+          <th className="num">ΔN</th>
           <th className="bar-col">Fördelning</th>
+          <th className="spark-col">Tidslinje</th>
         </tr>
       </thead>
       <tbody>
@@ -306,13 +354,20 @@ function PlayerTable({ players, totalImages, onPlayerClick }) {
             <td className={`num delta delta-${p.level}`}>
               {p.delta_pct > 0 ? '+' : ''}{p.delta_pct}%
             </td>
+            <td className={`num delta delta-${p.level}`}>
+              {p.delta_n > 0 ? '+' : ''}{Math.round(p.delta_n)}
+            </td>
             <td className="bar-col">
               <div className="player-bar-track">
+                <div className="player-bar-baseline" title={`Baslinje ${baseline}`} />
                 <div
                   className={`player-bar-fill level-${p.level}`}
-                  style={{ width: `${(p.count / maxCount) * 100}%` }}
+                  style={{ width: `${Math.min(100, (p.count / (ref * 2)) * 100)}%` }}
                 />
               </div>
+            </td>
+            <td className="spark-col">
+              <Spark timestamps={p.timestamps} start={timeRange?.start} end={timeRange?.end} />
             </td>
           </tr>
         ))}
@@ -360,7 +415,7 @@ function MatchSections({ matches, onPlayerClick }) {
             Match {m.index} — {fmtDateTime(m.start)} → {fmtTime(m.end)} ({Math.round(m.duration_minutes)} min, {m.total_images} bilder)
           </summary>
           {m.players.length > 0 ? (
-            <PlayerTable players={m.players} totalImages={m.total_images} onPlayerClick={onPlayerClick} />
+            <PlayerTable players={m.players} baseline={m.baseline} timeRange={{ start: m.start, end: m.end }} onPlayerClick={onPlayerClick} />
           ) : (
             <div className="empty-state compact">Inga spelare över tröskeln.</div>
           )}
