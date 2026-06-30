@@ -223,6 +223,10 @@ antal.
    (`jpg`/`nef`/`raw`) i balken — `nef`/`raw` används för allmän gallring på
    råfiler innan namn satts (förhandsvisas via NEF→JPG-konvertering;
    spelar-menyn är då tom och du filtrerar på mapp/datum/glob).
+   > **Delat urval:** Räkna spelare och Gallra spelare speglar samma
+   > fil-urval (mappar, globbar, datumspann, filtyp). Öppnar du den ena med
+   > ett urval aktivt i den andra ärvs det automatiskt — du slipper ange om
+   > samma mapp. (Spelar-/namnfiltret i Gallra ärvs inte; Räkna räknar alla.)
 3. Bläddra i fillistan i mitten — `→`/`↓` nästa, `←`/`↑` föregående (`Alt`+pil
    hoppar 10 i taget); bilden visas maximerad till höger. **Högerklicka** en fil
    för en meny med navigering, byt namn, gallra och ångra — varje rad visar sitt
