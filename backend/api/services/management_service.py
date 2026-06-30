@@ -192,6 +192,63 @@ def _pair_separability(
     return round(accuracy, 4), round(margin, 4)
 
 
+def _encoding_hash(entry: dict) -> Optional[str]:
+    """The entry's encoding_hash, computed from the encoding if absent."""
+    h = entry.get("encoding_hash")
+    if h:
+        return h
+    enc = entry.get("encoding")
+    arr = getattr(enc, "tobytes", None)
+    if arr is not None:
+        try:
+            return hashlib.sha1(enc.tobytes()).hexdigest()
+        except (AttributeError, ValueError):
+            return None
+    return None
+
+
+def _redundant_indices(encodings: List, threshold: float, backend_filter: Optional[str]) -> set:
+    """Indices of redundant encodings to remove, keeping one per group.
+
+    An encoding is redundant if it is an exact duplicate (same `encoding_hash`)
+    of an already-kept one, or — when `threshold > 0` — within `threshold` cosine
+    distance of a kept representative (near-duplicate). Manual faces
+    (`encoding is None`), other-backend and unusable entries are always kept.
+    """
+    remove: set = set()
+    seen_hashes: set = set()
+    reps: List[np.ndarray] = []  # kept unit vectors, for near-dup comparison
+    for i, e in enumerate(encodings):
+        if not isinstance(e, dict):
+            continue
+        if backend_filter and e.get("backend", "dlib") != backend_filter:
+            continue
+        if e.get("encoding") is None:  # manual face — never redundant
+            continue
+        h = _encoding_hash(e)
+        if h and h in seen_hashes:
+            remove.add(i)
+            continue
+        unit = None
+        if threshold > 0:
+            arr = np.asarray(e["encoding"], dtype=float)
+            if arr.ndim == 1:
+                norm = np.linalg.norm(arr)
+                if norm >= 1e-6:
+                    unit = arr / norm
+            if unit is not None and any(
+                rv.shape == unit.shape and (1.0 - float(np.dot(rv, unit))) <= threshold
+                for rv in reps
+            ):
+                remove.add(i)
+                continue
+        if h:
+            seen_hashes.add(h)
+        if unit is not None:
+            reps.append(unit)
+    return remove
+
+
 def _load_distinct_pairs() -> set:
     """Load the confirmed-distinct name-pairs as a set of sorted 2-tuples."""
     if not DISTINCT_PAIRS_PATH.exists():
@@ -578,6 +635,67 @@ class ManagementService:
         return {
             "pairs": [{"name_a": a, "name_b": b} for a, b in pairs],
             "count": len(pairs),
+        }
+
+    async def find_redundant_encodings(
+        self, threshold: float = 0.0, backend_filter: Optional[str] = "insightface"
+    ) -> Dict[str, Any]:
+        """Per-person count of redundant encodings (exact, plus near at threshold>0).
+
+        Lists only people that have redundancy. `threshold` is a cosine distance;
+        `0.0` removes only exact (byte-identical) duplicates. Manual faces are
+        never counted. This is the preview for `dedup_people`.
+        """
+        self.reload_database()
+        people = []
+        total_redundant = 0
+        for name, encodings in sorted(self.known_faces.items()):
+            redundant = len(_redundant_indices(encodings, threshold, backend_filter))
+            if redundant:
+                people.append({
+                    "name": name,
+                    "total": len(encodings),
+                    "redundant": redundant,
+                    "kept": len(encodings) - redundant,
+                })
+                total_redundant += redundant
+        return {"people": people, "threshold": threshold, "total_redundant": total_redundant}
+
+    async def dedup_people(
+        self,
+        names: List[str],
+        threshold: float = 0.0,
+        backend_filter: Optional[str] = "insightface",
+        dry_run: bool = False,
+    ) -> Dict[str, Any]:
+        """Remove redundant encodings from the named people, keeping one per group."""
+        self._reload_from_disk()
+        removed_per_person: Dict[str, int] = {}
+        total = 0
+        for name in names:
+            if name not in self.known_faces:
+                continue
+            encs = self.known_faces[name]
+            remove = _redundant_indices(encs, threshold, backend_filter)
+            if not remove:
+                continue
+            removed_per_person[name] = len(remove)
+            total += len(remove)
+            if not dry_run:
+                self.known_faces[name] = [e for i, e in enumerate(encs) if i not in remove]
+
+        if total and not dry_run:
+            self.save()
+        logger.info(
+            f"[ManagementService] Dedup removed {total} redundant encoding(s) "
+            f"from {len(removed_per_person)} people (dry_run={dry_run})"
+        )
+        return {
+            "status": "success",
+            "message": f"Removed {total} redundant encoding(s) from {len(removed_per_person)} people",
+            "removed_per_person": removed_per_person,
+            "total_removed": total,
+            "new_state": await self.get_database_state(),
         }
 
     async def delete_person(self, name: str) -> Dict[str, Any]:

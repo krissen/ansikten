@@ -58,6 +58,13 @@ export function DatabaseManagement() {
   const [distinctPairs, setDistinctPairs] = useState([]);
   const [showExcluded, setShowExcluded] = useState(false);
 
+  // Within-person redundant-encoding dedup
+  const [redundantThreshold, setRedundantThreshold] = useState(0.0);
+  const [scannedThreshold, setScannedThreshold] = useState(0.0); // threshold the list was computed at
+  const [redundantPeople, setRedundantPeople] = useState(null); // null = not run
+  const [scanningRedundant, setScanningRedundant] = useState(false);
+  const [deduping, setDeduping] = useState(false);
+
   // Operation status (loading, success, error) - replaces manual isLoading/status/showSuccess/showError
   const { isLoading, setIsLoading, status, showSuccess, showError } = useOperationStatus();
 
@@ -270,6 +277,57 @@ export function DatabaseManagement() {
   useEffect(() => {
     loadDistinctPairs();
   }, [loadDistinctPairs]);
+
+  /**
+   * Scan for people with redundant (exact / near-identical) encodings.
+   */
+  const handleScanRedundant = useCallback(async () => {
+    setScanningRedundant(true);
+    try {
+      const threshold = Number.isFinite(redundantThreshold) ? redundantThreshold : 0.0;
+      const result = await api.get('/api/v1/management/redundant-encodings', { threshold });
+      setRedundantPeople(result.people);
+      setScannedThreshold(result.threshold); // dedup must use the threshold shown, not the live slider
+      showSuccess(
+        `${result.total_redundant} redundant encoding${result.total_redundant === 1 ? '' : 's'} ` +
+        `across ${result.people.length} ${result.people.length === 1 ? 'person' : 'people'} (≤ ${result.threshold})`
+      );
+    } catch (err) {
+      showError('Redundancy scan failed: ' + err.message);
+    } finally {
+      setScanningRedundant(false);
+    }
+  }, [api, redundantThreshold]);
+
+  /**
+   * Remove redundant encodings from the given people (or all scanned).
+   */
+  const handleDedup = async (names) => {
+    if (deduping || names.length === 0) return;
+    // Count from the previewed list so the confirmation matches what's shown.
+    const nameSet = new Set(names);
+    const totalRedundant = (redundantPeople || [])
+      .filter((p) => nameSet.has(p.name))
+      .reduce((sum, p) => sum + p.redundant, 0);
+    const who = names.length === 1 ? `'${names[0]}'` : `${names.length} people`;
+    if (!confirm(`Remove ${totalRedundant} redundant encoding(s) from ${who}? This cannot be undone.`)) return;
+    setDeduping(true);
+    try {
+      // Use the threshold the previewed list was computed at (not the live slider),
+      // so the dedup removes exactly what was shown.
+      const result = await api.post('/api/v1/management/dedup-people', {
+        names,
+        threshold: scannedThreshold
+      });
+      showSuccess(result.message);
+      setDatabaseState(result.new_state);
+      await handleScanRedundant(); // re-scan to refresh remaining redundancy
+    } catch (err) {
+      showError('Dedup failed: ' + err.message);
+    } finally {
+      setDeduping(false);
+    }
+  };
 
   const handleDelete = async () => {
     const { name } = deleteForm.values;
@@ -612,6 +670,61 @@ export function DatabaseManagement() {
                 </ul>
               )}
             </div>
+          )}
+        </OperationForm>
+
+        {/* Remove redundant encodings within a person */}
+        <OperationForm title="Remove Redundant Encodings">
+          <div className="form-row">
+            <label htmlFor="redundant-threshold">Threshold</label>
+            <input
+              id="redundant-threshold"
+              type="number"
+              min="0"
+              max="1"
+              step="0.01"
+              value={redundantThreshold}
+              onChange={(e) => setRedundantThreshold(parseFloat(e.target.value))}
+              className="db-duplicate-threshold"
+              title="0 = exact duplicates only; higher also removes near-identical encodings"
+            />
+            <button className="btn-action" onClick={handleScanRedundant} disabled={scanningRedundant}>
+              {scanningRedundant ? 'Scanning…' : 'Scan'}
+            </button>
+            {redundantPeople && redundantPeople.length > 0 && (
+              <button
+                className="btn-secondary"
+                onClick={() => handleDedup(redundantPeople.map((p) => p.name))}
+                disabled={deduping || scanningRedundant}
+              >
+                Clean all
+              </button>
+            )}
+          </div>
+          {redundantPeople !== null && (
+            redundantPeople.length === 0 ? (
+              <div className="db-duplicate-empty">No redundant encodings at this threshold.</div>
+            ) : (
+              <ul className="db-duplicate-list">
+                {redundantPeople.map((p) => (
+                  <li key={p.name} className="db-duplicate-row">
+                    <span className="db-duplicate-names">
+                      {p.name}: {p.total} → {p.kept}
+                      <span className="db-duplicate-sep"> ({p.redundant} redundant)</span>
+                    </span>
+                    <span className="db-duplicate-actions">
+                      <button
+                        className="btn-secondary"
+                        onClick={() => handleDedup([p.name])}
+                        disabled={deduping || scanningRedundant}
+                      >
+                        Clean
+                      </button>
+                    </span>
+                  </li>
+                ))}
+              </ul>
+            )
           )}
         </OperationForm>
 
