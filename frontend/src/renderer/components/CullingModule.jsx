@@ -132,6 +132,9 @@ export function CullingModule({ node }) {
   const mainRef = useRef(null);
   const bodyRef = useRef(null);
   const listRef = useRef(null);
+  // Latest isLoading for the global keydown handler, so a cull shortcut can't
+  // trash a file from the previous list while a new query is still resolving.
+  const isLoadingRef = useRef(false);
 
   // Move keyboard focus to the file list so arrow/j-k navigation continues
   // seamlessly after an action that left focus on a control (the player
@@ -140,6 +143,7 @@ export function CullingModule({ node }) {
   const focusList = useCallback(() => {
     listRef.current?.focus({ preventScroll: true });
   }, []);
+  isLoadingRef.current = isLoading;
 
   // The editable glob is a Finder-style basename filter (name_glob) over the
   // resolved files, NOT an independent filesystem glob. The scan source is
@@ -537,9 +541,10 @@ export function CullingModule({ node }) {
           e.preventDefault();
           undoTrash();
         } else if (e.key === 'Backspace') {
-          // Finder convention: ⌘⌫ moves the current file to trash.
+          // Finder convention: ⌘⌫ moves the current file to trash. Ignore while
+          // a query is loading, so it can't trash a stale list's current file.
           e.preventDefault();
-          trashCurrent();
+          if (!isLoadingRef.current) trashCurrent();
         }
         // ⌘↵ (commit name removal) is handled in the capture-phase Enter
         // handler below, so it can stop the event before ReviewModule's
@@ -561,8 +566,10 @@ export function CullingModule({ node }) {
         e.preventDefault();
         setCurrentIndex((i) => Math.max(i - step, 0));
       } else if (!e.altKey && (e.key === 'Delete' || e.key === 'Backspace' || e.key.toLowerCase() === 'x')) {
+        // Ignore the cull shortcut while a query is loading — `files` still
+        // holds the previous filter, so culling now would trash the wrong file.
         e.preventDefault();
-        trashCurrent();
+        if (!isLoadingRef.current) trashCurrent();
       }
     };
     window.addEventListener('keydown', handler);
