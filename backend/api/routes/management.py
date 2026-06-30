@@ -7,7 +7,7 @@ Provides database management operations for the workspace.
 import logging
 from typing import List, Optional
 
-from fastapi import APIRouter, HTTPException
+from fastapi import APIRouter, HTTPException, Query
 from pydantic import BaseModel
 
 from ..services.management_service import management_service
@@ -83,6 +83,20 @@ class OperationResponse(BaseModel):
     files_undone: Optional[List[str]] = None
 
 
+class DuplicatePair(BaseModel):
+    name_a: str
+    name_b: str
+    distance: float
+    count_a: int
+    count_b: int
+
+
+class FindDuplicatesResponse(BaseModel):
+    pairs: List[DuplicatePair]
+    threshold: float
+    people_compared: int
+
+
 class RecentFile(BaseModel):
     """Recently processed file"""
     name: str
@@ -144,6 +158,24 @@ async def get_database_state():
 
     except Exception as e:
         logger.error(f"[Management] Error getting database state: {e}", exc_info=True)
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@router.get("/management/find-duplicates", response_model=FindDuplicatesResponse)
+async def find_duplicates(threshold: float = Query(0.35, ge=0, le=2)):
+    """
+    Find pairs of distinctly-named people whose faces look like the same person.
+
+    Returns centroid-distance candidate pairs (closest first) for review and
+    merge. `threshold` is a cosine distance (lower = stricter; default 0.35).
+    """
+    try:
+        logger.info(f"[Management] Finding duplicate people (threshold={threshold})")
+        result = await management_service.find_duplicate_people(threshold)
+        return FindDuplicatesResponse(**result)
+
+    except Exception as e:
+        logger.error(f"[Management] Error finding duplicates: {e}", exc_info=True)
         raise HTTPException(status_code=500, detail=str(e))
 
 

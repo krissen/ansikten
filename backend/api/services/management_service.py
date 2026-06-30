@@ -13,6 +13,8 @@ import threading
 from pathlib import Path
 from typing import Any, Dict, List, Optional
 
+import numpy as np
+
 # Add parent directory to path to import CLI modules
 sys.path.insert(0, str(Path(__file__).parent.parent.parent))
 
@@ -67,6 +69,50 @@ def _filter_encodings_by_backend(encodings: List, backend: Optional[str]) -> Lis
             filtered.append(entry)
 
     return filtered
+
+
+def _person_centroid(
+    encodings: List, backend_filter: Optional[str]
+) -> Optional[tuple[np.ndarray, int]]:
+    """Unit-sphere centroid of a person's encodings, for cosine comparison.
+
+    Each encoding is L2-normalized before averaging and the mean is projected
+    back onto the unit sphere, mirroring RefinementService's centroid. Manual
+    faces (``encoding is None``) and other-backend / wrong-shape entries are
+    skipped. Returns ``(centroid, n_used)`` or ``None`` when no usable
+    encoding remains (e.g. a person with only manual faces).
+    """
+    vecs: List[np.ndarray] = []
+    dim: Optional[int] = None
+    for e in encodings:
+        if not isinstance(e, dict):
+            continue
+        if backend_filter and e.get("backend", "dlib") != backend_filter:
+            continue
+        enc = e.get("encoding")
+        if enc is None:
+            continue
+        arr = np.asarray(enc, dtype=float)
+        if arr.ndim != 1:
+            continue
+        if dim is None:
+            dim = arr.shape[0]
+        elif arr.shape[0] != dim:
+            # Skip mismatched-shape stragglers; the majority shape wins.
+            continue
+        norm = np.linalg.norm(arr)
+        if norm < 1e-6:
+            continue
+        vecs.append(arr / norm)
+
+    if not vecs:
+        return None
+
+    centroid = np.mean(np.stack(vecs), axis=0)
+    cnorm = np.linalg.norm(centroid)
+    if cnorm < 1e-6:
+        return None
+    return centroid / cnorm, len(vecs)
 
 
 class ManagementService:
@@ -270,6 +316,59 @@ class ManagementService:
             "warning": warning,
             "encodings_by_backend": final_by_backend,
             "new_state": await self.get_database_state(),
+        }
+
+    async def find_duplicate_people(
+        self, threshold: float, backend_filter: Optional[str] = "insightface"
+    ) -> Dict[str, Any]:
+        """Find pairs of distinctly-named people whose faces look like the same person.
+
+        Computes a unit-sphere centroid per person and returns the name-pairs
+        whose centroid cosine distance is ``<= threshold`` — likely the same
+        person stored under two names, candidates for a merge. People with no
+        usable encoding (e.g. only manual faces) are skipped. Pairs are sorted
+        closest-first.
+        """
+        self.reload_database()
+
+        centroids: Dict[str, np.ndarray] = {}
+        counts: Dict[str, int] = {}
+        for name, encodings in self.known_faces.items():
+            result = _person_centroid(encodings, backend_filter)
+            if result is None:
+                continue
+            centroid, n_used = result
+            centroids[name] = centroid
+            counts[name] = n_used
+
+        names = sorted(centroids)
+        pairs: List[Dict[str, Any]] = []
+        for i in range(len(names)):
+            a = names[i]
+            for j in range(i + 1, len(names)):
+                b = names[j]
+                if centroids[a].shape != centroids[b].shape:
+                    continue
+                distance = float(1.0 - np.dot(centroids[a], centroids[b]))
+                if distance <= threshold:
+                    pairs.append({
+                        "name_a": a,
+                        "name_b": b,
+                        "distance": round(distance, 4),
+                        "count_a": counts[a],
+                        "count_b": counts[b],
+                    })
+
+        pairs.sort(key=lambda p: (p["distance"], p["name_a"], p["name_b"]))
+
+        logger.info(
+            f"[ManagementService] Duplicate scan: {len(pairs)} pair(s) "
+            f"<= {threshold} across {len(names)} people"
+        )
+        return {
+            "pairs": pairs,
+            "threshold": threshold,
+            "people_compared": len(names),
         }
 
     async def delete_person(self, name: str) -> Dict[str, Any]:

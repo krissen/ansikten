@@ -34,7 +34,7 @@ GUI-onboarding av CLI-skript (en PR per steg):
     - [x] Uppdatera docs, ifall referenser till gitrepot finns
   - [ ] Lokal mapp-flytt (manuellt: `hitta_ansikten/` → `ansikten/`)
 - [ ] **Backend distance-optimering** - Optimera distansberäkningar för bättre prestanda
-- [ ] **Duplicate cleanup tool** - Verktyg för att hitta och hantera duplicerade ansikten i databasen
+- [x] **Duplicate cleanup tool** (2026-06-29) — "Find Duplicates" i Database Management hittar par av olika namn som troligen är samma person (centroid-cosinusavstånd ≤ justerbar tröskel), sorterade närmast först, och låter dig slå ihop dem med ett klick (Keep A / Keep B → merge-people). `GET /api/v1/management/find-duplicates`. Personer med enbart manuella ansikten (saknar embedding) hoppas över. (Inom-person-dedup av redundanta encodings kvarstår som ev. framtida spår.)
 - [ ] Utveckla smidigare stöd för terminal-interaktion med backend (synkat med frontend)
 - [x] **Landningssida vid uppstart** (2026-06-29) — overlay-tomtläge i FlexLayout-arbetsytan med arbetsflödesknappar (Importera · Byt namn · Granska ansikten · Räkna spelare · Gallra spelare); Import villkoras av kortvolym (pollas), övriga alltid aktiva; försvinner när en modul öppnas eller en bild laddas. Knappar via `FlexLayoutWorkspace.openModule`. Ursprunglig spec:
   - Steg (ordning): **Importera · Byt namn · Granska ansikten** (File Queue/Review) **· Räkna spelare · Gallra spelare**.

@@ -49,6 +49,12 @@ export function DatabaseManagement() {
   const [databaseState, setDatabaseState] = useState(null);
   const [searchTerm, setSearchTerm] = useState('');
 
+  // Duplicate-people detection
+  const [duplicateThreshold, setDuplicateThreshold] = useState(0.35);
+  const [duplicatePairs, setDuplicatePairs] = useState(null); // null = not run yet
+  const [findingDuplicates, setFindingDuplicates] = useState(false);
+  const [mergingPair, setMergingPair] = useState(false);
+
   // Operation status (loading, success, error) - replaces manual isLoading/status/showSuccess/showError
   const { isLoading, setIsLoading, status, showSuccess, showError } = useOperationStatus();
 
@@ -147,6 +153,57 @@ export function DatabaseManagement() {
       mergeForm.reset();
     } catch (err) {
       showError('Merge failed: ' + err.message);
+    }
+  };
+
+  /**
+   * Find pairs of distinctly-named people whose faces look like the same person.
+   */
+  const handleFindDuplicates = useCallback(async () => {
+    setFindingDuplicates(true);
+    try {
+      // Guard against a cleared input (parseFloat('') → NaN), which would
+      // otherwise serialize as threshold=NaN and break the JSON round-trip.
+      const threshold = Number.isFinite(duplicateThreshold) ? duplicateThreshold : 0.35;
+      const result = await api.get('/api/v1/management/find-duplicates', { threshold });
+      setDuplicatePairs(result.pairs);
+      showSuccess(
+        `Found ${result.pairs.length} duplicate candidate${result.pairs.length === 1 ? '' : 's'} ` +
+        `across ${result.people_compared} people (≤ ${result.threshold})`
+      );
+    } catch (err) {
+      showError('Duplicate scan failed: ' + err.message);
+    } finally {
+      setFindingDuplicates(false);
+    }
+  }, [api, duplicateThreshold]);
+
+  /**
+   * Merge one duplicate pair: keep `keepName`, merge the other into it.
+   */
+  const handleMergePair = async (pair, keepName) => {
+    if (mergingPair) return;
+    const dropName = keepName === pair.name_a ? pair.name_b : pair.name_a;
+    if (!confirm(`Merge '${dropName}' into '${keepName}'?`)) return;
+    setMergingPair(true);
+    try {
+      const result = await api.post('/api/v1/management/merge-people', {
+        source_names: [dropName],
+        target_name: keepName,
+        backend_filter: null
+      });
+      let msg = result.message;
+      if (result.warning) msg += `\n⚠️ ${result.warning}`;
+      showSuccess(msg);
+      setDatabaseState(result.new_state);
+      // Re-scan: the dropped name is gone, which invalidates other pairs too.
+      // Buttons stay disabled until this lands so a stale pair can't be merged
+      // against a name this merge just removed (which would resurrect it).
+      await handleFindDuplicates();
+    } catch (err) {
+      showError('Merge failed: ' + err.message);
+    } finally {
+      setMergingPair(false);
     }
   };
 
@@ -391,6 +448,61 @@ export function DatabaseManagement() {
               <button className="btn-action" onClick={handleMerge}>Merge</button>
             </div>
           </div>
+        </OperationForm>
+
+        {/* Find duplicates: distinctly-named people who are likely the same person */}
+        <OperationForm title="Find Duplicates">
+          <div className="form-row">
+            <label htmlFor="dup-threshold">Threshold</label>
+            <input
+              id="dup-threshold"
+              type="number"
+              min="0"
+              max="1"
+              step="0.01"
+              value={duplicateThreshold}
+              onChange={(e) => setDuplicateThreshold(parseFloat(e.target.value))}
+              className="db-duplicate-threshold"
+            />
+            <button
+              className="btn-action"
+              onClick={handleFindDuplicates}
+              disabled={findingDuplicates}
+            >
+              {findingDuplicates ? 'Scanning…' : 'Find'}
+            </button>
+          </div>
+          {duplicatePairs !== null && (
+            duplicatePairs.length === 0 ? (
+              <div className="db-duplicate-empty">No duplicate candidates at this threshold.</div>
+            ) : (
+              <ul className="db-duplicate-list">
+                {duplicatePairs.map((p) => (
+                  <li key={`${p.name_a}|${p.name_b}`} className="db-duplicate-row">
+                    <span className="db-duplicate-names" title={`Centroid distance ${p.distance}`}>
+                      {p.name_a} ({p.count_a}) ⟷ {p.name_b} ({p.count_b}) · {p.distance.toFixed(2)}
+                    </span>
+                    <span className="db-duplicate-actions">
+                      <button
+                        className="btn-secondary"
+                        onClick={() => handleMergePair(p, p.name_a)}
+                        disabled={mergingPair || findingDuplicates}
+                      >
+                        Keep {p.name_a}
+                      </button>
+                      <button
+                        className="btn-secondary"
+                        onClick={() => handleMergePair(p, p.name_b)}
+                        disabled={mergingPair || findingDuplicates}
+                      >
+                        Keep {p.name_b}
+                      </button>
+                    </span>
+                  </li>
+                ))}
+              </ul>
+            )
+          )}
         </OperationForm>
 
         {/* 3. Delete */}
