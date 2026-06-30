@@ -53,6 +53,7 @@ export function DatabaseManagement() {
   const [duplicateThreshold, setDuplicateThreshold] = useState(0.35);
   const [duplicatePairs, setDuplicatePairs] = useState(null); // null = not run yet
   const [findingDuplicates, setFindingDuplicates] = useState(false);
+  const [mergingPair, setMergingPair] = useState(false);
 
   // Operation status (loading, success, error) - replaces manual isLoading/status/showSuccess/showError
   const { isLoading, setIsLoading, status, showSuccess, showError } = useOperationStatus();
@@ -161,9 +162,10 @@ export function DatabaseManagement() {
   const handleFindDuplicates = useCallback(async () => {
     setFindingDuplicates(true);
     try {
-      const result = await api.get('/api/v1/management/find-duplicates', {
-        threshold: duplicateThreshold
-      });
+      // Guard against a cleared input (parseFloat('') → NaN), which would
+      // otherwise serialize as threshold=NaN and break the JSON round-trip.
+      const threshold = Number.isFinite(duplicateThreshold) ? duplicateThreshold : 0.35;
+      const result = await api.get('/api/v1/management/find-duplicates', { threshold });
       setDuplicatePairs(result.pairs);
       showSuccess(
         `Found ${result.pairs.length} duplicate candidate${result.pairs.length === 1 ? '' : 's'} ` +
@@ -180,8 +182,10 @@ export function DatabaseManagement() {
    * Merge one duplicate pair: keep `keepName`, merge the other into it.
    */
   const handleMergePair = async (pair, keepName) => {
+    if (mergingPair) return;
     const dropName = keepName === pair.name_a ? pair.name_b : pair.name_a;
     if (!confirm(`Merge '${dropName}' into '${keepName}'?`)) return;
+    setMergingPair(true);
     try {
       const result = await api.post('/api/v1/management/merge-people', {
         source_names: [dropName],
@@ -193,9 +197,13 @@ export function DatabaseManagement() {
       showSuccess(msg);
       setDatabaseState(result.new_state);
       // Re-scan: the dropped name is gone, which invalidates other pairs too.
+      // Buttons stay disabled until this lands so a stale pair can't be merged
+      // against a name this merge just removed (which would resurrect it).
       await handleFindDuplicates();
     } catch (err) {
       showError('Merge failed: ' + err.message);
+    } finally {
+      setMergingPair(false);
     }
   };
 
@@ -475,10 +483,18 @@ export function DatabaseManagement() {
                       {p.name_a} ({p.count_a}) ⟷ {p.name_b} ({p.count_b}) · {p.distance.toFixed(2)}
                     </span>
                     <span className="db-duplicate-actions">
-                      <button className="btn-secondary" onClick={() => handleMergePair(p, p.name_a)}>
+                      <button
+                        className="btn-secondary"
+                        onClick={() => handleMergePair(p, p.name_a)}
+                        disabled={mergingPair || findingDuplicates}
+                      >
                         Keep {p.name_a}
                       </button>
-                      <button className="btn-secondary" onClick={() => handleMergePair(p, p.name_b)}>
+                      <button
+                        className="btn-secondary"
+                        onClick={() => handleMergePair(p, p.name_b)}
+                        disabled={mergingPair || findingDuplicates}
+                      >
                         Keep {p.name_b}
                       </button>
                     </span>

@@ -7,7 +7,7 @@ Provides database management operations for the workspace.
 import logging
 from typing import List, Optional
 
-from fastapi import APIRouter, HTTPException
+from fastapi import APIRouter, HTTPException, Query
 from pydantic import BaseModel
 
 from ..services.management_service import management_service
@@ -162,7 +162,7 @@ async def get_database_state():
 
 
 @router.get("/management/find-duplicates", response_model=FindDuplicatesResponse)
-async def find_duplicates(threshold: float = 0.35):
+async def find_duplicates(threshold: float = Query(0.35, ge=0, le=2)):
     """
     Find pairs of distinctly-named people whose faces look like the same person.
 
