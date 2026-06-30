@@ -175,6 +175,8 @@ User configuration overrides.
 | `auto_ignore` | `false` | Auto-ignore unmatched faces |
 | `image_viewer_app` | `"Ansikten"` | External preview app |
 | `trash_retention_days` | `30` | Auto-purge culling-trash files older than N days (`0` = keep forever). Editable under Preferences → Files → Trash (Gallra). |
+| `twin_margin` | `0.1` | When the top-2 candidates are a confirmed-distinct pair within this cosine distance, break the tie with a k-NN vote. |
+| `twin_knn_k` | `5` | Neighbours in the twin-disambiguation k-NN vote (effective `k = min(this, photos per person)`). |
 
 > **Note:** dlib backend is deprecated since January 2026. Existing dlib encodings are automatically removed at server startup.
 

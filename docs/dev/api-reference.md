@@ -85,7 +85,8 @@ Detect faces in an image.
       "match_alternatives": [
         { "name": "Anna", "distance": 0.35, "confidence": 78, "is_ignored": false }
       ],
-      "encoding_hash": "sha1..."
+      "encoding_hash": "sha1...",
+      "disambiguated": null
     }
   ],
   "processing_time_ms": 123.4,
@@ -93,6 +94,13 @@ Detect faces in an image.
   "file_hash": "sha1..."
 }
 ```
+
+`disambiguated` is normally `null`. When the top-2 candidates are a registered
+confirmed-distinct pair (see `distinct-pairs`) and nearly equidistant from the
+probe (within `twin_margin`), a k-NN vote over both people's confirmed photos
+re-decides the suggested name and this field records it:
+`{ "between": ["Wilmer", "Maximilian"], "chosen": "Wilmer", "method": "knn", "k": 5 }`.
+Tuned by `twin_margin` / `twin_knn_k` in `config.json`.
 
 ### `GET /face-thumbnail`
 
