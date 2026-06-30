@@ -355,7 +355,7 @@ function PlayerTable({ players, baseline, timeRange, onPlayerClick }) {
               {p.delta_pct > 0 ? '+' : ''}{p.delta_pct}%
             </td>
             <td className={`num delta delta-${p.level}`}>
-              {p.delta_n > 0 ? '+' : ''}{p.delta_n}
+              {p.delta_n > 0 ? '+' : ''}{Math.round(p.delta_n)}
             </td>
             <td className="bar-col">
               <div className="player-bar-track">
