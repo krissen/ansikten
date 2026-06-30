@@ -83,7 +83,9 @@ Workspace är ett modulärt gränssnitt byggt med FlexLayout. Paneler kan dockas
 | Genväg | Funktion |
 |--------|----------|
 | `↑` / `↓` (`k` / `j`) | Föregående/nästa bild i listan |
-| `x` / `Delete` | Flytta bilden till papperskorgen och gå vidare |
+| `x` / `Delete` / `Cmd+⌫` | Flytta bilden till papperskorgen och gå vidare (`Cmd+⌫` följer Finder) |
+| `Enter` | Byt namn på filen manuellt (eller dubbelklicka) |
+| `Cmd+Enter` | Tillämpa avbockade namn från förhandsvisningen (döper om filen) |
 | `Cmd+Z` | Ångra (återställ senast gallrade bild) |
 
 ### Allmänt
@@ -229,12 +231,18 @@ antal.
    Längst till vänster visas en **levande spelarräkning** för det aktuella
    urvalet som uppdateras direkt när du gallrar — så du ser hur varje spelares
    antal förändras. Tryck `x` (eller `Delete`) för att flytta bilden till
-   papperskorgen och gå vidare. `Cmd+Z` ångrar.
+   papperskorgen och gå vidare (`Cmd+⌫` fungerar också, à la Finder). `Cmd+Z`
+   ångrar.
    - **Byt namn på en fil:** tryck `Enter` på markerad fil (eller dubbelklicka)
      för att redigera filnamnet direkt i listan (filändelsen behålls). `Enter`
      bekräftar, `Esc` avbryter. Användbart när en utvecklad jpg har beskurits så
      att en namngiven spelare inte längre är med i bild. `.xmp`-sidecars följer
      med, och befintliga filnamn skrivs aldrig över.
+   - **Snabb bortbockning av namn:** överst i förhandsvisningen visas filens
+     namn som ikryssade chips. Bocka av ett namn för att förhandsvisa filnamnet
+     utan det (förhandsvisningen får en avvikande bakgrund så länge den inte är
+     sparad); `Cmd+Enter` döper om filen på riktigt. Snabbare än manuell
+     redigering när bara en spelare ska bort ur ett beskuret foto.
 4. Papperskorgen (knappen **Papperskorg**) listar gallrade bilder och återställer
    dem till ursprungsplatsen, eller tömmer permanent. En filtypsmeny (Alla / jpg /
    nef-raw) låter dig granska och återställa JPEG och råfiler separat; **Töm**

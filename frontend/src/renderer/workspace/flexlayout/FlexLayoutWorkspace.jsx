@@ -106,8 +106,9 @@ const SHORTCUT_SECTIONS = [
       { keys: ['→', '↓'], desc: 'Next image', sep: ' / ' },
       { keys: ['←', '↑'], desc: 'Previous image', sep: ' / ' },
       { keys: ['Alt', '←→↑↓'], desc: 'Page (jump 10)' },
-      { keys: ['X', 'Delete'], desc: 'Cull to trash', sep: ' / ' },
+      { keys: ['X', 'Delete', 'Cmd+⌫'], desc: 'Cull to trash', sep: ' / ' },
       { keys: ['Enter'], desc: 'Rename file (double-click)' },
+      { keys: ['Cmd', 'Enter'], desc: 'Apply name removals from preview' },
       { keys: ['Cmd', 'Z'], desc: 'Undo last cull' }
     ]
   },

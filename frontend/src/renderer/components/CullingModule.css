@@ -328,11 +328,99 @@
 .culling-preview {
   flex: 1;
   min-width: 0;
+  position: relative;
   display: flex;
   align-items: center;
   justify-content: center;
   background: var(--bg-primary);
   overflow: hidden;
+}
+
+/* Name-toggle overlay: pinned to the top of the preview, horizontally centered.
+   Uncheck a name to preview the filename without it; ⌘↵ commits the rename. */
+.culling-name-overlay {
+  position: absolute;
+  top: 12px;
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 5;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 6px;
+  max-width: calc(100% - 24px);
+  padding: 8px 10px;
+  border-radius: 8px;
+  background: color-mix(in srgb, var(--bg-secondary) 88%, transparent);
+  border: 1px solid var(--border-subtle);
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.25);
+}
+
+.culling-name-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  justify-content: center;
+}
+
+.culling-name-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 2px 8px;
+  border-radius: 12px;
+  background: var(--bg-tertiary, var(--bg-primary));
+  border: 1px solid var(--border-subtle);
+  font-size: 0.85em;
+  cursor: pointer;
+  user-select: none;
+}
+
+.culling-name-chip input { cursor: pointer; margin: 0; }
+
+/* A toggled-off name is struck through and dimmed to read as "will be removed". */
+.culling-name-chip.removed {
+  opacity: 0.55;
+}
+.culling-name-chip.removed span {
+  text-decoration: line-through;
+}
+
+.culling-name-preview {
+  font-size: 0.8em;
+  font-variant-numeric: tabular-nums;
+  color: var(--text-secondary);
+  padding: 2px 6px;
+  border-radius: 5px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+/* Pending (uncommitted) preview gets a distinct, warning-tinted background. */
+.culling-name-preview.pending {
+  background: color-mix(in srgb, var(--warning, #d9a441) 22%, transparent);
+  color: var(--text-primary);
+}
+
+.culling-name-preview-hint {
+  display: inline-flex;
+  align-items: center;
+  gap: 2px;
+  white-space: nowrap;
+  color: var(--text-secondary);
+}
+
+.culling-name-preview-hint kbd {
+  min-width: 16px;
+  padding: 0 var(--space-xs);
+  text-align: center;
+  font-family: var(--font-mono);
+  font-size: var(--font-sm);
+  color: var(--text-secondary);
+  background: var(--bg-active);
+  border: 1px solid var(--border-strong);
+  border-radius: var(--radius-sm);
 }
 
 .culling-image {

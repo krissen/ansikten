@@ -13,6 +13,7 @@
 import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { useBackend } from '../context/BackendContext.jsx';
 import { useModuleEvent } from '../hooks/useModuleEvent.js';
+import { namesInBasename, removeNamesFromBasename } from './culling-names.js';
 import './CullingModule.css';
 
 const REFRESH_DEBOUNCE_MS = 400;
@@ -463,17 +464,33 @@ export function CullingModule({ node }) {
   useEffect(() => {
     const handler = (e) => {
       if (node && !node.isVisible?.()) return;
-      const tag = e.target?.tagName;
-      if (tag === 'INPUT' || tag === 'SELECT' || tag === 'TEXTAREA') return;
       if (showTrash) return;
+      const target = e.target;
+      const tag = target?.tagName;
+      // Text entry (rename field, glob, dropdown) swallows keys; a checkbox in
+      // the name overlay does not — Cmd shortcuts still work while it's focused.
+      const isTextField =
+        (tag === 'INPUT' && target.type !== 'checkbox') ||
+        tag === 'TEXTAREA' ||
+        tag === 'SELECT';
 
-      if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === 'z') {
-        e.preventDefault();
-        undoTrash();
+      if (e.metaKey || e.ctrlKey) {
+        if (isTextField) return; // let text fields handle Cmd-combos natively
+        if (e.key.toLowerCase() === 'z') {
+          e.preventDefault();
+          undoTrash();
+        } else if (e.key === 'Backspace') {
+          // Finder convention: ⌘⌫ moves the current file to trash.
+          e.preventDefault();
+          trashCurrent();
+        }
+        // ⌘↵ (commit name removal) is handled in the capture-phase Enter
+        // handler below, so it can stop the event before ReviewModule's
+        // document handler treats it as confirming a face.
         return;
       }
-      // Alt is allowed (it pages); Cmd/Ctrl are not.
-      if (e.metaKey || e.ctrlKey) return;
+
+      if (tag === 'INPUT' || tag === 'SELECT' || tag === 'TEXTAREA') return;
 
       // Next: →/↓/j, Previous: ←/↑/k. Alt+direction pages by PAGE_STEP.
       const step = e.altKey ? PAGE_STEP : 1;
@@ -492,17 +509,23 @@ export function CullingModule({ node }) {
     return () => window.removeEventListener('keydown', handler);
   }, [node, files.length, showTrash, trashCurrent, undoTrash]);
 
-  // Enter starts inline rename of the selected file (Finder muscle memory).
-  // Handled on document in the CAPTURE phase so it preempts other modules'
-  // document-level Enter handlers (e.g. ReviewModule confirming a face) — a
-  // window/bubble listener would fire too late. Only acts when culling is the
-  // active tabset, so an inactive culling panel never steals Enter.
+  // Enter handling for culling, on document in the CAPTURE phase so it preempts
+  // other modules' document-level Enter handlers (e.g. ReviewModule confirming a
+  // face) — a window/bubble listener would fire too late. Plain Enter starts an
+  // inline rename; Cmd/Ctrl+Enter commits the previewed name removal. BOTH must
+  // be claimed here (stopImmediatePropagation) when culling is the active
+  // tabset, so a modified Enter can't also reach Review and silently confirm a
+  // face. Only acts when culling is the active tabset, so an inactive culling
+  // panel never steals Enter.
   useEffect(() => {
     const onEnterCapture = (e) => {
       if (e.key !== 'Enter') return;
       if (node && !node.isVisible?.()) return;
       const tag = e.target?.tagName;
-      if (tag === 'INPUT' || tag === 'SELECT' || tag === 'TEXTAREA') return;
+      // Text fields (rename input, glob, dropdown) handle Enter themselves and
+      // already stop their own propagation; don't intercept them. A checkbox in
+      // the name overlay is fine to intercept.
+      if ((tag === 'INPUT' && e.target.type !== 'checkbox') || tag === 'TEXTAREA' || tag === 'SELECT') return;
       if (showTrash || currentIndex < 0) return;
       const activeTabsetId = node?.getModel?.().getActiveTabset?.()?.getId?.();
       const myTabsetId = node?.getParent?.()?.getId?.();
@@ -510,7 +533,8 @@ export function CullingModule({ node }) {
       e.preventDefault();
       e.stopPropagation();
       e.stopImmediatePropagation?.();
-      beginEdit(currentIndex);
+      if (e.metaKey || e.ctrlKey) commitNameToggleRef.current?.();
+      else beginEdit(currentIndex);
     };
     document.addEventListener('keydown', onEnterCapture, true);
     return () => document.removeEventListener('keydown', onEnterCapture, true);
@@ -654,6 +678,49 @@ export function CullingModule({ node }) {
       ? trashItems
       : trashItems.filter((it) => trashGroup(it.basename) === trashFilter);
   const canFilter = roots.length > 0 || glob.trim() !== '';
+
+  // ----- on-the-fly name removal (preview overlay) -------------------
+  // Names the user has toggled off for the current file (cleaned form). The
+  // overlay previews the resulting filename live; Cmd+Enter commits the rename.
+  const [removedNames, setRemovedNames] = useState(() => new Set());
+  // Reset the toggle when the selected file changes — overrides are per file.
+  useEffect(() => { setRemovedNames(new Set()); }, [current?.path]);
+
+  const currentNames = current ? namesInBasename(current.basename) : [];
+  const previewBasename = current && removedNames.size
+    ? (removeNamesFromBasename(current.basename, removedNames) || current.basename)
+    : (current?.basename || '');
+  const namePreviewPending = !!current && previewBasename !== current.basename;
+
+  const toggleName = useCallback((name) => {
+    setRemovedNames((prev) => {
+      const next = new Set(prev);
+      if (next.has(name)) next.delete(name);
+      else next.add(name);
+      return next;
+    });
+  }, []);
+
+  // Commit the previewed name removal as a real rename (Cmd+Enter). Reuses the
+  // same /culling/rename endpoint and refresh path as the inline rename.
+  const commitNameToggle = useCallback(async () => {
+    if (!current || removedNames.size === 0) return;
+    const newBasename = removeNamesFromBasename(current.basename, removedNames);
+    if (!newBasename || newBasename === current.basename) return;
+    const path = current.path;
+    try {
+      await api.post('/api/v1/culling/rename', { path, new_basename: newBasename });
+      setRemovedNames(new Set());
+      if (lastQueryRef.current) loadList(lastQueryRef.current, { keepIndex: true });
+      refreshStatsDebounced();
+    } catch (err) {
+      setError(err.message || String(err));
+    }
+  }, [api, current, removedNames, loadList, refreshStatsDebounced]);
+  // Latest commit fn for the keydown handler without re-subscribing on every
+  // toggle/selection change.
+  const commitNameToggleRef = useRef(null);
+  commitNameToggleRef.current = commitNameToggle;
 
   // Resolve the preview for the current file. RAW is converted via the NEF
   // pipeline; the cancelled guard prevents a slow conversion from painting over
@@ -888,6 +955,35 @@ export function CullingModule({ node }) {
           <div className="culling-divider" onMouseDown={startDrag} />
 
           <div className="culling-preview">
+            {current && currentNames.length > 0 && (
+              <div className="culling-name-overlay">
+                <div className="culling-name-chips">
+                  {currentNames.map((name) => {
+                    const removed = removedNames.has(name);
+                    return (
+                      <label
+                        key={name}
+                        className={`culling-name-chip${removed ? ' removed' : ''}`}
+                        title={removed ? `Lägg tillbaka ${name}` : `Ta bort ${name}`}
+                      >
+                        <input
+                          type="checkbox"
+                          checked={!removed}
+                          onChange={() => toggleName(name)}
+                        />
+                        <span>{name}</span>
+                      </label>
+                    );
+                  })}
+                </div>
+                <div className={`culling-name-preview${namePreviewPending ? ' pending' : ''}`}>
+                  <span className="culling-name-preview-text">{previewBasename}</span>
+                  {namePreviewPending && (
+                    <span className="culling-name-preview-hint"><kbd>⌘</kbd><kbd>↵</kbd> döp om</span>
+                  )}
+                </div>
+              </div>
+            )}
             {!current ? (
               <div className="empty-state">Ingen bild vald.</div>
             ) : previewError ? (
@@ -933,7 +1029,7 @@ export function CullingModule({ node }) {
             const idx = files.findIndex((f) => f.path === menu.path);
             if (idx >= 0) trashIndex(idx);
           }}>
-            <span>Gallra</span><span className="culling-menu-keys"><kbd>X</kbd><kbd>⌦</kbd></span>
+            <span>Gallra</span><span className="culling-menu-keys"><kbd>X</kbd><kbd>⌘</kbd><kbd>⌫</kbd></span>
           </li>
           <li onClick={() => { setMenu(null); undoTrash(); }}>
             <span>Ångra senaste</span><span className="culling-menu-keys"><kbd>⌘</kbd><kbd>Z</kbd></span>
