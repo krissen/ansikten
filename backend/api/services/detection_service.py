@@ -27,6 +27,7 @@ from PIL import Image
 import numpy as np
 
 from .preprocessing_cache import get_cache as get_preprocessing_cache
+from .management_service import _load_distinct_pairs
 
 logger = logging.getLogger(__name__)
 
@@ -241,6 +242,11 @@ class DetectionService:
 
         # Match against database
         results = []
+        # Confirmed-distinct pairs (e.g. twins): load once per image for the
+        # recognition tie-break below.
+        distinct_pairs = _load_distinct_pairs()
+        twin_margin = self.config.get("twin_margin", 0.1)
+        twin_knn_k = self.config.get("twin_knn_k", 5)
         for i, (encoding, location) in enumerate(zip(face_encodings, face_locations)):
             top, right, bottom, left = location
 
@@ -263,6 +269,35 @@ class DetectionService:
 
             # Get match alternatives (top-N)
             match_alternatives = self._match_encoding_alternatives(encoding, top_n=9)
+
+            # Twin tie-break: when the top-2 candidates are a registered
+            # confirmed-distinct pair and nearly equidistant from the probe, the
+            # single-nearest matcher can pick the wrong twin. Re-decide with a
+            # k-NN vote over both people's confirmed faces.
+            disambiguated = None
+            if (distinct_pairs and match_case in ("name", "uncertain_name")
+                    and len(match_alternatives) >= 2):
+                top1, top2 = match_alternatives[0], match_alternatives[1]
+                pair = tuple(sorted((top1["name"], top2["name"])))
+                if (not top1.get("is_ignored") and not top2.get("is_ignored")
+                        and pair in distinct_pairs
+                        and (top2["distance"] - top1["distance"]) <= twin_margin):
+                    chosen = self._disambiguate_distinct_pair(
+                        encoding, top1["name"], top2["name"], twin_knn_k
+                    )
+                    if chosen is not None:
+                        chosen_alt = next((a for a in match_alternatives if a["name"] == chosen), None)
+                        disambiguated = {
+                            "between": [top1["name"], top2["name"]],
+                            "chosen": chosen,
+                            "method": "knn",
+                            "k": min(twin_knn_k,
+                                     len(self._person_match_encodings(top1["name"]))
+                                     + len(self._person_match_encodings(top2["name"]))),
+                        }
+                        best_match = chosen
+                        if chosen_alt is not None:
+                            best_distance = chosen_alt["distance"]
 
             full_encoding_hash = hashlib.sha1(encoding.tobytes()).hexdigest()
             face_id = f"face_{i}_{full_encoding_hash[:16]}"
@@ -294,7 +329,8 @@ class DetectionService:
                 "ignore_distance": float(ignore_distance) if ignore_distance is not None else None,
                 "ignore_confidence": ignore_confidence,
                 "match_alternatives": match_alternatives,
-                "encoding_hash": full_encoding_hash
+                "encoding_hash": full_encoding_hash,
+                "disambiguated": disambiguated
             })
 
         return results, detection_meta
@@ -330,6 +366,46 @@ class DetectionService:
                 best_name = name
 
         return best_name, best_distance
+
+    def _person_match_encodings(self, name: str) -> List[np.ndarray]:
+        """Usable encodings for `name` for the active backend (mirrors _match_encoding)."""
+        out: List[np.ndarray] = []
+        for entry in self.known_faces.get(name, []):
+            if isinstance(entry, dict):
+                enc = entry.get("encoding")
+                be = entry.get("backend", "dlib")
+            else:
+                enc = entry
+                be = "dlib"
+            if enc is not None and be == self.backend.backend_name:
+                out.append(enc)
+        return out
+
+    def _disambiguate_distinct_pair(
+        self, encoding: np.ndarray, name_a: str, name_b: str, k: int
+    ) -> Optional[str]:
+        """Pick between two confirmed-distinct look-alikes via a k-NN vote.
+
+        The default matcher already assigns by the single nearest encoding, so a
+        plain 1-NN tie-break would just repeat it. Here we vote among the probe's
+        k nearest encodings drawn from the *union* of both people's confirmed
+        faces — more robust to one noisy crop. Returns the winning name, or None
+        when either side has no usable encoding or the vote ties.
+        """
+        a_vecs = self._person_match_encodings(name_a)
+        b_vecs = self._person_match_encodings(name_b)
+        if not a_vecs or not b_vecs:
+            return None
+        allv = np.array(a_vecs + b_vecs)
+        labels = np.array([0] * len(a_vecs) + [1] * len(b_vecs))
+        dists = self.backend.compute_distances(allv, encoding)
+        kk = min(k, len(dists))
+        nearest = np.argsort(dists)[:kk]
+        a_votes = int(np.sum(labels[nearest] == 0))
+        b_votes = int(np.sum(labels[nearest] == 1))
+        if a_votes == b_votes:
+            return None
+        return name_a if a_votes > b_votes else name_b
 
     def _match_ignored(self, encoding: np.ndarray) -> Tuple[Optional[int], Optional[float]]:
         """Match encoding against ignored faces database"""
