@@ -466,6 +466,18 @@ ipcMain.handle("get-version-info", () => {
   return versionInfo;
 });
 
+// Launch intent (verb/files/clear) parsed from the command line, read
+// synchronously by the renderer before its first paint so it can skip the
+// startup landing page when the app was launched with a CLI target. Synchronous
+// (sendSync) so there is no render where the landing flashes before we know.
+ipcMain.on("get-launch-intent-sync", (e) => {
+  e.returnValue = {
+    verb: initialArgs.verb,
+    hasFiles: initialArgs.files.length > 0,
+    clear: initialArgs.clear,
+  };
+});
+
 // Get initial file path (if app was launched with a file argument)
 ipcMain.handle("get-initial-file", () => {
   const filePath = initialFilePath;

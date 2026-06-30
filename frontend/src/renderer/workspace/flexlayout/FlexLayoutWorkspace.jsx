@@ -364,8 +364,13 @@ export function FlexLayoutWorkspace() {
   const [ready, setReady] = useState(false);
   const [showShortcutsHelp, setShowShortcutsHelp] = useState(false);
   // Startup landing page: shown on an empty workspace, dismissed once a module
-  // is opened or an image is loaded.
-  const [showLanding, setShowLanding] = useState(true);
+  // is opened or an image is loaded. Skipped entirely when the app was launched
+  // with a CLI target (a verb, file args, or --clear) — the landing is
+  // irrelevant then and would only flash before the target opens.
+  const launchIntent = window.ansiktenAPI?.launchIntent;
+  const hasLaunchIntent = !!launchIntent &&
+    (!!launchIntent.verb || launchIntent.clear || launchIntent.hasFiles);
+  const [showLanding, setShowLanding] = useState(!hasLaunchIntent);
   const moduleAPI = useModuleAPI();
 
   // Initialize model
@@ -574,6 +579,22 @@ export function FlexLayoutWorkspace() {
       model.doAction(Actions.deleteTab(panelId));
       debug('FlexLayout', `Closed panel: ${panelId}`);
     }
+  }, [model]);
+
+  // Close any open tab(s) of a module by its component id, leaving the rest of
+  // the workspace untouched (unlike loadLayout/openModuleSolo, which replace the
+  // whole layout). Returns true if anything was closed.
+  const closeModule = useCallback((moduleId) => {
+    if (!model) return false;
+    const ids = [];
+    model.visitNodes((node) => {
+      if (node.getType() === 'tab' && node.getComponent?.() === moduleId) {
+        ids.push(node.getId());
+      }
+    });
+    ids.forEach((id) => model.doAction(Actions.deleteTab(id)));
+    if (ids.length) debug('FlexLayout', `Closed module: ${moduleId} (${ids.length})`);
+    return ids.length > 0;
   }, [model]);
 
   // Factory function for FlexLayout
@@ -1251,12 +1272,15 @@ export function FlexLayoutWorkspace() {
 
     const offMenuCommand = window.ansiktenAPI.on('menu-command', handleMenuCommand);
 
-    // CLI culling target (`ansikten culling DIR`): open/focus the culling
-    // module, then hand it the folder scope once it has subscribed. Using
-    // waitForListeners avoids a lost-event race on a cold start where the
-    // module hasn't mounted yet — same guard the FileQueue→ImageViewer
-    // handshake uses for 'load-image'.
+    // CLI culling target (`ansikten culling DIR`): close the face-review panel
+    // (culling is a different workflow — Review shouldn't sit in the layout
+    // while culling) and open/focus the culling module as a tab, leaving every
+    // OTHER open tab untouched. Then hand it the folder scope once it has
+    // subscribed. Using waitForListeners avoids a lost-event race on a cold
+    // start where the module hasn't mounted yet — same guard the
+    // FileQueue→ImageViewer handshake uses for 'load-image'.
     const handleOpenCulling = async ({ roots, clear, recursive }) => {
+      closeModule('review-module');
       openModule('culling');
       await moduleAPI.waitForListeners('culling-load', 2000);
       moduleAPI.emit('culling-load', { roots, clear, recursive });
@@ -1275,7 +1299,7 @@ export function FlexLayoutWorkspace() {
       offMenuCommand?.();
       offOpenCulling?.();
     };
-  }, [ready, loadLayout, addTabset, removeEmptyTabset, openModule, moduleAPI, moveToNewTabset]);
+  }, [ready, loadLayout, addTabset, removeEmptyTabset, openModule, closeModule, moduleAPI, moveToNewTabset]);
 
   // Expose workspace API globally for debugging
   useEffect(() => {
