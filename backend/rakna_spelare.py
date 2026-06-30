@@ -16,6 +16,12 @@ from statistics import median, mean
 CONFIG_DIR = Path(os.environ.get("XDG_DATA_HOME", Path.home() / ".local" / "share")) / "faceid"
 CONFIG_FILE = CONFIG_DIR / "rakna_spelare.json"
 
+# Built-in markers that are never individual players and are always excluded
+# from the counts (in addition to any configured names): how the photographer
+# labels team photos and crowd shots when naming individuals isn't meaningful.
+ALWAYS_GRUPP = {"Laget", "FBK"}   # team / group photos → "Gruppbilder"
+ALWAYS_PUBLIK = {"Klacken"}        # crowd / supporters → "Publik"
+
 
 def load_exclusion_config() -> dict[str, list[str]]:
     if CONFIG_FILE.exists():
@@ -24,34 +30,56 @@ def load_exclusion_config() -> dict[str, list[str]]:
                 return json.load(f)
         except (json.JSONDecodeError, IOError):
             pass
-    return {"tranare": [], "publik": []}
+    return {"tranare": [], "publik": [], "grupp": []}
+
+
+def resolve_exclusion_sets(
+    tranare: list[str] | None = None,
+    publik: list[str] | None = None,
+    grupp: list[str] | None = None,
+) -> tuple[set[str], set[str], set[str]]:
+    """Single source of truth for coach/audience/group exclusion sets.
+
+    Per-argument overrides win; otherwise env vars (RAKNA_TRANARE/PUBLIK/GRUPP)
+    then the config file. The built-in ALWAYS_GRUPP/ALWAYS_PUBLIK markers are
+    always merged in, so e.g. Laget/FBK and Klacken are excluded regardless of
+    config. Shared by the CLI and the GUI/API so the numbers never fork.
+    """
+    config = load_exclusion_config()
+
+    def _resolve(key: str, override: list[str] | None, env: str) -> list[str]:
+        if override is not None:
+            return override
+        env_val = os.environ.get(env, "")
+        if env_val:
+            return [n.strip() for n in env_val.split(",") if n.strip()]
+        return list(config.get(key, []))
+
+    tranare_set = set(_resolve("tranare", tranare, "RAKNA_TRANARE"))
+    publik_set = set(_resolve("publik", publik, "RAKNA_PUBLIK")) | ALWAYS_PUBLIK
+    grupp_set = set(_resolve("grupp", grupp, "RAKNA_GRUPP")) | ALWAYS_GRUPP
+    return tranare_set, publik_set, grupp_set
+
+
+def _split_csv(value: str | None) -> list[str] | None:
+    if not value:
+        return None
+    return [n.strip() for n in value.split(",") if n.strip()]
 
 
 def get_exclusion_lists(args: argparse.Namespace) -> tuple[set[str], set[str], set[str]]:
-    config = load_exclusion_config()
-
-    env_tranare = os.environ.get("RAKNA_TRANARE", "")
-    env_publik = os.environ.get("RAKNA_PUBLIK", "")
-
-    if env_tranare:
-        config["tranare"] = [n.strip() for n in env_tranare.split(",") if n.strip()]
-    if env_publik:
-        config["publik"] = [n.strip() for n in env_publik.split(",") if n.strip()]
-
-    if args.tranare:
-        config["tranare"] = [n.strip() for n in args.tranare.split(",") if n.strip()]
+    # --tranare/--publik replace config/env; --add-* extend. The base sets
+    # (config/env + built-in ALWAYS markers) come from the shared resolver, so
+    # the CLI and the GUI/API agree on Laget/FBK/Klacken etc.
+    tranare_set, publik_set, grupp_set = resolve_exclusion_sets(
+        tranare=_split_csv(args.tranare),
+        publik=_split_csv(args.publik),
+    )
     if args.add_tranare:
-        config["tranare"].extend([n.strip() for n in args.add_tranare.split(",") if n.strip()])
-
-    if args.publik:
-        config["publik"] = [n.strip() for n in args.publik.split(",") if n.strip()]
+        tranare_set |= set(_split_csv(args.add_tranare) or [])
     if args.add_publik:
-        config["publik"].extend([n.strip() for n in args.add_publik.split(",") if n.strip()])
-
-    # "Laget" is a group photo, not an individual
-    grupp = {"Laget"}
-
-    return set(config["tranare"]), set(config["publik"]), grupp
+        publik_set |= set(_split_csv(args.add_publik) or [])
+    return tranare_set, publik_set, grupp_set
 
 
 class Colors:
