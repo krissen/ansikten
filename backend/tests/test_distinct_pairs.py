@@ -267,6 +267,27 @@ async def test_undo_file_drops_emptied_person_pair(service):
 
 
 @pytest.mark.asyncio
+async def test_remove_then_recreate_does_not_suppress(service):
+    # The exact case the deletion-time drop targets (and that existence-reconcile
+    # alone would MISS): remove a person, then recreate the same name as someone
+    # who really IS a duplicate of the old partner. The stale exclusion must be
+    # gone so the new duplicate is surfaced, not silently suppressed.
+    base = _unit(0)
+    service.known_faces = {
+        "Wilmer": [_entry(base + 0.02 * _unit(i)) for i in range(1, 6)],
+        "Maximilian": [_entry(base + 0.1 * _unit(99) + 0.02 * _unit(i)) for i in range(10, 15)],
+    }
+    await service.add_distinct_pair("Wilmer", "Maximilian")
+    await service.move_to_ignore("Wilmer")  # removes Wilmer, clears the exclusion
+    # Recreate "Wilmer" as a true duplicate of Maximilian (same cluster).
+    service.known_faces["Wilmer"] = [
+        _entry(base + 0.1 * _unit(99) + 0.02 * _unit(i)) for i in range(20, 25)
+    ]
+    result = await service.find_duplicate_people(0.35)
+    assert any({p["name_a"], p["name_b"]} == {"Wilmer", "Maximilian"} for p in result["pairs"])
+
+
+@pytest.mark.asyncio
 async def test_merge_transfers_distinct_pair_to_target(service):
     # A is distinct from C; merging A into B asserts A≡B, so B inherits "distinct
     # from C" — the exclusion transfers to the canonical name, not dropped.
