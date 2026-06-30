@@ -569,12 +569,17 @@ export function FlexLayoutWorkspace() {
 
     // Find target tabset. getActiveTabset() is undefined until the user clicks a
     // tabset (e.g. a fresh load) or when the previously-active tabset was just
-    // closed — fall back to the first tabset under root so the tab is never
-    // silently dropped.
+    // closed — fall back to the LARGEST tabset by area so the module lands in
+    // the main working area, not a narrow side column (e.g. the 15% Review
+    // column of the default layout), and is never silently dropped.
     let targetTabset = model.getActiveTabset();
     if (!targetTabset) {
+      let bestArea = -1;
       model.visitNodes((node) => {
-        if (!targetTabset && node.getType() === 'tabset') targetTabset = node;
+        if (node.getType() !== 'tabset') return;
+        const rect = node.getRect?.();
+        const area = rect ? rect.width * rect.height : 0;
+        if (area > bestArea) { bestArea = area; targetTabset = node; }
       });
     }
     if (targetTabset) {
