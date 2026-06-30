@@ -356,6 +356,19 @@ class DetectionService:
         except OSError:
             return 0
 
+    def _detection_cache_key(self, file_hash: str) -> str:
+        """Detection-cache key: file hash + registry version (single source of truth
+        so reads and writes can't drift apart)."""
+        return f"{file_hash}@{self._distinct_pairs_version()}"
+
+    def _cached_detection_meta(self, file_hash: Optional[str]) -> Tuple[Dict[str, Any], float]:
+        """(detection_meta, processing_time_ms) from the detection cache, or ({}, 0)."""
+        if file_hash:
+            cached = self.cache.get(self._detection_cache_key(file_hash))
+            if cached:
+                return cached.get("detection_meta", {}), cached.get("processing_time_ms", 0)
+        return {}, 0
+
     def _person_match_encodings(self, name: str) -> List[np.ndarray]:
         """Usable encodings for `name` for the active backend (mirrors _match_encoding)."""
         out: List[np.ndarray] = []
@@ -595,7 +608,7 @@ class DetectionService:
         # Fold the confirmed-distinct registry version into the cache key, so a
         # twin-pair add/remove invalidates stale suggestions for already-viewed
         # photos (matching depends on the registry, not just the file contents).
-        cache_key = f"{file_hash}@{self._distinct_pairs_version()}"
+        cache_key = self._detection_cache_key(file_hash)
         if not force_reprocess and cache_key in self.cache:
             logger.info(f"[DetectionService] Using cached result for: {image_path}")
             self.cache.move_to_end(cache_key)
@@ -1087,13 +1100,10 @@ class DetectionService:
                 "hash": face.get('encoding_hash', '')
             })
 
-        # Get detection metadata from cache if available
-        detection_meta = {}
-        processing_time_ms = 0
-        if file_hash and file_hash in self.cache:
-            cached = self.cache[file_hash]
-            detection_meta = cached.get("detection_meta", {})
-            processing_time_ms = cached.get("processing_time_ms", 0)
+        # Detection metadata from the cache, keyed exactly as detect_faces stores
+        # it (file hash + registry version); otherwise the logged attempt stats
+        # would lose their timing / scale metadata.
+        detection_meta, processing_time_ms = self._cached_detection_meta(file_hash)
 
         # Build attempt info with backend metadata for statistics compatibility
         backend_info = self.backend.get_model_info()

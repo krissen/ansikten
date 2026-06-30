@@ -156,3 +156,24 @@ def test_distinct_pairs_version_changes_with_registry(tmp_path, monkeypatch):
     assert svc._distinct_pairs_version() == 0  # absent → 0
     (tmp_path / "distinct_pairs.json").write_text("[]")
     assert svc._distinct_pairs_version() != 0  # present → mtime-based version
+
+
+def test_cached_detection_meta_uses_composite_key(tmp_path, monkeypatch):
+    # mark_review_complete reads detection metadata via the SAME composite key the
+    # detect cache writes under — not the bare file hash (the issue-002 regression,
+    # which silently logged time_seconds=0 / default scale).
+    import api.services.detection_service as d
+
+    monkeypatch.setattr(d, "DISTINCT_PAIRS_PATH", tmp_path / "distinct_pairs.json")
+    svc = _service()
+    svc.cache = {}
+    h = "abc123"
+    svc.cache[svc._detection_cache_key(h)] = {
+        "detection_meta": {"scale_label": "mid", "scale_px": 4500},
+        "processing_time_ms": 123.0,
+    }
+    assert h not in svc.cache  # nothing stored under the bare hash
+    meta, t = svc._cached_detection_meta(h)
+    assert meta["scale_label"] == "mid" and meta["scale_px"] == 4500 and t == 123.0
+    assert svc._cached_detection_meta(None) == ({}, 0)
+    assert svc._cached_detection_meta("missing") == ({}, 0)
