@@ -173,7 +173,7 @@ export function CullingModule({ node }) {
 
   // ----- listing ------------------------------------------------------
   const loadList = useCallback(
-    async (query, { keepIndex = false } = {}) => {
+    async (query, { keepIndex = false, advancePastPath = null } = {}) => {
       const seq = ++reqSeqRef.current;
       setIsLoading(true);
       try {
@@ -184,6 +184,15 @@ export function CullingModule({ node }) {
         setError(null);
         setCurrentIndex((prev) => {
           if (data.files.length === 0) return -1;
+          // Auto-advance after a rename: position relative to the renamed file
+          // in the RELOADED list, so a file that left a player/glob filter
+          // doesn't cause a skip. Still present → step to the next item; gone
+          // (filtered out) → the next item already slid into prev's slot, stay.
+          if (advancePastPath) {
+            const j = data.files.findIndex((f) => f.path === advancePastPath);
+            const target = j >= 0 ? j + 1 : (prev >= 0 ? prev : 0);
+            return Math.min(target, data.files.length - 1);
+          }
           if (keepIndex && prev >= 0) return Math.min(prev, data.files.length - 1);
           return 0;
         });
@@ -443,14 +452,16 @@ export function CullingModule({ node }) {
 
   const cancelEdit = useCallback(() => setEditPath(null), []);
 
-  // After a successful rename, optionally advance to the next file (user
-  // preference, default on). The index is bumped here; the subsequent
-  // loadList({ keepIndex: true }) clamps it to the reloaded list length.
-  const maybeAdvanceAfterRename = useCallback(() => {
-    if (preferences.get('culling.autoAdvanceAfterRename') !== false) {
-      setCurrentIndex((i) => i + 1);
-    }
-  }, []);
+  // Reload options that auto-advance past the renamed file when the preference
+  // is on (default), else keep the current index. Advance is by file identity
+  // (the new path), resolved against the reloaded list inside loadList, so a
+  // rename that drops the file from a player/glob filter doesn't skip the file
+  // that slides into its slot.
+  const reloadOptsAfterRename = useCallback((newPath) => (
+    preferences.get('culling.autoAdvanceAfterRename') !== false
+      ? { advancePastPath: newPath }
+      : { keepIndex: true }
+  ), []);
 
   const commitEdit = useCallback(async () => {
     const path = editPath;
@@ -463,13 +474,13 @@ export function CullingModule({ node }) {
     if (!next || newBasename === basename(path)) return; // no-op
     try {
       await api.post('/api/v1/culling/rename', { path, new_basename: newBasename });
-      maybeAdvanceAfterRename();
-      if (lastQueryRef.current) loadList(lastQueryRef.current, { keepIndex: true });
+      const newPath = path.slice(0, path.lastIndexOf('/') + 1) + newBasename;
+      if (lastQueryRef.current) loadList(lastQueryRef.current, reloadOptsAfterRename(newPath));
       refreshStatsDebounced();
     } catch (err) {
       setError(err.message || String(err));
     }
-  }, [api, editPath, editValue, loadList, refreshStatsDebounced, maybeAdvanceAfterRename]);
+  }, [api, editPath, editValue, loadList, refreshStatsDebounced, reloadOptsAfterRename]);
 
   // ----- keyboard ----------------------------------------------------
   useEffect(() => {
@@ -722,13 +733,13 @@ export function CullingModule({ node }) {
     try {
       await api.post('/api/v1/culling/rename', { path, new_basename: newBasename });
       setRemovedNames(new Set());
-      maybeAdvanceAfterRename();
-      if (lastQueryRef.current) loadList(lastQueryRef.current, { keepIndex: true });
+      const newPath = path.slice(0, path.lastIndexOf('/') + 1) + newBasename;
+      if (lastQueryRef.current) loadList(lastQueryRef.current, reloadOptsAfterRename(newPath));
       refreshStatsDebounced();
     } catch (err) {
       setError(err.message || String(err));
     }
-  }, [api, current, removedNames, loadList, refreshStatsDebounced, maybeAdvanceAfterRename]);
+  }, [api, current, removedNames, loadList, refreshStatsDebounced, reloadOptsAfterRename]);
   // Latest commit fn for the keydown handler without re-subscribing on every
   // toggle/selection change.
   const commitNameToggleRef = useRef(null);
