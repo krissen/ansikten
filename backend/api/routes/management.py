@@ -81,6 +81,8 @@ class OperationResponse(BaseModel):
     purged_by_backend: Optional[dict] = None
     new_state: Optional[DatabaseState] = None
     files_undone: Optional[List[str]] = None
+    removed_per_person: Optional[dict] = None
+    total_removed: Optional[int] = None
 
 
 class DuplicatePair(BaseModel):
@@ -113,6 +115,25 @@ class DistinctPairEntry(BaseModel):
 class DistinctPairsResponse(BaseModel):
     pairs: List[DistinctPairEntry]
     count: int
+
+
+class PersonRedundancy(BaseModel):
+    name: str
+    total: int
+    redundant: int
+    kept: int
+
+
+class RedundantEncodingsResponse(BaseModel):
+    people: List[PersonRedundancy]
+    threshold: float
+    total_redundant: int
+
+
+class DedupPeopleRequest(BaseModel):
+    names: List[str]
+    threshold: float = 0.0
+    dry_run: bool = False
 
 
 class DistinctPairOperationResponse(BaseModel):
@@ -223,6 +244,30 @@ async def add_distinct_pair(request: DistinctPairRequest):
         raise HTTPException(status_code=400, detail=str(e))
     except Exception as e:
         logger.error(f"[Management] Error adding distinct pair: {e}", exc_info=True)
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@router.get("/management/redundant-encodings", response_model=RedundantEncodingsResponse)
+async def redundant_encodings(threshold: float = Query(0.0, ge=0, le=2)):
+    """Per-person count of redundant encodings (exact, plus near at threshold>0)."""
+    try:
+        result = await management_service.find_redundant_encodings(threshold)
+        return RedundantEncodingsResponse(**result)
+    except Exception as e:
+        logger.error(f"[Management] Error scanning redundant encodings: {e}", exc_info=True)
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@router.post("/management/dedup-people", response_model=OperationResponse)
+async def dedup_people(request: DedupPeopleRequest):
+    """Remove redundant encodings from the named people (keeps one per group)."""
+    try:
+        result = await management_service.dedup_people(
+            request.names, threshold=request.threshold, dry_run=request.dry_run
+        )
+        return OperationResponse(**result)
+    except Exception as e:
+        logger.error(f"[Management] Error deduping people: {e}", exc_info=True)
         raise HTTPException(status_code=500, detail=str(e))
 
 
