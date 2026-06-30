@@ -9,7 +9,6 @@ never fork, and the file resolution with the shared ``file_resolver``.
 """
 
 import logging
-import os
 import sys
 from pathlib import Path
 
@@ -19,7 +18,7 @@ sys.path.insert(0, str(Path(__file__).parent.parent.parent))
 
 from rakna_spelare import (  # noqa: E402
     compute_player_stats,
-    load_exclusion_config,
+    resolve_exclusion_sets,
 )
 
 from .file_resolver import preset_extensions, resolve_files  # noqa: E402
@@ -37,23 +36,12 @@ class PlayerCountService:
     ) -> tuple[set[str], set[str], set[str]]:
         """Resolve coach/audience/group sets.
 
-        Per-request overrides take precedence; otherwise fall back to env +
-        config file (~/.local/share/faceid/rakna_spelare.json) via the CLI's
-        own loader. "Laget" is always treated as a group photo.
+        Delegates to the CLI's shared resolver so the GUI/API and the CLI agree:
+        per-request overrides win, else env (RAKNA_*) / config file, with the
+        built-in ALWAYS markers (Laget/FBK group photos, Klacken audience)
+        always merged in.
         """
-        config = load_exclusion_config()
-
-        env_tranare = os.environ.get("RAKNA_TRANARE", "")
-        env_publik = os.environ.get("RAKNA_PUBLIK", "")
-        if env_tranare:
-            config["tranare"] = [n.strip() for n in env_tranare.split(",") if n.strip()]
-        if env_publik:
-            config["publik"] = [n.strip() for n in env_publik.split(",") if n.strip()]
-
-        tranare_set = set(tranare) if tranare is not None else set(config.get("tranare", []))
-        publik_set = set(publik) if publik is not None else set(config.get("publik", []))
-        grupp_set = {"Laget"}
-        return tranare_set, publik_set, grupp_set
+        return resolve_exclusion_sets(tranare=tranare, publik=publik)
 
     def count(
         self,
