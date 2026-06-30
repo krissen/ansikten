@@ -99,6 +99,14 @@ DEFAULT_CONFIG = {
     # Namn måste vara så här mycket bättre än ignore för att vinna automatiskt
     "prefer_name_margin": 0.15,
 
+    # === Tvilling-disambiguering (bekräftat-olika par, t.ex. tvillingar) ===
+    # När topp-2-kandidaterna är ett registrerat "distinct"-par och deras
+    # avstånd till proben skiljer mindre än detta, bryt oavgjort med k-NN-röstning
+    # över parets bekräftade ansikten istället för enbart närmaste granne.
+    "twin_margin": 0.1,
+    # Antal grannar i k-NN-röstningen (faktiskt k = min(detta, antal per person)).
+    "twin_knn_k": 5,
+
     # === Backend configuration (face recognition engine) ===
     # NOTE: dlib backend is DEPRECATED and no longer supported.
     # Only "insightface" should be used. Existing dlib encodings will be removed.

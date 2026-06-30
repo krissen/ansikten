@@ -1195,19 +1195,27 @@ function FaceCard({ face, index, isActive, imagePath, people, cardRef, inputRef,
       <div className="face-info">
         {/* Match case indicator */}
         {face.is_manual && (
-          <div className="match-case manual">Manual entry</div>
+          <div className="match-case manual">Manuellt tillagd</div>
         )}
         {face.match_case === 'ign' && !face.is_confirmed && (
-          <div className="match-case probable-ignore">Probable ignore</div>
+          <div className="match-case probable-ignore">Trolig ignorering</div>
         )}
         {face.match_case === 'uncertain_ign' && !face.is_confirmed && (
           <div className="match-case uncertain">
-            ign ({face.ignore_confidence}%) / {face.person_name || face.match_alternatives?.[0]?.name || 'Unknown'}
+            ign ({face.ignore_confidence}%) / {face.person_name || face.match_alternatives?.[0]?.name || 'Okänd'}
           </div>
         )}
         {face.match_case === 'uncertain_name' && !face.is_confirmed && (
           <div className="match-case uncertain">
-            {face.person_name || face.match_alternatives?.[0]?.name || 'Unknown'} / ign ({face.ignore_confidence}%)
+            {face.person_name || face.match_alternatives?.[0]?.name || 'Okänd'} / ign ({face.ignore_confidence}%)
+          </div>
+        )}
+        {face.disambiguated && !face.is_confirmed && (
+          <div
+            className="match-case twin-disambig"
+            title={`Lika ansikten ${face.disambiguated.between.join(' / ')} — valt via k-NN-röstning över bekräftade foton`}
+          >
+            Tvilling-särskiljning → {face.disambiguated.chosen}
           </div>
         )}
       </div>

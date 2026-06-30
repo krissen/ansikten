@@ -36,7 +36,7 @@ GUI-onboarding av CLI-skript (en PR per steg):
 - [ ] **Backend distance-optimering** - Optimera distansberäkningar för bättre prestanda
 - [x] **Duplicate cleanup tool** (2026-06-29) — "Find Duplicates" i Database Management hittar par av olika namn som troligen är samma person (centroid-cosinusavstånd ≤ justerbar tröskel), sorterade närmast först, och låter dig slå ihop dem med ett klick (Keep A / Keep B → merge-people). `GET /api/v1/management/find-duplicates`. Personer med enbart manuella ansikten (saknar embedding) hoppas över.
   - [x] **Tvilling-medveten detektion** (2026-06-30) — head-to-head-separerbarhet (1-NN LOO) per par flaggar "likely distinct" (olika personer som liknar varandra, t.ex. tvillingar Wilmer/Maximilian Björneholt) och sorterar dem sist; "Not a duplicate" persisterar paret i `distinct_pairs.json` (registry) så framtida scans hoppar över det, med ångra-lista. `GET/POST /api/v1/management/distinct-pair(s)`.
-  - [ ] **Igenkännings-disambiguering (PR B)** — använd registret för k-NN head-to-head tie-break i matchningen (`detection_service`) när topp-2 är ett bekräftat-olika par och oklart. Egen PR.
+  - [x] **Igenkännings-disambiguering (PR B)** (2026-06-30) — `detection_service` bryter oavgjort med k-NN-röstning över parets bekräftade ansikten när topp-2 är ett registrerat bekräftat-olika par inom `twin_margin`; resultatet får ett `disambiguated`-fält och Review visar "Twin tie-break → namn". Config: `twin_margin`, `twin_knn_k`.
   - [ ] **Inom-person-dedup (PR C)** — hitta/ta bort redundanta (exakt/nära-identiska) encodings inom samma person. Egen PR.
 - [ ] Utveckla smidigare stöd för terminal-interaktion med backend (synkat med frontend)
 - [x] **Landningssida vid uppstart** (2026-06-29) — overlay-tomtläge i FlexLayout-arbetsytan med arbetsflödesknappar (Importera · Byt namn · Granska ansikten · Räkna spelare · Gallra spelare); Import villkoras av kortvolym (pollas), övriga alltid aktiva; försvinner när en modul öppnas eller en bild laddas. Knappar via `FlexLayoutWorkspace.openModule`. Ursprunglig spec:
@@ -84,6 +84,8 @@ GUI-onboarding av CLI-skript (en PR per steg):
 
 - [x] ~~Inga visuella indikatorer för tangentbordsgenvägar i UI~~ (2026-01-11, ? shows shortcuts with active module highlighted)
 - [x] ~~Saknas undo/redo för ansiktsbekräftelser~~ (2026-01-11, Cmd+Z undo, ESC cancels detection)
+- [x] ~~Lokalisera ReviewModule match-case-etiketter till svenska~~ (2026-06-30) — `Manuellt tillagd`, `Trolig ignorering`, `Okänd`, `Tvilling-särskiljning` (kvar: `ign` som domän-förkortning).
+- [ ] **Resterande engelska strängar i ReviewModule** — bekräftelsedialoger (`Confirm name change`, `Best match`, `You chose…`) och status-toaster är fortfarande på engelska; bör översättas till svenska (egen i18n-PR, bredare svep än match-case-blocket).
 
 ---
 

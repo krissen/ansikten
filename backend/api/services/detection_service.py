@@ -27,6 +27,7 @@ from PIL import Image
 import numpy as np
 
 from .preprocessing_cache import get_cache as get_preprocessing_cache
+from .management_service import _load_distinct_pairs, DISTINCT_PAIRS_PATH
 
 logger = logging.getLogger(__name__)
 
@@ -241,6 +242,9 @@ class DetectionService:
 
         # Match against database
         results = []
+        # Confirmed-distinct pairs (e.g. twins): load once per image for the
+        # recognition tie-break below.
+        distinct_pairs = _load_distinct_pairs()
         for i, (encoding, location) in enumerate(zip(face_encodings, face_locations)):
             top, right, bottom, left = location
 
@@ -263,6 +267,19 @@ class DetectionService:
 
             # Get match alternatives (top-N)
             match_alternatives = self._match_encoding_alternatives(encoding, top_n=9)
+
+            # Twin tie-break: when the top-2 candidates are a registered
+            # confirmed-distinct pair and nearly equidistant from the probe, the
+            # single-nearest matcher can pick the wrong twin. Re-decide with a
+            # k-NN vote over both people's confirmed faces.
+            disambiguated = None
+            disamb = self._maybe_disambiguate_twins(
+                encoding, match_alternatives, match_case, distinct_pairs
+            )
+            if disamb is not None:
+                best_match, chosen_distance, match_alternatives, disambiguated = disamb
+                if chosen_distance is not None:
+                    best_distance = chosen_distance
 
             full_encoding_hash = hashlib.sha1(encoding.tobytes()).hexdigest()
             face_id = f"face_{i}_{full_encoding_hash[:16]}"
@@ -294,7 +311,8 @@ class DetectionService:
                 "ignore_distance": float(ignore_distance) if ignore_distance is not None else None,
                 "ignore_confidence": ignore_confidence,
                 "match_alternatives": match_alternatives,
-                "encoding_hash": full_encoding_hash
+                "encoding_hash": full_encoding_hash,
+                "disambiguated": disambiguated
             })
 
         return results, detection_meta
@@ -330,6 +348,119 @@ class DetectionService:
                 best_name = name
 
         return best_name, best_distance
+
+    def _distinct_pairs_version(self) -> int:
+        """Registry version for cache keys: the file's mtime (ns), or 0 if absent."""
+        try:
+            return DISTINCT_PAIRS_PATH.stat().st_mtime_ns
+        except OSError:
+            return 0
+
+    def _detection_cache_key(self, file_hash: str) -> str:
+        """Detection-cache key: file hash + registry version (single source of truth
+        so reads and writes can't drift apart)."""
+        return f"{file_hash}@{self._distinct_pairs_version()}"
+
+    def _cached_detection_meta(self, file_hash: Optional[str]) -> Tuple[Dict[str, Any], float]:
+        """(detection_meta, processing_time_ms) from the detection cache, or ({}, 0)."""
+        if file_hash:
+            cached = self.cache.get(self._detection_cache_key(file_hash))
+            if cached:
+                return cached.get("detection_meta", {}), cached.get("processing_time_ms", 0)
+        return {}, 0
+
+    def _person_match_encodings(self, name: str) -> List[np.ndarray]:
+        """Usable encodings for `name` for the active backend (mirrors _match_encoding)."""
+        out: List[np.ndarray] = []
+        for entry in self.known_faces.get(name, []):
+            if isinstance(entry, dict):
+                enc = entry.get("encoding")
+                be = entry.get("backend", "dlib")
+            else:
+                enc = entry
+                be = "dlib"
+            if enc is not None and be == self.backend.backend_name:
+                out.append(enc)
+        return out
+
+    def _maybe_disambiguate_twins(
+        self,
+        encoding: np.ndarray,
+        match_alternatives: List[Dict[str, Any]],
+        match_case: Optional[str],
+        distinct_pairs: set,
+    ) -> Optional[Tuple[str, Optional[float], List[Dict[str, Any]], Dict[str, Any]]]:
+        """Apply the twin tie-break to one face, if it qualifies.
+
+        Returns ``(chosen, chosen_distance, reordered_alternatives, info)`` when
+        the top-2 candidates are a registered confirmed-distinct pair, neither is
+        ignored, both are plausible names and within ``twin_margin``, and the
+        k-NN vote yields a winner. The chosen alternative is moved to the front of
+        the returned list so the recommended option matches the decision; the rest
+        keep their order. Returns ``None`` when no override applies.
+        """
+        if not distinct_pairs or match_case not in ("name", "uncertain_name"):
+            return None
+        if len(match_alternatives) < 2:
+            return None
+        top1, top2 = match_alternatives[0], match_alternatives[1]
+        if top1.get("is_ignored") or top2.get("is_ignored"):
+            return None
+        pair = tuple(sorted((top1["name"], top2["name"])))
+        twin_margin = self.config.get("twin_margin", 0.1)
+        if pair not in distinct_pairs or (top2["distance"] - top1["distance"]) > twin_margin:
+            return None
+
+        twin_knn_k = self.config.get("twin_knn_k", 5)
+        chosen = self._disambiguate_distinct_pair(
+            encoding, top1["name"], top2["name"], twin_knn_k
+        )
+        if chosen is None:
+            return None
+
+        chosen_alt = next((a for a in match_alternatives if a["name"] == chosen), None)
+        chosen_distance = None
+        reordered = match_alternatives
+        if chosen_alt is not None:
+            chosen_distance = chosen_alt["distance"]
+            reordered = [chosen_alt] + [a for a in match_alternatives if a is not chosen_alt]
+        info = {
+            "between": [top1["name"], top2["name"]],
+            "chosen": chosen,
+            "method": "knn",
+            "k": min(
+                twin_knn_k,
+                len(self._person_match_encodings(top1["name"]))
+                + len(self._person_match_encodings(top2["name"])),
+            ),
+        }
+        return chosen, chosen_distance, reordered, info
+
+    def _disambiguate_distinct_pair(
+        self, encoding: np.ndarray, name_a: str, name_b: str, k: int
+    ) -> Optional[str]:
+        """Pick between two confirmed-distinct look-alikes via a k-NN vote.
+
+        The default matcher already assigns by the single nearest encoding, so a
+        plain 1-NN tie-break would just repeat it. Here we vote among the probe's
+        k nearest encodings drawn from the *union* of both people's confirmed
+        faces — more robust to one noisy crop. Returns the winning name, or None
+        when either side has no usable encoding or the vote ties.
+        """
+        a_vecs = self._person_match_encodings(name_a)
+        b_vecs = self._person_match_encodings(name_b)
+        if not a_vecs or not b_vecs:
+            return None
+        allv = np.array(a_vecs + b_vecs)
+        labels = np.array([0] * len(a_vecs) + [1] * len(b_vecs))
+        dists = self.backend.compute_distances(allv, encoding)
+        kk = min(k, len(dists))
+        nearest = np.argsort(dists)[:kk]
+        a_votes = int(np.sum(labels[nearest] == 0))
+        b_votes = int(np.sum(labels[nearest] == 1))
+        if a_votes == b_votes:
+            return None
+        return name_a if a_votes > b_votes else name_b
 
     def _match_ignored(self, encoding: np.ndarray) -> Tuple[Optional[int], Optional[float]]:
         """Match encoding against ignored faces database"""
@@ -474,10 +605,14 @@ class DetectionService:
         # Check cache (hash computed in thread pool to avoid blocking event loop)
         loop = asyncio.get_event_loop()
         file_hash = await loop.run_in_executor(_executor, self._get_file_hash, path)
-        if not force_reprocess and file_hash in self.cache:
+        # Fold the confirmed-distinct registry version into the cache key, so a
+        # twin-pair add/remove invalidates stale suggestions for already-viewed
+        # photos (matching depends on the registry, not just the file contents).
+        cache_key = self._detection_cache_key(file_hash)
+        if not force_reprocess and cache_key in self.cache:
             logger.info(f"[DetectionService] Using cached result for: {image_path}")
-            self.cache.move_to_end(file_hash)
-            cached_result = self.cache[file_hash]
+            self.cache.move_to_end(cache_key)
+            cached_result = self.cache[cache_key]
             cached_result["cached"] = True
             return cached_result
 
@@ -499,8 +634,8 @@ class DetectionService:
             "detection_meta": detection_meta
         }
 
-        # Cache result with LRU eviction
-        self._lru_put(self.cache, file_hash, result, MAX_DETECTION_CACHE)
+        # Cache result with LRU eviction (keyed by file hash + registry version)
+        self._lru_put(self.cache, cache_key, result, MAX_DETECTION_CACHE)
         logger.info(f"[DetectionService] Detected {len(faces)} faces in {processing_time:.1f}ms")
 
         return result
@@ -965,13 +1100,10 @@ class DetectionService:
                 "hash": face.get('encoding_hash', '')
             })
 
-        # Get detection metadata from cache if available
-        detection_meta = {}
-        processing_time_ms = 0
-        if file_hash and file_hash in self.cache:
-            cached = self.cache[file_hash]
-            detection_meta = cached.get("detection_meta", {})
-            processing_time_ms = cached.get("processing_time_ms", 0)
+        # Detection metadata from the cache, keyed exactly as detect_faces stores
+        # it (file hash + registry version); otherwise the logged attempt stats
+        # would lose their timing / scale metadata.
+        detection_meta, processing_time_ms = self._cached_detection_meta(file_hash)
 
         # Build attempt info with backend metadata for statistics compatibility
         backend_info = self.backend.get_model_info()
