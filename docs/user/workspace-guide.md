@@ -243,6 +243,10 @@ antal.
      utan det (förhandsvisningen får en avvikande bakgrund så länge den inte är
      sparad); `Cmd+Enter` döper om filen på riktigt. Snabbare än manuell
      redigering när bara en spelare ska bort ur ett beskuret foto.
+   - **Auto-advance efter namnbyte:** efter ett namnbyte (både `Enter`-redigering
+     och `Cmd+Enter`-bortbockning) hoppar markeringen vidare till nästa fil, så
+     du kan jobba dig igenom serien. Stängs av under Inställningar → Files →
+     Gallra spelare ("Auto-advance after rename"); på som standard.
 4. Papperskorgen (knappen **Papperskorg**) listar gallrade bilder och återställer
    dem till ursprungsplatsen, eller tömmer permanent. En filtypsmeny (Alla / jpg /
    nef-raw) låter dig granska och återställa JPEG och råfiler separat; **Töm**

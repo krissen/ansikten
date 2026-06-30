@@ -14,6 +14,7 @@ import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { useBackend } from '../context/BackendContext.jsx';
 import { useModuleEvent } from '../hooks/useModuleEvent.js';
 import { namesInBasename, removeNamesFromBasename } from './culling-names.js';
+import { preferences } from '../workspace/preferences.js';
 import './CullingModule.css';
 
 const REFRESH_DEBOUNCE_MS = 400;
@@ -120,6 +121,10 @@ export function CullingModule({ node }) {
   // list drives which files `x`/Delete trashes.
   const reqSeqRef = useRef(0);
   const statsSeqRef = useRef(0);
+  // New path of a just-renamed file to advance past, honored by whichever
+  // loadList resolves last so a racing folder-watch refresh can't clobber the
+  // auto-advance. Consumed (cleared) by that reload.
+  const pendingAdvanceRef = useRef(null);
   const undoStackRef = useRef([]);
   const watchedDirsRef = useRef(new Set());
   const debounceRef = useRef(null);
@@ -172,17 +177,37 @@ export function CullingModule({ node }) {
 
   // ----- listing ------------------------------------------------------
   const loadList = useCallback(
-    async (query, { keepIndex = false } = {}) => {
+    async (query, { keepIndex = false, advancePastPath = null } = {}) => {
+      // A fresh load (a deliberate (re)query, not a keepIndex folder-refresh or
+      // a rename advance) drops any pending rename-advance, so a query issued
+      // while a rename reload is still in flight resets to the top instead of
+      // inheriting that stale target. The folder-watch refresh keeps it — that's
+      // the race the ref must win.
+      if (!keepIndex && !advancePastPath) pendingAdvanceRef.current = null;
       const seq = ++reqSeqRef.current;
       setIsLoading(true);
       try {
         const data = await api.post('/api/v1/culling/files', query);
         if (seq !== reqSeqRef.current) return; // a newer request superseded this one
+        // Honor an explicit advance target, or a pending one from a rename (so a
+        // racing folder-watch refresh that resolves last still advances rather
+        // than clobbering it). This is the winning reload, so consume the ref.
+        const advanceTo = advancePastPath || pendingAdvanceRef.current;
+        if (advanceTo) pendingAdvanceRef.current = null;
         setFiles(data.files);
         setPlayers(data.players);
         setError(null);
         setCurrentIndex((prev) => {
           if (data.files.length === 0) return -1;
+          // Auto-advance after a rename: position relative to the renamed file
+          // in the RELOADED list, so a file that left a player/glob filter
+          // doesn't cause a skip. Still present → step to the next item; gone
+          // (filtered out) → the next item already slid into prev's slot, stay.
+          if (advanceTo) {
+            const j = data.files.findIndex((f) => f.path === advanceTo);
+            const target = j >= 0 ? j + 1 : (prev >= 0 ? prev : 0);
+            return Math.min(target, data.files.length - 1);
+          }
           if (keepIndex && prev >= 0) return Math.min(prev, data.files.length - 1);
           return 0;
         });
@@ -442,6 +467,22 @@ export function CullingModule({ node }) {
 
   const cancelEdit = useCallback(() => setEditPath(null), []);
 
+  // Reload after a rename, auto-advancing past the renamed file when the
+  // preference is on (default), else keeping the current index. Advance is by
+  // file identity (the new path), resolved against the reloaded list inside
+  // loadList, so a rename that drops the file from a player/glob filter doesn't
+  // skip the file that slides into its slot. The pending ref makes it robust to
+  // a racing folder-watch refresh.
+  const reloadAfterRename = useCallback((newPath) => {
+    if (!lastQueryRef.current) return;
+    if (preferences.get('culling.autoAdvanceAfterRename') !== false) {
+      pendingAdvanceRef.current = newPath;
+      loadList(lastQueryRef.current, { advancePastPath: newPath });
+    } else {
+      loadList(lastQueryRef.current, { keepIndex: true });
+    }
+  }, [loadList]);
+
   const commitEdit = useCallback(async () => {
     const path = editPath;
     setEditPath(null);
@@ -452,13 +493,16 @@ export function CullingModule({ node }) {
     const newBasename = next + extOf(basename(path));
     if (!next || newBasename === basename(path)) return; // no-op
     try {
-      await api.post('/api/v1/culling/rename', { path, new_basename: newBasename });
-      if (lastQueryRef.current) loadList(lastQueryRef.current, { keepIndex: true });
+      const res = await api.post('/api/v1/culling/rename', { path, new_basename: newBasename });
+      // Use the backend's actual new path (native separators) for identity;
+      // fall back to a separator-agnostic dir swap if absent.
+      const newPath = res?.path || path.replace(/[^/\\]+$/, '') + newBasename;
+      reloadAfterRename(newPath);
       refreshStatsDebounced();
     } catch (err) {
       setError(err.message || String(err));
     }
-  }, [api, editPath, editValue, loadList, refreshStatsDebounced]);
+  }, [api, editPath, editValue, reloadAfterRename, refreshStatsDebounced]);
 
   // ----- keyboard ----------------------------------------------------
   useEffect(() => {
@@ -709,14 +753,17 @@ export function CullingModule({ node }) {
     if (!newBasename || newBasename === current.basename) return;
     const path = current.path;
     try {
-      await api.post('/api/v1/culling/rename', { path, new_basename: newBasename });
+      const res = await api.post('/api/v1/culling/rename', { path, new_basename: newBasename });
       setRemovedNames(new Set());
-      if (lastQueryRef.current) loadList(lastQueryRef.current, { keepIndex: true });
+      // Use the backend's actual new path (native separators) for identity;
+      // fall back to a separator-agnostic dir swap if absent.
+      const newPath = res?.path || path.replace(/[^/\\]+$/, '') + newBasename;
+      reloadAfterRename(newPath);
       refreshStatsDebounced();
     } catch (err) {
       setError(err.message || String(err));
     }
-  }, [api, current, removedNames, loadList, refreshStatsDebounced]);
+  }, [api, current, removedNames, reloadAfterRename, refreshStatsDebounced]);
   // Latest commit fn for the keydown handler without re-subscribing on every
   // toggle/selection change.
   const commitNameToggleRef = useRef(null);
@@ -1080,8 +1127,11 @@ function globBaseDir(pattern) {
   return slash === -1 ? '' : literal.slice(0, slash);
 }
 
+// Separator-agnostic basename so paths with Windows backslashes resolve too
+// (the backend returns native str(Path) values). Without this, the inline-rename
+// no-op guard never matches on Windows and an unchanged rename would advance.
 function basename(p) {
-  const parts = p.replace(/\/+$/, '').split('/');
+  const parts = p.replace(/[/\\]+$/, '').split(/[/\\]/);
   return parts[parts.length - 1] || p;
 }
 
