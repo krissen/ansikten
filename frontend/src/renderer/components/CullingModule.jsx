@@ -131,6 +131,15 @@ export function CullingModule({ node }) {
   const statsDebounceRef = useRef(null);
   const mainRef = useRef(null);
   const bodyRef = useRef(null);
+  const listRef = useRef(null);
+
+  // Move keyboard focus to the file list so arrow/j-k navigation continues
+  // seamlessly after an action that left focus on a control (the player
+  // dropdown, or a name-overlay checkbox after a rename). preventScroll: the
+  // dedicated autoscroll effect handles keeping the active row visible.
+  const focusList = useCallback(() => {
+    listRef.current?.focus({ preventScroll: true });
+  }, []);
 
   // The editable glob is a Finder-style basename filter (name_glob) over the
   // resolved files, NOT an independent filesystem glob. The scan source is
@@ -481,7 +490,11 @@ export function CullingModule({ node }) {
     } else {
       loadList(lastQueryRef.current, { keepIndex: true });
     }
-  }, [loadList]);
+    // Return focus to the list so keyboard nav continues without a click — the
+    // inline rename input has unmounted and a name-overlay checkbox would
+    // otherwise keep focus and swallow arrow keys.
+    focusList();
+  }, [loadList, focusList]);
 
   const commitEdit = useCallback(async () => {
     const path = editPath;
@@ -534,7 +547,10 @@ export function CullingModule({ node }) {
         return;
       }
 
-      if (tag === 'INPUT' || tag === 'SELECT' || tag === 'TEXTAREA') return;
+      // Single-key nav/cull is swallowed only by real text entry — NOT by a
+      // name-overlay checkbox, so arrows still navigate when focus lingers on a
+      // chip (e.g. right after a ⌘↵ rename).
+      if (isTextField) return;
 
       // Next: →/↓/j, Previous: ←/↑/k. Alt+direction pages by PAGE_STEP.
       const step = e.altKey ? PAGE_STEP : 1;
@@ -552,6 +568,24 @@ export function CullingModule({ node }) {
     window.addEventListener('keydown', handler);
     return () => window.removeEventListener('keydown', handler);
   }, [node, files.length, showTrash, trashCurrent, undoTrash]);
+
+  // Keep the selected row visible as the selection moves (arrow nav, advance),
+  // with ~3 rows of padding above/below where the list allows. Uses rects so it
+  // works regardless of the row's offsetParent.
+  useEffect(() => {
+    const list = listRef.current;
+    if (!list || currentIndex < 0) return;
+    const item = list.children[currentIndex];
+    if (!item) return;
+    const lr = list.getBoundingClientRect();
+    const ir = item.getBoundingClientRect();
+    const pad = ir.height * 3;
+    if (ir.top - pad < lr.top) {
+      list.scrollTop -= lr.top - (ir.top - pad);
+    } else if (ir.bottom + pad > lr.bottom) {
+      list.scrollTop += ir.bottom + pad - lr.bottom;
+    }
+  }, [currentIndex, files]);
 
   // Enter handling for culling, on document in the CAPTURE phase so it preempts
   // other modules' document-level Enter handlers (e.g. ReviewModule confirming a
@@ -843,6 +877,10 @@ export function CullingModule({ node }) {
               const g = name ? `*${name}*` : '';
               runFilter({ player: name || null, name_glob: g || null });
             }
+            // Hand focus to the list so the next arrow press navigates files
+            // instead of changing the dropdown selection.
+            e.target.blur();
+            focusList();
           }}
           title="Spelare"
         >
@@ -959,7 +997,7 @@ export function CullingModule({ node }) {
             {hasRun && files.length === 0 && !isLoading && (
               <div className="empty-state">Inga bilder.</div>
             )}
-            <ul className="culling-files">
+            <ul className="culling-files" ref={listRef} tabIndex={-1}>
               {files.map((f, i) => (
                 <li
                   key={f.path}
