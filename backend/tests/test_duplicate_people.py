@@ -18,16 +18,21 @@ def _entry(vec, backend="insightface"):
 
 
 @pytest.fixture
-def service():
-    """A ManagementService with in-memory state and reload-from-disk disabled."""
+def service(tmp_path, monkeypatch):
+    """A ManagementService fully isolated from the real database and registry."""
+    import api.services.management_service as m
+    monkeypatch.setattr(m, "DISTINCT_PAIRS_PATH", tmp_path / "distinct_pairs.json")
     svc = ManagementService.__new__(ManagementService)
     svc.known_faces = {}
     svc.ignored_faces = []
     svc.hard_negatives = {}
     svc.processed_files = []
     svc._reload_lock = threading.Lock()
-    svc._last_reload = 9e18  # far future → reload_database() never re-reads disk
+    svc._last_reload = 9e18
     svc._cache_ttl = 2.0
+    # Keep the in-memory known_faces authoritative; never touch the real DB.
+    monkeypatch.setattr(svc, "_reload_from_disk", lambda: None)
+    monkeypatch.setattr(svc, "save", lambda: None)
     return svc
 
 

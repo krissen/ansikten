@@ -54,6 +54,9 @@ export function DatabaseManagement() {
   const [duplicatePairs, setDuplicatePairs] = useState(null); // null = not run yet
   const [findingDuplicates, setFindingDuplicates] = useState(false);
   const [mergingPair, setMergingPair] = useState(false);
+  // Confirmed-distinct pairs (e.g. twins) excluded from duplicate suggestions
+  const [distinctPairs, setDistinctPairs] = useState([]);
+  const [showExcluded, setShowExcluded] = useState(false);
 
   // Operation status (loading, success, error) - replaces manual isLoading/status/showSuccess/showError
   const { isLoading, setIsLoading, status, showSuccess, showError } = useOperationStatus();
@@ -120,6 +123,7 @@ export function DatabaseManagement() {
       });
       showSuccess(result.message);
       setDatabaseState(result.new_state);
+      loadDistinctPairs(); // a rename rewrites the exclusion registry
       renameForm.reset();
     } catch (err) {
       showError('Rename failed: ' + err.message);
@@ -150,6 +154,7 @@ export function DatabaseManagement() {
       }
       showSuccess(msg);
       setDatabaseState(result.new_state);
+      loadDistinctPairs(); // a merge transfers/drops exclusion registry entries
       mergeForm.reset();
     } catch (err) {
       showError('Merge failed: ' + err.message);
@@ -199,6 +204,7 @@ export function DatabaseManagement() {
       // Re-scan: the dropped name is gone, which invalidates other pairs too.
       // Buttons stay disabled until this lands so a stale pair can't be merged
       // against a name this merge just removed (which would resurrect it).
+      loadDistinctPairs(); // the merge may have transferred/dropped exclusions
       await handleFindDuplicates();
     } catch (err) {
       showError('Merge failed: ' + err.message);
@@ -206,6 +212,64 @@ export function DatabaseManagement() {
       setMergingPair(false);
     }
   };
+
+  /**
+   * Load the confirmed-distinct (excluded) pairs.
+   */
+  const loadDistinctPairs = useCallback(async () => {
+    try {
+      const result = await api.get('/api/v1/management/distinct-pairs');
+      setDistinctPairs(result.pairs);
+    } catch (err) {
+      debugError('DatabaseMgmt', 'Failed to load distinct pairs:', err);
+    }
+  }, [api]);
+
+  /**
+   * Mark a pair as "not a duplicate" (confirmed-distinct, e.g. twins): record it
+   * and drop it from the current list. Future scans skip it.
+   */
+  const handleNotADuplicate = async (pair) => {
+    if (mergingPair) return;
+    setMergingPair(true);
+    try {
+      await api.post('/api/v1/management/distinct-pair', {
+        name_a: pair.name_a,
+        name_b: pair.name_b
+      });
+      setDuplicatePairs((prev) =>
+        (prev || []).filter((p) => !(p.name_a === pair.name_a && p.name_b === pair.name_b))
+      );
+      setDistinctPairs((prev) => [...prev, { name_a: pair.name_a, name_b: pair.name_b }]);
+      showSuccess(`Marked '${pair.name_a}' and '${pair.name_b}' as not a duplicate`);
+    } catch (err) {
+      showError('Could not exclude pair: ' + err.message);
+    } finally {
+      setMergingPair(false);
+    }
+  };
+
+  /**
+   * Un-exclude a confirmed-distinct pair (it can be suggested again).
+   */
+  const handleRemoveDistinct = async (pair) => {
+    try {
+      await api.post('/api/v1/management/distinct-pair/remove', {
+        name_a: pair.name_a,
+        name_b: pair.name_b
+      });
+      setDistinctPairs((prev) =>
+        prev.filter((p) => !(p.name_a === pair.name_a && p.name_b === pair.name_b))
+      );
+    } catch (err) {
+      showError('Could not remove exclusion: ' + err.message);
+    }
+  };
+
+  // Load excluded (confirmed-distinct) pairs on mount, for the count + list.
+  useEffect(() => {
+    loadDistinctPairs();
+  }, [loadDistinctPairs]);
 
   const handleDelete = async () => {
     const { name } = deleteForm.values;
@@ -220,6 +284,7 @@ export function DatabaseManagement() {
       const result = await api.post('/api/v1/management/delete-person', { name: name.trim() });
       showSuccess(result.message);
       setDatabaseState(result.new_state);
+      loadDistinctPairs(); // a delete drops the person's exclusion registry entries
       deleteForm.reset();
     } catch (err) {
       showError('Delete failed: ' + err.message);
@@ -243,6 +308,7 @@ export function DatabaseManagement() {
       });
       showSuccess(result.message);
       setDatabaseState(result.new_state);
+      loadDistinctPairs(); // moving a person to ignored can drop registry entries
       moveToIgnoreForm.reset();
     } catch (err) {
       showError('Move to ignore failed: ' + err.message);
@@ -292,6 +358,7 @@ export function DatabaseManagement() {
       }
       showSuccess(message);
       setDatabaseState(result.new_state);
+      loadDistinctPairs(); // undo can empty (remove) a person, dropping registry entries
       undoForm.reset();
     } catch (err) {
       showError('Undo failed: ' + err.message);
@@ -478,9 +545,18 @@ export function DatabaseManagement() {
             ) : (
               <ul className="db-duplicate-list">
                 {duplicatePairs.map((p) => (
-                  <li key={`${p.name_a}|${p.name_b}`} className="db-duplicate-row">
+                  <li
+                    key={`${p.name_a}|${p.name_b}`}
+                    className={`db-duplicate-row${p.likely_distinct ? ' likely-distinct' : ''}`}
+                  >
                     <span className="db-duplicate-names" title={`Centroid distance ${p.distance}`}>
                       {p.name_a} ({p.count_a}) ⟷ {p.name_b} ({p.count_b}) · {p.distance.toFixed(2)}
+                      {p.separability != null && (
+                        <span className="db-duplicate-sep">
+                          {' · '}separable {Math.round(p.separability * 100)}%
+                          {p.likely_distinct ? ' → likely distinct' : ''}
+                        </span>
+                      )}
                     </span>
                     <span className="db-duplicate-actions">
                       <button
@@ -497,11 +573,45 @@ export function DatabaseManagement() {
                       >
                         Keep {p.name_b}
                       </button>
+                      <button
+                        className="btn-secondary"
+                        onClick={() => handleNotADuplicate(p)}
+                        disabled={mergingPair || findingDuplicates}
+                        title="These are different people who look alike (e.g. twins); never suggest merging them"
+                      >
+                        Not a duplicate
+                      </button>
                     </span>
                   </li>
                 ))}
               </ul>
             )
+          )}
+          {distinctPairs.length > 0 && (
+            <div className="db-excluded">
+              <button
+                className="db-excluded-toggle"
+                onClick={() => setShowExcluded((v) => !v)}
+              >
+                {showExcluded ? '▾' : '▸'} Excluded pairs ({distinctPairs.length})
+              </button>
+              {showExcluded && (
+                <ul className="db-excluded-list">
+                  {distinctPairs.map((p) => (
+                    <li key={`${p.name_a}|${p.name_b}`} className="db-excluded-row">
+                      <span className="db-duplicate-names">{p.name_a} ⟷ {p.name_b}</span>
+                      <button
+                        className="db-excluded-remove"
+                        onClick={() => handleRemoveDistinct(p)}
+                        title="Allow this pair to be suggested again"
+                      >
+                        ×
+                      </button>
+                    </li>
+                  ))}
+                </ul>
+              )}
+            </div>
           )}
         </OperationForm>
 

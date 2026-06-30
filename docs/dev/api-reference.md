@@ -304,7 +304,14 @@ Get current database state.
 
 Find pairs of distinctly-named people whose faces look like the same person
 (centroid cosine distance ≤ `threshold`), as merge candidates. People with no
-usable encoding (e.g. only manual faces) are skipped.
+usable encoding (e.g. only manual faces) are skipped. Pairs in the
+confirmed-distinct registry (see below) are omitted.
+
+Each pair also carries a head-to-head **separability**: a 1-NN leave-one-out
+accuracy over the two people's confirmed embeddings (`null` when either has <2
+usable encodings). ~1.0 means cleanly separable (different people who look alike,
+e.g. twins) and sets `likely_distinct: true`; ~0.5 means indistinguishable
+(likely the same person). `likely_distinct` pairs sort last.
 
 **Query params:** `threshold` (float, default `0.35`; lower = stricter).
 
@@ -312,13 +319,27 @@ usable encoding (e.g. only manual faces) are skipped.
 ```json
 {
   "pairs": [
-    { "name_a": "Elis", "name_b": "Elis Niemi", "distance": 0.18, "count_a": 3, "count_b": 12 }
+    { "name_a": "Elis", "name_b": "Elis Niemi", "distance": 0.18,
+      "count_a": 3, "count_b": 12, "separability": 0.5, "margin": -0.01,
+      "likely_distinct": false }
   ],
   "threshold": 0.35,
   "people_compared": 42
 }
 ```
 Resolve a pair by calling `merge-people` (`source_names: ["<drop>"]`, `target_name: "<keep>"`).
+
+### Confirmed-distinct pairs (`distinct-pairs`)
+
+People who look alike but are different (e.g. identical twins) can be marked so
+the scanner stops suggesting them. Stored in `distinct_pairs.json` as sorted
+name-pairs.
+
+- `GET /api/management/distinct-pairs` → `{ pairs: [{name_a, name_b}], count }`.
+  Pairs whose names no longer exist are pruned (self-healing).
+- `POST /api/management/distinct-pair` `{name_a, name_b}` → add (400 if the names
+  are equal/empty or either person doesn't currently exist).
+- `POST /api/management/distinct-pair/remove` `{name_a, name_b}` → un-exclude.
 
 ### `POST /api/management/rename-person`
 
