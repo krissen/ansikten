@@ -27,7 +27,7 @@ from PIL import Image
 import numpy as np
 
 from .preprocessing_cache import get_cache as get_preprocessing_cache
-from .management_service import _load_distinct_pairs
+from .management_service import _load_distinct_pairs, DISTINCT_PAIRS_PATH
 
 logger = logging.getLogger(__name__)
 
@@ -367,6 +367,13 @@ class DetectionService:
 
         return best_name, best_distance
 
+    def _distinct_pairs_version(self) -> int:
+        """Registry version for cache keys: the file's mtime (ns), or 0 if absent."""
+        try:
+            return DISTINCT_PAIRS_PATH.stat().st_mtime_ns
+        except OSError:
+            return 0
+
     def _person_match_encodings(self, name: str) -> List[np.ndarray]:
         """Usable encodings for `name` for the active backend (mirrors _match_encoding)."""
         out: List[np.ndarray] = []
@@ -550,10 +557,14 @@ class DetectionService:
         # Check cache (hash computed in thread pool to avoid blocking event loop)
         loop = asyncio.get_event_loop()
         file_hash = await loop.run_in_executor(_executor, self._get_file_hash, path)
-        if not force_reprocess and file_hash in self.cache:
+        # Fold the confirmed-distinct registry version into the cache key, so a
+        # twin-pair add/remove invalidates stale suggestions for already-viewed
+        # photos (matching depends on the registry, not just the file contents).
+        cache_key = f"{file_hash}@{self._distinct_pairs_version()}"
+        if not force_reprocess and cache_key in self.cache:
             logger.info(f"[DetectionService] Using cached result for: {image_path}")
-            self.cache.move_to_end(file_hash)
-            cached_result = self.cache[file_hash]
+            self.cache.move_to_end(cache_key)
+            cached_result = self.cache[cache_key]
             cached_result["cached"] = True
             return cached_result
 
@@ -575,8 +586,8 @@ class DetectionService:
             "detection_meta": detection_meta
         }
 
-        # Cache result with LRU eviction
-        self._lru_put(self.cache, file_hash, result, MAX_DETECTION_CACHE)
+        # Cache result with LRU eviction (keyed by file hash + registry version)
+        self._lru_put(self.cache, cache_key, result, MAX_DETECTION_CACHE)
         logger.info(f"[DetectionService] Detected {len(faces)} faces in {processing_time:.1f}ms")
 
         return result

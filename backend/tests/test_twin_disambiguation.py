@@ -83,3 +83,27 @@ def test_person_match_encodings_filters_backend_and_manual():
     }
     assert len(svc._person_match_encodings("X")) == 1
     assert svc._person_match_encodings("missing") == []
+
+
+def test_detected_face_model_carries_disambiguated():
+    # The route model must pass the field through to clients (else the feature is
+    # silently dropped before the frontend can render it).
+    from api.routes.detection import DetectedFace, BoundingBox
+
+    face = DetectedFace(
+        face_id="x",
+        bounding_box=BoundingBox(x=0, y=0, width=1, height=1),
+        confidence=0.5,
+        disambiguated={"between": ["A", "B"], "chosen": "A", "method": "knn", "k": 3},
+    )
+    assert face.model_dump()["disambiguated"]["chosen"] == "A"
+
+
+def test_distinct_pairs_version_changes_with_registry(tmp_path, monkeypatch):
+    import api.services.detection_service as d
+
+    monkeypatch.setattr(d, "DISTINCT_PAIRS_PATH", tmp_path / "distinct_pairs.json")
+    svc = _service()
+    assert svc._distinct_pairs_version() == 0  # absent → 0
+    (tmp_path / "distinct_pairs.json").write_text("[]")
+    assert svc._distinct_pairs_version() != 0  # present → mtime-based version

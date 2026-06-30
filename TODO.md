@@ -84,6 +84,7 @@ GUI-onboarding av CLI-skript (en PR per steg):
 
 - [x] ~~Inga visuella indikatorer för tangentbordsgenvägar i UI~~ (2026-01-11, ? shows shortcuts with active module highlighted)
 - [x] ~~Saknas undo/redo för ansiktsbekräftelser~~ (2026-01-11, Cmd+Z undo, ESC cancels detection)
+- [ ] **Lokalisera ReviewModule match-case-etiketter till svenska** — `Manual entry`, `Probable ignore`, `ign`, `Twin tie-break` m.fl. visas på engelska medan CLAUDE.md säger svenska för användartext. Hela blocket bör översättas konsekvent (egen liten PR), inte en etikett i taget.
 
 ---
 

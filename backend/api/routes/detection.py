@@ -8,7 +8,7 @@ ML libraries loaded lazily on first detection request.
 from fastapi import APIRouter, HTTPException
 from fastapi.responses import Response
 from pydantic import BaseModel
-from typing import List, Optional
+from typing import Any, Dict, List, Optional
 import logging
 
 logger = logging.getLogger(__name__)
@@ -48,6 +48,7 @@ class DetectedFace(BaseModel):
     ignore_confidence: Optional[int] = None
     match_alternatives: Optional[List[MatchAlternative]] = None
     encoding_hash: Optional[str] = None
+    disambiguated: Optional[Dict[str, Any]] = None
 
 class DetectionResult(BaseModel):
     image_path: str
@@ -174,7 +175,8 @@ async def detect_faces(request: DetectionRequest):
                         MatchAlternative(**alt)
                         for alt in face.get("match_alternatives", [])
                     ] if face.get("match_alternatives") else None,
-                    encoding_hash=face.get("encoding_hash")
+                    encoding_hash=face.get("encoding_hash"),
+                    disambiguated=face.get("disambiguated")
                 )
                 for face in result["faces"]
             ],
