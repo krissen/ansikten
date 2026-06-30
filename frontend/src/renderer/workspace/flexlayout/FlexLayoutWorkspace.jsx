@@ -1251,6 +1251,18 @@ export function FlexLayoutWorkspace() {
 
     window.ansiktenAPI.on('menu-command', handleMenuCommand);
 
+    // CLI culling target (`ansikten culling DIR`): open/focus the culling
+    // module, then hand it the folder scope once it has subscribed. Using
+    // waitForListeners avoids a lost-event race on a cold start where the
+    // module hasn't mounted yet — same guard the FileQueue→ImageViewer
+    // handshake uses for 'load-image'.
+    const handleOpenCulling = async ({ roots, clear }) => {
+      openModule('culling');
+      await moduleAPI.waitForListeners('culling-load', 2000);
+      moduleAPI.emit('culling-load', { roots, clear });
+    };
+    window.ansiktenAPI.on('open-culling', handleOpenCulling);
+
     // A loaded image dismisses the landing. Listen on the past-tense
     // 'image-loaded' (emitted by ImageViewer after a load), NOT the imperative
     // 'load-image' command: FileQueue uses hasListeners('load-image') to detect

@@ -12,6 +12,7 @@ const fs = require("fs");
 const os = require("os");
 const { BackendService } = require("./backend-service");
 const { createApplicationMenu } = require("./menu");
+const { parseCliArgs } = require("./cli-args");
 
 function getVersionInfo() {
   try {
@@ -75,55 +76,9 @@ function updateSplashStatus(message, progress = null) {
   }
 }
 
-// Parse command line arguments
-// Position-agnostic parsing: scan for known flags anywhere in argv
-// This handles variations in argv structure across different invocation methods
-// (direct electron, npx electron, packaged app, second-instance, etc.)
-function parseCommandLineArgs(argv) {
-  const result = {
-    files: [],
-    queuePosition: null,  // null = open directly, 'start' | 'end' | 'sorted' = add to queue
-    startQueue: false,
-  };
-
-  // Known paths/executables to skip (case-insensitive basename matching)
-  const skipPatterns = [
-    /^electron/i,
-    /^node/i,
-    /^npx/i,
-    /\.js$/i,
-    /^\.\.?$/,
-    /^ansikten$/i,  // Our app name
-  ];
-
-  const shouldSkipArg = (arg) => {
-    if (!arg) return true;
-    // Skip macOS app bundle executables
-    if (arg.includes('.app/Contents/MacOS/')) return true;
-    const basename = arg.split(/[/\\]/).pop();
-    return skipPatterns.some(pattern => pattern.test(basename));
-  };
-
-  for (let i = 0; i < argv.length; i++) {
-    const arg = argv[i];
-
-    if (arg === "--queue" || arg === "-q") {
-      result.queuePosition = "end";
-    } else if (arg === "--queue-start" || arg === "-qs") {
-      result.queuePosition = "start";
-    } else if (arg === "--queue-end" || arg === "-qe") {
-      result.queuePosition = "end";
-    } else if (arg === "--start" || arg === "-s") {
-      result.startQueue = true;
-    } else if (arg.startsWith("-")) {
-      continue;
-    } else if (!shouldSkipArg(arg)) {
-      result.files.push(arg);
-    }
-  }
-
-  return result;
-}
+// Command-line parsing lives in cli-args.js (pure + unit-tested). Aliased here
+// to keep the existing call sites readable.
+const parseCommandLineArgs = parseCliArgs;
 
 // Supported image extensions — filter out sidecars (xmp) and other non-image files
 const SUPPORTED_IMAGE_EXTENSIONS = new Set([
@@ -191,14 +146,57 @@ async function expandFilePaths(patterns) {
   return files.sort();
 }
 
+// Resolve path args to directories for the culling target. Unlike the face
+// queue (which wants image files), culling scans folders, so we accept
+// directories directly and fall back to a file's parent dir for convenience.
+function expandFolderPaths(patterns) {
+  const dirs = [];
+  for (const pattern of patterns) {
+    let expanded = pattern;
+    if (pattern.startsWith("~")) {
+      expanded = path.join(os.homedir(), pattern.slice(1));
+    }
+    const resolved = path.resolve(expanded);
+    try {
+      const stat = fs.statSync(resolved);
+      if (stat.isDirectory()) {
+        dirs.push(resolved);
+      } else if (stat.isFile()) {
+        dirs.push(path.dirname(resolved));
+      }
+    } catch (err) {
+      // Path doesn't exist, skip silently
+    }
+  }
+  // De-duplicate while preserving order.
+  return [...new Set(dirs)];
+}
+
 // Send files to renderer's file queue
-function sendFilesToQueue(files, position, startQueue) {
-  if (!mainWindow || files.length === 0) return;
+function sendFilesToQueue(files, position, startQueue, clear = false) {
+  if (!mainWindow) return;
+  // A bare --clear (no files) is still a valid intent: empty the queue.
+  if (files.length === 0 && !clear) return;
 
   console.log(
-    `[Main] Sending ${files.length} files to queue (position: ${position}, start: ${startQueue})`,
+    `[Main] Sending ${files.length} files to queue (position: ${position}, start: ${startQueue}, clear: ${clear})`,
   );
-  mainWindow.webContents.send("queue-files", { files, position, startQueue });
+  mainWindow.webContents.send("queue-files", {
+    files,
+    position,
+    startQueue,
+    clear,
+  });
+}
+
+// Send a culling scope (folders) to the renderer. clear=true replaces the
+// current roots; otherwise the folders are appended.
+function sendCullingScope(roots, clear = false) {
+  if (!mainWindow) return;
+  console.log(
+    `[Main] Sending ${roots.length} folder(s) to culling (clear: ${clear})`,
+  );
+  mainWindow.webContents.send("open-culling", { roots, clear });
 }
 
 /**
@@ -285,11 +283,17 @@ app.on("second-instance", async (event, argv, workingDirectory) => {
   const args = parseCommandLineArgs(argv);
   console.log("[Main] Parsed args:", JSON.stringify(args));
 
-  if (args.files.length > 0) {
+  if (args.verb === "culling") {
+    // Culling target: resolve folders and hand the scope to the culling module.
+    const roots = expandFolderPaths(args.files);
+    if (roots.length > 0 || args.clear) {
+      sendCullingScope(roots, args.clear);
+    }
+  } else if (args.files.length > 0 || args.clear) {
     const files = await expandFilePaths(args.files);
     console.log("[Main] Expanded files:", JSON.stringify(files));
-    if (args.queuePosition) {
-      sendFilesToQueue(files, args.queuePosition, args.startQueue);
+    if (args.queuePosition || args.clear) {
+      sendFilesToQueue(files, args.queuePosition, args.startQueue, args.clear);
     } else if (files.length === 1) {
       // Single file without queue flag - open directly
       mainWindow?.webContents.send("menu-command", "load-image");
@@ -358,17 +362,28 @@ app.whenReady().then(async () => {
   });
 
   // Handle initial files from command line
-  if (initialArgs.files.length > 0) {
+  if (initialArgs.verb === "culling") {
+    // Culling target: wait for the renderer, then hand over the folder scope.
+    const roots = expandFolderPaths(initialArgs.files);
+    if (roots.length > 0 || initialArgs.clear) {
+      mainWindow.webContents.once("did-finish-load", () => {
+        setTimeout(() => {
+          sendCullingScope(roots, initialArgs.clear);
+        }, 1000); // Give the culling module time to mount
+      });
+    }
+  } else if (initialArgs.files.length > 0 || initialArgs.clear) {
     const files = await expandFilePaths(initialArgs.files);
-    if (files.length > 0) {
-      if (initialArgs.queuePosition) {
-        // Add to queue - wait for renderer to be ready
+    if (files.length > 0 || initialArgs.clear) {
+      if (initialArgs.queuePosition || initialArgs.clear) {
+        // Add to / clear queue - wait for renderer to be ready
         mainWindow.webContents.once("did-finish-load", () => {
           setTimeout(() => {
             sendFilesToQueue(
               files,
               initialArgs.queuePosition,
               initialArgs.startQueue,
+              initialArgs.clear,
             );
           }, 1000); // Give FileQueueModule time to mount
         });
