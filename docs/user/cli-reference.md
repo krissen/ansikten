@@ -123,13 +123,19 @@ Config-fil: `~/.local/share/faceid/rakna_spelare.json`
 ```json
 {
   "tranare": ["Martin", "Ronnie"],
-  "publik": ["Jasenko", "Jelena"]
+  "publik": ["Jasenko", "Jelena"],
+  "grupp": ["Reservlaget"]
 }
 ```
 
-Miljövariabler: `RAKNA_TRANARE`, `RAKNA_PUBLIK`, `NO_COLOR`
+Miljövariabler: `RAKNA_TRANARE`, `RAKNA_PUBLIK`, `RAKNA_GRUPP`, `NO_COLOR`
 
 **Prioritet:** CLI-flaggor > miljövariabler > config-fil > standardvärden
+
+**Alltid exkluderade markörer:** `Laget` och `FBK` räknas alltid som gruppbilder
+(lagbilder) och `Klacken` alltid som publik — de behandlas inte som spelare
+oavsett antal eller config. Dessa läggs alltid till utöver eventuella egna
+namn i `grupp`/`publik`. Gäller både CLI och GUI (Räkna spelare / Gallra spelare).
 
 ### Output
 
