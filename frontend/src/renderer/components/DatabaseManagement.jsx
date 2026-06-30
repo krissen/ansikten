@@ -60,6 +60,7 @@ export function DatabaseManagement() {
 
   // Within-person redundant-encoding dedup
   const [redundantThreshold, setRedundantThreshold] = useState(0.0);
+  const [scannedThreshold, setScannedThreshold] = useState(0.0); // threshold the list was computed at
   const [redundantPeople, setRedundantPeople] = useState(null); // null = not run
   const [scanningRedundant, setScanningRedundant] = useState(false);
   const [deduping, setDeduping] = useState(false);
@@ -286,6 +287,7 @@ export function DatabaseManagement() {
       const threshold = Number.isFinite(redundantThreshold) ? redundantThreshold : 0.0;
       const result = await api.get('/api/v1/management/redundant-encodings', { threshold });
       setRedundantPeople(result.people);
+      setScannedThreshold(result.threshold); // dedup must use the threshold shown, not the live slider
       showSuccess(
         `${result.total_redundant} redundant encoding${result.total_redundant === 1 ? '' : 's'} ` +
         `across ${result.people.length} ${result.people.length === 1 ? 'person' : 'people'} (≤ ${result.threshold})`
@@ -302,10 +304,21 @@ export function DatabaseManagement() {
    */
   const handleDedup = async (names) => {
     if (deduping || names.length === 0) return;
+    // Count from the previewed list so the confirmation matches what's shown.
+    const nameSet = new Set(names);
+    const totalRedundant = (redundantPeople || [])
+      .filter((p) => nameSet.has(p.name))
+      .reduce((sum, p) => sum + p.redundant, 0);
+    const who = names.length === 1 ? `'${names[0]}'` : `${names.length} people`;
+    if (!confirm(`Remove ${totalRedundant} redundant encoding(s) from ${who}? This cannot be undone.`)) return;
     setDeduping(true);
     try {
-      const threshold = Number.isFinite(redundantThreshold) ? redundantThreshold : 0.0;
-      const result = await api.post('/api/v1/management/dedup-people', { names, threshold });
+      // Use the threshold the previewed list was computed at (not the live slider),
+      // so the dedup removes exactly what was shown.
+      const result = await api.post('/api/v1/management/dedup-people', {
+        names,
+        threshold: scannedThreshold
+      });
       showSuccess(result.message);
       setDatabaseState(result.new_state);
       await handleScanRedundant(); // re-scan to refresh remaining redundancy
