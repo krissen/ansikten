@@ -589,6 +589,7 @@ export function CullingModule({ node }) {
     const handler = (e) => {
       if (node && !node.isVisible?.()) return;
       if (showTrash) return;
+      if (confirmNavRef.current) return; // the confirm dialog owns the keyboard
       const target = e.target;
       const tag = target?.tagName;
       // Text entry (rename field, glob, dropdown) swallows keys; a checkbox in
@@ -624,10 +625,10 @@ export function CullingModule({ node }) {
       const step = e.altKey ? PAGE_STEP : 1;
       if (e.key === 'ArrowDown' || e.key === 'ArrowRight' || e.key === 'j') {
         e.preventDefault();
-        setCurrentIndex((i) => Math.min(i + step, files.length - 1));
+        guardedNavigate(() => setCurrentIndex((i) => Math.min(i + step, files.length - 1)));
       } else if (e.key === 'ArrowUp' || e.key === 'ArrowLeft' || e.key === 'k') {
         e.preventDefault();
-        setCurrentIndex((i) => Math.max(i - step, 0));
+        guardedNavigate(() => setCurrentIndex((i) => Math.max(i - step, 0)));
       } else if (!e.altKey && (e.key === 'Delete' || e.key === 'Backspace' || e.key.toLowerCase() === 'x')) {
         // Ignore the cull shortcut while a query is loading — `files` still
         // holds the previous filter, so culling now would trash the wrong file.
@@ -637,7 +638,7 @@ export function CullingModule({ node }) {
     };
     window.addEventListener('keydown', handler);
     return () => window.removeEventListener('keydown', handler);
-  }, [node, files.length, showTrash, trashCurrent, undoTrash]);
+  }, [node, files.length, showTrash, trashCurrent, undoTrash, guardedNavigate]);
 
   // Keep the selected row visible as the selection moves (arrow nav, advance),
   // with ~3 rows of padding above/below where the list allows. Uses rects so it
@@ -657,6 +658,36 @@ export function CullingModule({ node }) {
     }
   }, [currentIndex, files]);
 
+  // While the unsaved-changes confirm dialog is open it owns the keyboard:
+  // ⌘↵ saves (commits the rename, which advances), ↵ discards and runs the
+  // deferred navigation (the default), Esc cancels and stays. Capture phase so
+  // it preempts the culling/Review document handlers.
+  useEffect(() => {
+    if (!confirmNav) return;
+    const onKey = (e) => {
+      if (e.key === 'Escape') {
+        e.preventDefault();
+        e.stopPropagation();
+        setConfirmNav(null);
+      } else if (e.key === 'Enter') {
+        e.preventDefault();
+        e.stopPropagation();
+        e.stopImmediatePropagation?.();
+        if (e.metaKey || e.ctrlKey) {
+          commitNameToggleRef.current?.(); // save (commit + advance)
+          setConfirmNav(null);
+        } else {
+          setRemovedNames(new Set()); // discard, then run the deferred nav
+          const run = confirmNav.run;
+          setConfirmNav(null);
+          run?.();
+        }
+      }
+    };
+    document.addEventListener('keydown', onKey, true);
+    return () => document.removeEventListener('keydown', onKey, true);
+  }, [confirmNav]);
+
   // Enter handling for culling, on document in the CAPTURE phase so it preempts
   // other modules' document-level Enter handlers (e.g. ReviewModule confirming a
   // face) — a window/bubble listener would fire too late. Plain Enter starts an
@@ -669,6 +700,7 @@ export function CullingModule({ node }) {
     const onEnterCapture = (e) => {
       if (e.key !== 'Enter') return;
       if (node && !node.isVisible?.()) return;
+      if (confirmNavRef.current) return; // the confirm dialog owns Enter/⌘↵
       const tag = e.target?.tagName;
       // Text fields (rename input, glob, dropdown) handle Enter themselves and
       // already stop their own propagation; don't intercept them. A checkbox in
@@ -833,6 +865,24 @@ export function CullingModule({ node }) {
   const [removedNames, setRemovedNames] = useState(() => new Set());
   // Reset the toggle when the selected file changes — overrides are per file.
   useEffect(() => { setRemovedNames(new Set()); }, [current?.path]);
+  // Latest removedNames for the global keydown handler (avoids re-subscribing).
+  const removedNamesRef = useRef(removedNames);
+  removedNamesRef.current = removedNames;
+
+  // When navigating away from a file with uncommitted name toggles, confirm
+  // first: { run } holds the deferred navigation. Cmd+Enter saves (then the
+  // rename's own advance applies), Enter discards and runs the navigation, Esc
+  // cancels. A ref mirrors it so the keyboard handlers bail while it's open.
+  const [confirmNav, setConfirmNav] = useState(null);
+  const confirmNavRef = useRef(null);
+  confirmNavRef.current = confirmNav;
+
+  // Run a navigation, but if the current file has unsaved name toggles, defer it
+  // behind the confirm dialog instead.
+  const guardedNavigate = useCallback((run) => {
+    if (removedNamesRef.current.size > 0) setConfirmNav({ run });
+    else run();
+  }, []);
 
   const currentNames = current ? namesInBasename(current.basename) : [];
   const previewBasename = current && removedNames.size
@@ -1071,8 +1121,8 @@ export function CullingModule({ node }) {
               {files.map((f, i) => (
                 <li
                   key={f.path}
-                  className={i === currentIndex ? 'active' : ''}
-                  onClick={() => setCurrentIndex(i)}
+                  className={`${i === currentIndex ? 'active' : ''}${i === currentIndex && namePreviewPending ? ' pending' : ''}`}
+                  onClick={() => guardedNavigate(() => setCurrentIndex(i))}
                   onDoubleClick={() => beginEdit(i)}
                   onContextMenu={(e) => {
                     e.preventDefault();
@@ -1100,7 +1150,11 @@ export function CullingModule({ node }) {
                       onBlur={cancelEdit}
                     />
                   ) : (
-                    <span className="culling-file-name">{f.basename}</span>
+                    // The current row previews the toggled-off name live (orange
+                    // while uncommitted); other rows show their real basename.
+                    <span className="culling-file-name">
+                      {i === currentIndex && namePreviewPending ? previewBasename : f.basename}
+                    </span>
                   )}
                 </li>
               ))}
@@ -1131,12 +1185,11 @@ export function CullingModule({ node }) {
                     );
                   })}
                 </div>
-                <div className={`culling-name-preview${namePreviewPending ? ' pending' : ''}`}>
-                  <span className="culling-name-preview-text">{previewBasename}</span>
-                  {namePreviewPending && (
-                    <span className="culling-name-preview-hint"><kbd>⌘</kbd><kbd>↵</kbd> döp om</span>
-                  )}
-                </div>
+                {namePreviewPending && (
+                  <div className="culling-name-hint">
+                    <kbd>⌘</kbd><kbd>↵</kbd> döp om · <kbd>↵</kbd> ångra
+                  </div>
+                )}
               </div>
             )}
             {!current ? (
@@ -1190,6 +1243,37 @@ export function CullingModule({ node }) {
             <span>Ångra senaste</span><span className="culling-menu-keys"><kbd>⌘</kbd><kbd>Z</kbd></span>
           </li>
         </ul>
+      )}
+
+      {confirmNav && (
+        <div className="culling-confirm-backdrop" onClick={() => setConfirmNav(null)}>
+          <div
+            className="culling-confirm"
+            role="dialog"
+            aria-modal="true"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="culling-confirm-title">Osparade namnändringar</div>
+            <div className="culling-confirm-preview">{previewBasename}</div>
+            <div className="culling-confirm-actions">
+              <button
+                className="btn-action"
+                onClick={() => { commitNameToggleRef.current?.(); setConfirmNav(null); }}
+              >
+                Spara <span className="culling-menu-keys"><kbd>⌘</kbd><kbd>↵</kbd></span>
+              </button>
+              <button
+                className="btn-secondary"
+                onClick={() => { setRemovedNames(new Set()); const run = confirmNav.run; setConfirmNav(null); run?.(); }}
+              >
+                Kasta <span className="culling-menu-keys"><kbd>↵</kbd></span>
+              </button>
+              <button className="btn-secondary" onClick={() => setConfirmNav(null)}>
+                Avbryt <span className="culling-menu-keys"><kbd>Esc</kbd></span>
+              </button>
+            </div>
+          </div>
+        </div>
       )}
     </div>
   );

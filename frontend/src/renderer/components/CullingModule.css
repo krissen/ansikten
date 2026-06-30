@@ -2,6 +2,7 @@
   display: flex;
   flex-direction: column;
   height: 100%;
+  position: relative; /* contains the unsaved-changes confirm dialog overlay */
 }
 
 .culling-filterbar {
@@ -248,6 +249,13 @@
   color: var(--text-on-accent);
 }
 
+/* Current row with uncommitted name toggles: orange (not the green accent) and
+   showing the previewed filename, so a pending rename reads at a glance. */
+.culling-files li.active.pending {
+  background: var(--color-warning);
+  color: var(--text-on-accent);
+}
+
 .culling-rename-input {
   width: 100%;
   box-sizing: border-box;
@@ -394,32 +402,15 @@
   text-decoration: line-through;
 }
 
-.culling-name-preview {
-  font-size: 0.8em;
-  font-variant-numeric: tabular-nums;
-  color: var(--text-secondary);
-  padding: 2px 6px;
-  border-radius: 5px;
-  display: flex;
-  align-items: center;
-  gap: 8px;
-}
-
-/* Pending (uncommitted) preview gets a distinct, warning-tinted background. */
-.culling-name-preview.pending {
-  background: color-mix(in srgb, var(--color-warning) 22%, transparent);
-  color: var(--text-primary);
-}
-
-.culling-name-preview-hint {
-  display: inline-flex;
-  align-items: center;
-  gap: 2px;
+/* The previewed filename now lives in the left list row; the overlay only
+   shows the chips plus a small hint while a removal is pending. */
+.culling-name-hint {
+  font-size: 0.78em;
   white-space: nowrap;
   color: var(--text-secondary);
 }
 
-.culling-name-preview-hint kbd {
+.culling-name-hint kbd {
   min-width: 16px;
   padding: 0 var(--space-xs);
   text-align: center;
@@ -429,6 +420,54 @@
   background: var(--bg-active);
   border: 1px solid var(--border-strong);
   border-radius: var(--radius-sm);
+}
+
+/* Unsaved name-change confirm dialog (shown when advancing with pending toggles). */
+.culling-confirm-backdrop {
+  position: absolute;
+  inset: 0;
+  z-index: 20;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: rgba(0, 0, 0, 0.45);
+}
+
+.culling-confirm {
+  min-width: 280px;
+  max-width: calc(100% - 32px);
+  padding: 16px;
+  border-radius: 8px;
+  background: var(--bg-secondary);
+  border: 1px solid var(--border-strong);
+  box-shadow: 0 6px 24px rgba(0, 0, 0, 0.4);
+}
+
+.culling-confirm-title {
+  font-weight: 600;
+  margin-bottom: 6px;
+  color: var(--text-primary);
+}
+
+.culling-confirm-preview {
+  font-family: var(--font-mono);
+  font-size: 0.85em;
+  color: var(--text-secondary);
+  word-break: break-all;
+  margin-bottom: 14px;
+}
+
+.culling-confirm-actions {
+  display: flex;
+  gap: 8px;
+  justify-content: flex-end;
+  flex-wrap: wrap;
+}
+
+.culling-confirm-actions .culling-menu-keys {
+  display: inline-flex;
+  gap: 2px;
+  margin-left: 6px;
 }
 
 .culling-image {
