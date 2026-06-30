@@ -15,6 +15,7 @@ import { useBackend } from '../context/BackendContext.jsx';
 import { useModuleEvent } from '../hooks/useModuleEvent.js';
 import { namesInBasename, removeNamesFromBasename } from './culling-names.js';
 import { preferences } from '../workspace/preferences.js';
+import { getScanScope, setScanScope, scanScopeHasSelection } from '../shared/scanScope.js';
 import './CullingModule.css';
 
 const REFRESH_DEBOUNCE_MS = 400;
@@ -197,6 +198,8 @@ export function CullingModule({ node }) {
       // inheriting that stale target. The folder-watch refresh keeps it — that's
       // the race the ref must win.
       if (!keepIndex && !advancePastPath) pendingAdvanceRef.current = null;
+      // Publish the scan scope so Räkna spelare mirrors the same selection.
+      setScanScope(statsScopeFromQuery(query));
       const seq = ++reqSeqRef.current;
       setIsLoading(true);
       try {
@@ -411,6 +414,36 @@ export function CullingModule({ node }) {
     },
     [roots, preset, loadList, loadStats, updateWatches]
   );
+
+  // On open, adopt the shared scan scope (e.g. coming from Räkna spelare) when
+  // we have nothing of our own yet. A CLI culling-load (~1s later) or any user
+  // action still takes over; the player/name filter is never inherited.
+  useEffect(() => {
+    if (hasRun || roots.length > 0) return;
+    const s = getScanScope();
+    if (!scanScopeHasSelection(s)) return;
+    setRoots(s.roots || []);
+    setCarriedGlobs(s.globs || []);
+    setRecursive(s.recursive ?? true);
+    setDateFrom(s.date_from || null);
+    setDateTo(s.date_to || null);
+    setPreset(s.extension_preset || 'jpg');
+    const query = {
+      roots: s.roots || [],
+      globs: s.globs || [],
+      extension_preset: s.extension_preset || 'jpg',
+      recursive: s.recursive ?? true,
+      date_from: s.date_from || null,
+      date_to: s.date_to || null,
+      player: null,
+      name_glob: null,
+    };
+    lastQueryRef.current = query;
+    loadList(query);
+    loadStats(statsScopeFromQuery(query));
+    updateWatches(new Set(s.roots || []));
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   // ----- cull loop ----------------------------------------------------
   const trashIndex = useCallback(async (index) => {
