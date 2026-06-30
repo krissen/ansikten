@@ -584,6 +584,31 @@ export function CullingModule({ node }) {
     }
   }, [api, editPath, editValue, reloadAfterRename, refreshStatsDebounced]);
 
+  // ----- name-removal overlay state -----------------------------------
+  // Declared above the keyboard + dialog effects below, which list these in
+  // their dependency arrays (dep arrays are evaluated during render, so the
+  // referenced bindings must already exist — no TDZ).
+  // Names toggled off for the current file (cleaned form); the overlay previews
+  // the result and Cmd+Enter commits the rename. A ref mirrors it for the global
+  // keydown handler (avoids re-subscribing on every toggle).
+  const [removedNames, setRemovedNames] = useState(() => new Set());
+  const removedNamesRef = useRef(removedNames);
+  removedNamesRef.current = removedNames;
+
+  // Confirm dialog when navigating away with uncommitted toggles: { run } holds
+  // the deferred navigation. A ref mirrors it so the keyboard handlers bail
+  // while it's open.
+  const [confirmNav, setConfirmNav] = useState(null);
+  const confirmNavRef = useRef(null);
+  confirmNavRef.current = confirmNav;
+
+  // Run a navigation, but defer it behind the confirm dialog when the current
+  // file has unsaved name toggles.
+  const guardedNavigate = useCallback((run) => {
+    if (removedNamesRef.current.size > 0) setConfirmNav({ run });
+    else run();
+  }, []);
+
   // ----- keyboard ----------------------------------------------------
   useEffect(() => {
     const handler = (e) => {
@@ -860,29 +885,11 @@ export function CullingModule({ node }) {
   const canFilter = roots.length > 0 || glob.trim() !== '';
 
   // ----- on-the-fly name removal (preview overlay) -------------------
-  // Names the user has toggled off for the current file (cleaned form). The
-  // overlay previews the resulting filename live; Cmd+Enter commits the rename.
-  const [removedNames, setRemovedNames] = useState(() => new Set());
-  // Reset the toggle when the selected file changes — overrides are per file.
+  // removedNames / removedNamesRef / confirmNav / confirmNavRef / guardedNavigate
+  // are declared earlier (above the keyboard + dialog effects that list them in
+  // their dependency arrays). Reset the toggle when the selected file changes —
+  // overrides are per file.
   useEffect(() => { setRemovedNames(new Set()); }, [current?.path]);
-  // Latest removedNames for the global keydown handler (avoids re-subscribing).
-  const removedNamesRef = useRef(removedNames);
-  removedNamesRef.current = removedNames;
-
-  // When navigating away from a file with uncommitted name toggles, confirm
-  // first: { run } holds the deferred navigation. Cmd+Enter saves (then the
-  // rename's own advance applies), Enter discards and runs the navigation, Esc
-  // cancels. A ref mirrors it so the keyboard handlers bail while it's open.
-  const [confirmNav, setConfirmNav] = useState(null);
-  const confirmNavRef = useRef(null);
-  confirmNavRef.current = confirmNav;
-
-  // Run a navigation, but if the current file has unsaved name toggles, defer it
-  // behind the confirm dialog instead.
-  const guardedNavigate = useCallback((run) => {
-    if (removedNamesRef.current.size > 0) setConfirmNav({ run });
-    else run();
-  }, []);
 
   const currentNames = current ? namesInBasename(current.basename) : [];
   const previewBasename = current && removedNames.size
@@ -1212,16 +1219,16 @@ export function CullingModule({ node }) {
           style={{ left: menu.x, top: menu.y }}
           onClick={(e) => e.stopPropagation()}
         >
-          <li onClick={() => { setMenu(null); setCurrentIndex((i) => Math.max(i - 1, 0)); }}>
+          <li onClick={() => { setMenu(null); guardedNavigate(() => setCurrentIndex((i) => Math.max(i - 1, 0))); }}>
             <span>Föregående</span><span className="culling-menu-keys"><kbd>←</kbd><kbd>↑</kbd></span>
           </li>
-          <li onClick={() => { setMenu(null); setCurrentIndex((i) => Math.min(i + 1, files.length - 1)); }}>
+          <li onClick={() => { setMenu(null); guardedNavigate(() => setCurrentIndex((i) => Math.min(i + 1, files.length - 1))); }}>
             <span>Nästa</span><span className="culling-menu-keys"><kbd>→</kbd><kbd>↓</kbd></span>
           </li>
-          <li onClick={() => { setMenu(null); setCurrentIndex((i) => Math.max(i - PAGE_STEP, 0)); }}>
+          <li onClick={() => { setMenu(null); guardedNavigate(() => setCurrentIndex((i) => Math.max(i - PAGE_STEP, 0))); }}>
             <span>Hoppa bakåt</span><span className="culling-menu-keys"><kbd>⌥</kbd><kbd>←</kbd></span>
           </li>
-          <li onClick={() => { setMenu(null); setCurrentIndex((i) => Math.min(i + PAGE_STEP, files.length - 1)); }}>
+          <li onClick={() => { setMenu(null); guardedNavigate(() => setCurrentIndex((i) => Math.min(i + PAGE_STEP, files.length - 1))); }}>
             <span>Hoppa framåt</span><span className="culling-menu-keys"><kbd>⌥</kbd><kbd>→</kbd></span>
           </li>
           <li className="culling-menu-sep" role="separator" />
