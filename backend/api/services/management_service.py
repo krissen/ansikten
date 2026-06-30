@@ -30,6 +30,11 @@ DISTINCT_PAIRS_PATH = BASE_DIR / "distinct_pairs.json"
 # as "likely distinct" (different people who merely look alike), not a duplicate.
 SEPARABILITY_CUTOFF = 0.9
 
+# Cap on encodings per person fed to the separability check, so a person with
+# very many photos can't blow up the dense (nA+nB)^2 distance matrix. A strided
+# sample is representative enough for a leave-one-out separability estimate.
+MAX_SEPARABILITY_SAMPLES = 200
+
 logger = logging.getLogger(__name__)
 
 
@@ -137,6 +142,14 @@ def _person_centroid(
     return centroid, len(vecs)
 
 
+def _strided_sample(vecs: List[np.ndarray], cap: int) -> List[np.ndarray]:
+    """At most `cap` evenly-spaced items from `vecs` (all of them if already ≤ cap)."""
+    if len(vecs) <= cap:
+        return vecs
+    idx = np.linspace(0, len(vecs) - 1, cap).astype(int)
+    return [vecs[i] for i in idx]
+
+
 def _pair_separability(
     vecs_a: List[np.ndarray], vecs_b: List[np.ndarray]
 ) -> Optional[tuple[float, float]]:
@@ -152,8 +165,8 @@ def _pair_separability(
     """
     if len(vecs_a) < 2 or len(vecs_b) < 2:
         return None
-    a = np.stack(vecs_a)
-    b = np.stack(vecs_b)
+    a = np.stack(_strided_sample(vecs_a, MAX_SEPARABILITY_SAMPLES))
+    b = np.stack(_strided_sample(vecs_b, MAX_SEPARABILITY_SAMPLES))
     if a.shape[1] != b.shape[1]:
         return None
 
@@ -183,6 +196,10 @@ def _load_distinct_pairs() -> set:
     except (json.JSONDecodeError, OSError):
         logger.warning("[ManagementService] Could not read %s", DISTINCT_PAIRS_PATH)
         return set()
+    if not isinstance(data, list):
+        # A scalar/null/object (corrupt or hand-edited) — fall back to empty.
+        logger.warning("[ManagementService] %s is not a list; ignoring", DISTINCT_PAIRS_PATH)
+        return set()
     return {
         tuple(sorted(p))
         for p in data
@@ -197,6 +214,29 @@ def _save_distinct_pairs(pairs: set) -> None:
     with open(tmp, "w") as f:
         json.dump([list(p) for p in sorted(pairs)], f, ensure_ascii=False, indent=2)
     tmp.replace(DISTINCT_PAIRS_PATH)
+
+
+def _rename_in_distinct_pairs(old: str, new: str) -> None:
+    """Rewrite `old` → `new` in the registry so an exclusion survives a rename."""
+    pairs = _load_distinct_pairs()
+    if not any(old in p for p in pairs):
+        return
+    updated = set()
+    for a, b in pairs:
+        a2 = new if a == old else a
+        b2 = new if b == old else b
+        if a2 != b2:  # a rename that collapses a pair onto one name drops it
+            updated.add(tuple(sorted((a2, b2))))
+    _save_distinct_pairs(updated)
+
+
+def _drop_from_distinct_pairs(*names: str) -> None:
+    """Drop any registry pair that references a removed name (delete / merged-away)."""
+    gone = set(names)
+    pairs = _load_distinct_pairs()
+    kept = {p for p in pairs if not (gone & set(p))}
+    if len(kept) != len(pairs):
+        _save_distinct_pairs(kept)
 
 
 class ManagementService:
@@ -291,6 +331,7 @@ class ManagementService:
         # Rename by moving encodings
         self.known_faces[new_name] = self.known_faces.pop(old_name)
         self.save()
+        _rename_in_distinct_pairs(old_name, new_name)
 
         logger.info(f"[ManagementService] Renamed '{old_name}' to '{new_name}'")
 
@@ -386,6 +427,8 @@ class ManagementService:
                 del self.known_faces[name]
 
         self.save()
+        # Sources that disappeared into the target can't anchor an exclusion anymore.
+        _drop_from_distinct_pairs(*[n for n in source_names if n != target_name])
 
         final_by_backend = _count_encodings_by_backend(encodings_unique)
         warning = None
@@ -519,6 +562,7 @@ class ManagementService:
         encoding_count = len(self.known_faces[name])
         del self.known_faces[name]
         self.save()
+        _drop_from_distinct_pairs(name)
 
         logger.info(f"[ManagementService] Deleted '{name}' ({encoding_count} encodings)")
 

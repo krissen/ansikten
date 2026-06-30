@@ -38,6 +38,9 @@ def service(tmp_path, monkeypatch):
     svc._reload_lock = threading.Lock()
     svc._last_reload = 9e18  # never re-read disk
     svc._cache_ttl = 2.0
+    # Keep the in-memory known_faces authoritative and never touch the real DB.
+    monkeypatch.setattr(svc, "_reload_from_disk", lambda: None)
+    monkeypatch.setattr(svc, "save", lambda: None)
     return svc
 
 
@@ -65,6 +68,23 @@ def test_separability_none_when_too_few_samples():
     assert _pair_separability([], [_unit(2), _unit(3)]) is None
 
 
+def test_strided_sample_caps_length():
+    vecs = [np.zeros(4) for _ in range(1000)]
+    assert len(m._strided_sample(vecs, 200)) == 200
+    assert len(m._strided_sample(vecs[:10], 200)) == 10
+
+
+def test_separability_bounded_for_many_encodings(monkeypatch):
+    # With a large set, the metric must stay bounded (no giant matrix) and still
+    # return a finite score.
+    monkeypatch.setattr(m, "MAX_SEPARABILITY_SAMPLES", 50)
+    base = _unit(0)
+    a = _norm_list(range(0, 400), base=base, jitter=0.02, jseed=1)
+    b = _norm_list(range(0, 400), base=base + 0.1 * _unit(99), jitter=0.02, jseed=500)
+    acc, margin = _pair_separability(a, b)
+    assert 0.0 <= acc <= 1.0
+
+
 # ----- registry + find_duplicate_people ------------------------------------
 
 @pytest.mark.asyncio
@@ -76,6 +96,18 @@ async def test_registry_add_remove_list_roundtrip(service):
     assert listed["pairs"][0] == {"name_a": "Maximilian", "name_b": "Wilmer"}  # sorted
     await service.remove_distinct_pair("Maximilian", "Wilmer")
     assert (await service.list_distinct_pairs())["count"] == 0
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("bad", ["null", "5", "true", '{"a": 1}', "not json"])
+async def test_load_tolerates_malformed_registry(service, bad):
+    # A corrupt/hand-edited file (non-list or invalid JSON) must degrade to empty,
+    # never raise out of list/add/find.
+    m.DISTINCT_PAIRS_PATH.write_text(bad)
+    assert (await service.list_distinct_pairs())["count"] == 0
+    # add still works (overwrites the bad file)
+    await service.add_distinct_pair("A", "B")
+    assert (await service.list_distinct_pairs())["count"] == 1
 
 
 @pytest.mark.asyncio
@@ -127,3 +159,35 @@ async def test_find_duplicates_flags_likely_distinct_and_sorts_last(service):
     # likely_distinct pairs sink below true candidates.
     assert result["pairs"][0]["likely_distinct"] is False
     assert result["pairs"][-1]["likely_distinct"] is True
+
+
+# ----- registry stays in sync with name changes ----------------------------
+
+@pytest.mark.asyncio
+async def test_rename_rewrites_distinct_pair(service):
+    service.known_faces = {"Wilmer": [_entry(_unit(0))], "Other": [_entry(_unit(1))]}
+    await service.add_distinct_pair("Wilmer", "Maximilian")
+    await service.rename_person("Wilmer", "Wilmer B")
+    assert (await service.list_distinct_pairs())["pairs"] == [
+        {"name_a": "Maximilian", "name_b": "Wilmer B"}
+    ]
+
+
+@pytest.mark.asyncio
+async def test_delete_drops_distinct_pair(service):
+    service.known_faces = {"Wilmer": [_entry(_unit(0))]}
+    await service.add_distinct_pair("Wilmer", "Maximilian")
+    await service.delete_person("Wilmer")
+    assert (await service.list_distinct_pairs())["count"] == 0
+
+
+@pytest.mark.asyncio
+async def test_merge_drops_distinct_pair_for_vanished_source(service):
+    service.known_faces = {
+        "A": [_entry(_unit(0))],
+        "B": [_entry(_unit(1))],
+        "C": [_entry(_unit(2))],
+    }
+    await service.add_distinct_pair("A", "C")
+    await service.merge_people(["A"], "B")  # A vanishes into B
+    assert (await service.list_distinct_pairs())["count"] == 0
