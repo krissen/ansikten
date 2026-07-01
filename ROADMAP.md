@@ -98,8 +98,9 @@ CLI-paritet — launch-kommandot mot fler arbetsflöden:
   - [x] **Menyn** (`frontend/src/main/menu.js`) — hela app-menyn (File/Edit/View/Window/Help/Tema + mac-appmenyn) migrerad till `t()` via `menu.*`-namnrymden; modul-öppna-poster återanvänder `modules.*`. **"Öppna i Lightroom" flyttad från View → Arkiv.** Verifierat att main-processens CJS-`require('../i18n')` funkar och packas (`src/**/*`).
   - [x] **Preferences** (~180 str) — hela PreferencesModule migrerad till `t()` via `preferences.*`-namnrymden (sektioner/fält/hintar/options/dialoger); Spara/Återställ återanvänder `common.*`.
   - [x] **ThemeEditor** (~65 str) — kategorier, variabel-etiketter, temaläges-options, förval-labels, export/import migrerade via `themeEditor.*`.
-  - [ ] **Database Management** (~75), **Refine Faces** (~55), **Statistics** (~35), **Log Viewer** (~25), **ConnectionStatus** (2).
+  - [x] **Database Management** (~99 nycklar) — titel/sektioner/operationer/knappar/placeholders/toaster/dialoger via `database.*`.
   - [x] **FileQueue** (~97 anrop) — knappar/status/förbehandling/tooltips/toaster/rename-dialog via `fileQueue.*`.
+  - [ ] **Refine Faces** (~55), **Statistics** (~35), **Log Viewer** (~25), **ConnectionStatus** (2).
   - [ ] **ReviewModule** (~21), **OriginalView** (~7), **ImageViewer** (~4).
   - [ ] **PlayerCount** (2: `Per match`, `Matchgap`), **StartupStatus** (~11), genvägshjälpen (~50), api-client-toaster.
   - Rena redan (mönster): Culling, Import, RenameNef, InputBar, StartupLanding.

@@ -7,6 +7,7 @@ This changelog is initialized from git commit history after `v1.0.0` and can be 
 ## [Unreleased]
 
 ### Added
+- **Swedish display language — Database Management:** the whole Database Management module is Swedish (title, section headers, operation titles, buttons, placeholders, empty states, validation/error/success toasts, and confirm dialogs), migrated to `database.*` with interpolation and plural forms. (~99 keys.)
 - **Swedish display language — Theme Editor:** category names, colour/variable labels, theme-mode options, preset bindings, and Export/Import are now Swedish (`themeEditor.*`); Save/Reset reuse `common.*`. Preset brand names (Terminal Beige / CRT Phosphor) kept.
 - **Swedish display language — Preferences:** the entire Preferences module is now Swedish (section labels, field labels + hints, dropdown options, the reset/clear confirmation dialogs), migrated to the i18n catalog under a `preferences.*` namespace; Save/Reset reuse the shared `common.*` strings. (~180 strings.)
 - **Swedish display language — application menu:** the entire app menu (File/Edit/View/Window/Help, the Theme submenu, and the macOS app menu) is now Swedish, migrated to the i18n catalog (`menu.*`); module-open items reuse the shared `modules.*` names so menu and tab labels stay consistent. **"Öppna i Lightroom" moved from the View menu to the File menu** (Arkiv), where a file/export action belongs. (Menu labels live in the main process; the CommonJS catalog is shared with it.)
