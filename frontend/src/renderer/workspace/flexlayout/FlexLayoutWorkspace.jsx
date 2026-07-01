@@ -7,6 +7,7 @@
 import React, { useRef, useEffect, useCallback, useState } from 'react';
 import { Layout, Model, Actions, DockLocation } from 'flexlayout-react';
 import { reviewLayout, getLayoutByName, singleModuleLayout } from './layouts.js';
+import { resolveTargetTabset } from './tabsetUtils.js';
 import { preferences } from '../preferences.js';
 import { themeManager } from '../../theme-manager.js';
 import { useModuleAPI } from '../../context/ModuleAPIContext.jsx';
@@ -569,23 +570,14 @@ export function FlexLayoutWorkspace() {
       config: { moduleId }
     };
 
-    // Find target tabset. getActiveTabset() is undefined until the user clicks a
-    // tabset (e.g. a fresh load) or when the previously-active tabset was just
-    // closed — fall back to the LARGEST tabset by area so the module lands in
-    // the main working area, not a narrow side column (e.g. the 15% Review
-    // column of the default layout), and is never silently dropped.
-    let targetTabset = model.getActiveTabset();
-    if (!targetTabset) {
-      let bestArea = -1;
-      model.visitNodes((node) => {
-        if (node.getType() !== 'tabset') return;
-        const rect = node.getRect?.();
-        const area = rect ? rect.width * rect.height : 0;
-        if (area > bestArea) { bestArea = area; targetTabset = node; }
-      });
-    }
+    // Resolve where to dock the new tab (active tabset, else main working area).
+    const targetTabset = resolveTargetTabset(model);
     if (targetTabset) {
-      model.doAction(Actions.addNode(tabJson, targetTabset.getId(), DockLocation.CENTER, -1));
+      // select=true so the new tab is shown (not added behind the current one),
+      // and make its tabset active so the switch is visible and later opens dock
+      // here too.
+      model.doAction(Actions.addNode(tabJson, targetTabset.getId(), DockLocation.CENTER, -1, true));
+      model.doAction(Actions.setActiveTabset(targetTabset.getId()));
     } else {
       debugWarn('FlexLayout', `No tabset to host module: ${moduleId}`);
     }
