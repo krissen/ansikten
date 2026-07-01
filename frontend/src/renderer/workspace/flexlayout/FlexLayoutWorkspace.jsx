@@ -39,90 +39,90 @@ const STORAGE_KEY = 'ansikten-flexlayout';
 const SHORTCUT_SECTIONS = [
   {
     id: 'navigation',
-    title: 'Navigation',
+    title: t('shortcuts.sections.navigation'),
     modules: [],
     shortcuts: [
-      { keys: ['Cmd', '←→↑↓'], desc: 'Move focus between panels' },
-      { keys: ['↑', '↓'], desc: 'Previous / next item', sep: '/' },
-      { keys: ['Tab'], desc: 'Complete name (in input)' }
+      { keys: ['Cmd', '←→↑↓'], desc: t('shortcuts.desc.nav.moveFocus') },
+      { keys: ['↑', '↓'], desc: t('shortcuts.desc.nav.prevNextItem'), sep: '/' },
+      { keys: ['Tab'], desc: t('shortcuts.desc.nav.completeName') }
     ]
   },
   {
     id: 'layout',
-    title: 'Layout',
+    title: t('shortcuts.sections.layout'),
     modules: [],
     shortcuts: [
-      { keys: ['Cmd', '1-4'], desc: 'Switch layout template' },
-      { keys: ['Cmd', 'Shift', ']'], desc: 'Add column' },
-      { keys: ['Cmd', 'Shift', '['], desc: 'Remove column' },
-      { keys: ['Cmd', 'Shift', '}'], desc: 'Add row' },
-      { keys: ['Cmd', 'Shift', '{'], desc: 'Remove row' }
+      { keys: ['Cmd', '1-4'], desc: t('shortcuts.desc.layout.switchTemplate') },
+      { keys: ['Cmd', 'Shift', ']'], desc: t('shortcuts.desc.layout.addColumn') },
+      { keys: ['Cmd', 'Shift', '['], desc: t('shortcuts.desc.layout.removeColumn') },
+      { keys: ['Cmd', 'Shift', '}'], desc: t('shortcuts.desc.layout.addRow') },
+      { keys: ['Cmd', 'Shift', '{'], desc: t('shortcuts.desc.layout.removeRow') }
     ]
   },
   {
     id: 'image-viewer',
-    title: 'Image Viewer',
+    title: t('modules.image-viewer'),
     modules: ['image-viewer', 'original-view'],
     shortcuts: [
-      { keys: ['+', '-'], desc: 'Zoom in/out (hold for continuous)', sep: ' / ' },
-      { keys: ['='], desc: 'Reset to 1:1' },
-      { keys: ['0'], desc: 'Auto-fit to window' },
-      { keys: ['B'], desc: 'Toggle bounding boxes on/off' },
-      { keys: ['b'], desc: 'Toggle single/all boxes' },
-      { keys: ['c', 'C'], desc: 'Toggle auto-center on face', sep: ' / ' }
+      { keys: ['+', '-'], desc: t('shortcuts.desc.viewer.zoom'), sep: ' / ' },
+      { keys: ['='], desc: t('shortcuts.desc.viewer.reset') },
+      { keys: ['0'], desc: t('shortcuts.desc.viewer.autoFit') },
+      { keys: ['B'], desc: t('shortcuts.desc.viewer.toggleBoxes') },
+      { keys: ['b'], desc: t('shortcuts.desc.viewer.toggleSingleAll') },
+      { keys: ['c', 'C'], desc: t('shortcuts.desc.viewer.autoCenter'), sep: ' / ' }
     ]
   },
   {
     id: 'face-review',
-    title: 'Face Review',
+    title: t('modules.review-module'),
     modules: ['review-module'],
     shortcuts: [
-      { keys: ['Enter', 'A'], desc: 'Accept suggested match', sep: ' / ' },
-      { keys: ['I'], desc: 'Ignore face' },
-      { keys: ['R'], desc: 'Rename / enter name' },
-      { keys: ['1-N'], desc: 'Select match alternative' },
-      { keys: ['↑', '↓'], desc: 'Previous / next face', sep: ' / ' },
-      { keys: ['X'], desc: 'Skip to next file' },
-      { keys: ['Shift', 'Cmd', 'A'], desc: 'Accept all suggestions' },
-      { keys: ['Cmd', 'Z'], desc: 'Undo last face action' },
-      { keys: ['Esc'], desc: 'Cancel detection / discard changes' }
+      { keys: ['Enter', 'A'], desc: t('shortcuts.desc.review.acceptMatch'), sep: ' / ' },
+      { keys: ['I'], desc: t('shortcuts.desc.review.ignoreFace') },
+      { keys: ['R'], desc: t('shortcuts.desc.review.rename') },
+      { keys: ['1-N'], desc: t('shortcuts.desc.review.selectAlternative') },
+      { keys: ['↑', '↓'], desc: t('shortcuts.desc.review.prevNextFace'), sep: ' / ' },
+      { keys: ['X'], desc: t('shortcuts.desc.review.skipFile') },
+      { keys: ['Shift', 'Cmd', 'A'], desc: t('shortcuts.desc.review.acceptAll') },
+      { keys: ['Cmd', 'Z'], desc: t('shortcuts.desc.review.undo') },
+      { keys: ['Esc'], desc: t('shortcuts.desc.review.cancel') }
     ]
   },
   {
     id: 'file-queue',
-    title: 'File Queue',
+    title: t('modules.file-queue'),
     modules: ['file-queue'],
     shortcuts: [
-      { keys: ['Cmd', 'O'], desc: 'Open files' },
-      { keys: ['↑', '↓'], desc: 'Navigate queue', sep: ' / ' },
-      { keys: ['Enter'], desc: 'Load selected file' },
-      { keys: ['Delete'], desc: 'Remove from queue' },
-      { keys: ['Cmd', 'A'], desc: 'Select all files' }
+      { keys: ['Cmd', 'O'], desc: t('shortcuts.desc.queue.openFiles') },
+      { keys: ['↑', '↓'], desc: t('shortcuts.desc.queue.navigate'), sep: ' / ' },
+      { keys: ['Enter'], desc: t('shortcuts.desc.queue.loadFile') },
+      { keys: ['Delete'], desc: t('shortcuts.desc.queue.remove') },
+      { keys: ['Cmd', 'A'], desc: t('shortcuts.desc.queue.selectAll') }
     ]
   },
   {
     id: 'culling',
-    title: 'Gallra spelare',
+    title: t('modules.culling'),
     modules: ['culling'],
     shortcuts: [
-      { keys: ['→', '↓'], desc: 'Next image', sep: ' / ' },
-      { keys: ['←', '↑'], desc: 'Previous image', sep: ' / ' },
-      { keys: ['Alt', '←→↑↓'], desc: 'Page (jump 10)' },
-      { keys: ['X', 'Delete', 'Cmd+⌫'], desc: 'Cull to trash', sep: ' / ' },
-      { keys: ['Enter'], desc: 'Rename file (double-click)' },
-      { keys: ['Cmd', 'Enter'], desc: 'Apply name removals from preview' },
-      { keys: ['Cmd', 'Z'], desc: 'Undo last cull' },
-      { keys: ['L'], desc: 'Open original NEF in Lightroom' }
+      { keys: ['→', '↓'], desc: t('shortcuts.desc.culling.nextImage'), sep: ' / ' },
+      { keys: ['←', '↑'], desc: t('shortcuts.desc.culling.prevImage'), sep: ' / ' },
+      { keys: ['Alt', '←→↑↓'], desc: t('shortcuts.desc.culling.page') },
+      { keys: ['X', 'Delete', 'Cmd+⌫'], desc: t('shortcuts.desc.culling.cull'), sep: ' / ' },
+      { keys: ['Enter'], desc: t('shortcuts.desc.culling.rename') },
+      { keys: ['Cmd', 'Enter'], desc: t('shortcuts.desc.culling.applyRemovals') },
+      { keys: ['Cmd', 'Z'], desc: t('shortcuts.desc.culling.undo') },
+      { keys: ['L'], desc: t('shortcuts.desc.culling.openLightroom') }
     ]
   },
   {
     id: 'general',
-    title: 'General',
+    title: t('shortcuts.sections.general'),
     modules: [],
     shortcuts: [
-      { keys: ['?'], desc: 'Show this help' },
-      { keys: ['Cmd', 'R'], desc: 'Reload window' },
-      { keys: ['Cmd', ','], desc: 'Preferences' }
+      { keys: ['?'], desc: t('shortcuts.desc.general.showHelp') },
+      { keys: ['Cmd', 'R'], desc: t('shortcuts.desc.general.reload') },
+      { keys: ['Cmd', ','], desc: t('shortcuts.desc.general.preferences') }
     ]
   }
 ];
@@ -158,7 +158,7 @@ function ShortcutsHelpOverlay({ onClose, activeModule }) {
     <div className="shortcuts-overlay" onClick={onClose}>
       <div className="shortcuts-dialog" onClick={e => e.stopPropagation()}>
         <div className="shortcuts-header">
-          <h2>Keyboard Shortcuts</h2>
+          <h2>{t('shortcuts.header')}</h2>
           <button type="button" className="shortcuts-close" onClick={onClose}>&times;</button>
         </div>
         <div className="shortcuts-content">
@@ -178,7 +178,7 @@ function ShortcutsHelpOverlay({ onClose, activeModule }) {
           })}
         </div>
         <div className="shortcuts-footer">
-          Press <kbd>?</kbd> or <kbd>Esc</kbd> to close
+          {t('shortcuts.footer.before')}<kbd>?</kbd>{t('shortcuts.footer.or')}<kbd>Esc</kbd>{t('shortcuts.footer.after')}
         </div>
       </div>
     </div>
