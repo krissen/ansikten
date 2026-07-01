@@ -8,6 +8,7 @@ import React, { useRef, useEffect, useCallback, useState } from 'react';
 import { Layout, Model, Actions, DockLocation } from 'flexlayout-react';
 import { reviewLayout, getLayoutByName, singleModuleLayout } from './layouts.js';
 import { resolveTargetTabset } from './tabsetUtils.js';
+import { t } from '../../../i18n/index.js';
 import { preferences } from '../preferences.js';
 import { themeManager } from '../../theme-manager.js';
 import { useModuleAPI } from '../../context/ModuleAPIContext.jsx';
@@ -202,23 +203,10 @@ const MODULE_COMPONENTS = {
   'rename-nef': RenameNefModule
 };
 
-// Module titles
-const MODULE_TITLES = {
-  'image-viewer': 'Image Viewer',
-  'original-view': 'Original View',
-  'log-viewer': 'Logs',
-  'statistics-dashboard': 'Statistics Dashboard',
-  'review-module': 'Face Review',
-  'database-management': 'Database Management',
-  'refine-faces': 'Refine Faces',
-  'file-queue': 'File Queue',
-  'theme-editor': 'Theme Editor',
-  'preferences': 'Preferences',
-  'player-count': 'Räkna spelare',
-  'culling': 'Gallra spelare',
-  'import': 'Importera',
-  'rename-nef': 'Byt namn'
-};
+// Module titles (Swedish) — derived from the i18n catalog, keyed by module id.
+const MODULE_TITLES = Object.fromEntries(
+  Object.keys(MODULE_COMPONENTS).map((id) => [id, t(`modules.${id}`)])
+);
 
 // Self-contained workflow modules render their own full UI, so a landing-page
 // click gives them the whole workspace (a single-module layout) rather than
