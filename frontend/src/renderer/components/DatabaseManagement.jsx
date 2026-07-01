@@ -122,7 +122,7 @@ export function DatabaseManagement() {
       return;
     }
 
-    if (!confirm(t('database.dialogs.renameConfirm', { old: oldName, new: newName }))) return;
+    if (!confirm(t('database.dialogs.renameConfirm', { old: oldName.trim(), new: newName.trim() }))) return;
 
     try {
       const result = await api.post('/api/v1/management/rename-person', {
@@ -149,7 +149,7 @@ export function DatabaseManagement() {
     const backendDesc = backend ? t('database.misc.backendOnly', { backend }) : '';
 
     if (!confirm(t('database.dialogs.mergeConfirm', {
-      source1, source2, target: targetName, backendDesc
+      source1: source1.trim(), source2: source2.trim(), target: targetName, backendDesc
     }))) return;
 
     try {
@@ -344,7 +344,7 @@ export function DatabaseManagement() {
       return;
     }
 
-    if (!confirm(t('database.dialogs.deleteConfirm', { name }))) return;
+    if (!confirm(t('database.dialogs.deleteConfirm', { name: name.trim() }))) return;
 
     try {
       const result = await api.post('/api/v1/management/delete-person', { name: name.trim() });
@@ -365,7 +365,7 @@ export function DatabaseManagement() {
     }
 
     const backendDesc = backend ? t('database.misc.backendOnly', { backend }) : '';
-    if (!confirm(t('database.dialogs.moveToIgnoreConfirm', { name, backendDesc }))) return;
+    if (!confirm(t('database.dialogs.moveToIgnoreConfirm', { name: name.trim(), backendDesc }))) return;
 
     try {
       const result = await api.post('/api/v1/management/move-to-ignore', {
@@ -392,7 +392,7 @@ export function DatabaseManagement() {
 
     const backendDesc = backend ? t('database.misc.backendOnly', { backend }) : '';
     if (!confirm(t('database.dialogs.moveFromIgnoreConfirm', {
-      count: countNum === -1 ? t('database.misc.all') : countNum, target, backendDesc
+      count: countNum === -1 ? t('database.misc.all') : countNum, target: target.trim(), backendDesc
     }))) return;
 
     try {
@@ -416,7 +416,7 @@ export function DatabaseManagement() {
       return;
     }
 
-    if (!confirm(t('database.dialogs.undoConfirm', { pattern }))) return;
+    if (!confirm(t('database.dialogs.undoConfirm', { pattern: pattern.trim() }))) return;
 
     try {
       const result = await api.post('/api/v1/management/undo-file', { filename_pattern: pattern.trim() });
@@ -453,7 +453,7 @@ export function DatabaseManagement() {
     }
 
     const backendDesc = backend ? t('database.misc.backendOnly', { backend }) : '';
-    if (!confirm(t('database.dialogs.purgeConfirm', { count: countNum, name, backendDesc }))) return;
+    if (!confirm(t('database.dialogs.purgeConfirm', { count: countNum, name: name.trim(), backendDesc }))) return;
 
     try {
       const result = await api.post('/api/v1/management/purge-encodings', {
