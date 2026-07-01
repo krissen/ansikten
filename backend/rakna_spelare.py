@@ -26,11 +26,54 @@ ALWAYS_PUBLIK = {"Klacken"}        # crowd / supporters → "Publik"
 def load_exclusion_config() -> dict[str, list[str]]:
     if CONFIG_FILE.exists():
         try:
-            with open(CONFIG_FILE, "r") as f:
+            with open(CONFIG_FILE, "r", encoding="utf-8") as f:
                 return json.load(f)
         except (json.JSONDecodeError, IOError):
             pass
     return {"tranare": [], "publik": [], "grupp": []}
+
+
+def save_exclusion_config(
+    tranare: list[str] | None = None,
+    publik: list[str] | None = None,
+    grupp: list[str] | None = None,
+) -> dict[str, list[str]]:
+    """Persist coach/audience/group exclusion lists to the config file.
+
+    Only the provided lists are overwritten; ``None`` preserves the existing
+    value (so saving just tranare/publik keeps a configured grupp). The built-in
+    ALWAYS markers (Laget/FBK, Klacken) are stripped before writing — they are
+    always merged by ``resolve_exclusion_sets`` and shouldn't clutter the config.
+    Returns the written config dict.
+    """
+    existing = load_exclusion_config()
+
+    def _clean(names: list[str], always: set[str]) -> list[str]:
+        # De-dupe, drop empties and always-markers, keep first-seen order.
+        seen: set[str] = set()
+        out: list[str] = []
+        for raw in names:
+            name = raw.strip()
+            if not name or name in always or name in seen:
+                continue
+            seen.add(name)
+            out.append(name)
+        return out
+
+    config = {
+        "tranare": _clean(tranare, set()) if tranare is not None else list(existing.get("tranare", [])),
+        "publik": _clean(publik, ALWAYS_PUBLIK) if publik is not None else list(existing.get("publik", [])),
+        "grupp": _clean(grupp, ALWAYS_GRUPP) if grupp is not None else list(existing.get("grupp", [])),
+    }
+
+    # Atomic write (tmp + replace) so a crash mid-write can't leave a
+    # half-written config that zeroes the exclusion lists on the next load.
+    CONFIG_DIR.mkdir(parents=True, exist_ok=True)
+    tmp = CONFIG_FILE.with_suffix(".json.tmp")
+    with open(tmp, "w", encoding="utf-8") as f:
+        json.dump(config, f, ensure_ascii=False, indent=2)
+    tmp.replace(CONFIG_FILE)
+    return config
 
 
 def resolve_exclusion_sets(
