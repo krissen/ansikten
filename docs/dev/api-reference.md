@@ -745,6 +745,43 @@ At least one of `roots`/`globs` is required.
 `level` is `ok`/`warn`/`high` (mirrors the CLI ±10/±20 % thresholds). `matches`
 is populated only when `per_match` is true.
 
+`gap_minutes` (match split), `baseline` (`median`/`mean`) and `min_images` map to
+the CLI's `--gap-minutes`/`--baseline`/`--min-images`. `tranare`/`publik` override
+the coach/audience exclusion lists for this request only (`null` keeps the
+config/env defaults); the built-in always-markers (`Laget`/`FBK` group, `Klacken`
+audience) are merged in regardless and can't be overridden.
+
+### `GET /api/v1/players/exclusions`
+
+Return the currently resolved coach/audience/group exclusion lists (config/env +
+always-markers), so the GUI can pre-fill its editor.
+
+**Response:**
+```json
+{
+  "tranare": ["Coach"],
+  "publik": ["Klacken"],
+  "grupp": ["FBK", "Laget"],
+  "always": { "publik": ["Klacken"], "grupp": ["FBK", "Laget"] }
+}
+```
+
+`always` lists the built-in markers the GUI renders as locked (non-removable).
+
+### `POST /api/v1/players/exclusions`
+
+Persist coach/audience lists to `rakna_spelare.json` as the new defaults (applies
+to future counts and the CLI). Always-markers are stripped before writing; a
+configured `grupp` is preserved. Returns the same shape as the `GET`.
+
+**Request:**
+```json
+{ "tranare": ["Coach"], "publik": ["Uncle"] }
+```
+
+> Note: the `RAKNA_TRANARE`/`RAKNA_PUBLIK` env vars override the config file, so a
+> saved default has no effect while the matching env var is set.
+
 ---
 
 ## Culling

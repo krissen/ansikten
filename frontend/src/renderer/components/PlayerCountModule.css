@@ -154,3 +154,113 @@
   font-size: 0.85em;
   color: var(--text-secondary);
 }
+
+/* Counting-options row (gap / baseline / min images + exclusion toggle). */
+.player-count-options {
+  padding: 8px 12px;
+  border-bottom: 1px solid var(--border-subtle);
+}
+
+.player-count-options-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-end;
+  gap: 12px;
+}
+
+.pc-option {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  font-size: 0.8em;
+  color: var(--text-secondary);
+}
+
+.pc-num {
+  width: 72px;
+}
+
+.pc-excl-toggle {
+  margin-left: auto;
+}
+
+/* Coach/audience exclusion editor. */
+.player-count-exclusions {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  margin-top: 10px;
+}
+
+.pc-list {
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+}
+
+.pc-list-title {
+  font-size: 0.8em;
+  font-weight: 600;
+  color: var(--text-secondary);
+}
+
+.pc-chips {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px;
+}
+
+.pc-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 2px 4px 2px 8px;
+  border-radius: 12px;
+  background: var(--bg-tertiary, var(--bg-secondary));
+  border: 1px solid var(--border-subtle);
+  font-size: 0.82em;
+  color: var(--text-primary);
+}
+
+.pc-chip-locked {
+  padding: 2px 8px;
+  color: var(--text-secondary);
+  font-style: italic;
+}
+
+.pc-chip-remove {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 16px;
+  height: 16px;
+  padding: 0;
+  border: none;
+  border-radius: 50%;
+  background: transparent;
+  color: var(--text-secondary);
+  cursor: pointer;
+  line-height: 1;
+}
+
+.pc-chip-remove:hover {
+  background: var(--color-error);
+  color: var(--text-inverse);
+}
+
+.pc-empty {
+  font-style: italic;
+  font-size: 0.82em;
+}
+
+.pc-add {
+  max-width: 240px;
+  font-size: 0.85em;
+}
+
+.pc-actions {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}

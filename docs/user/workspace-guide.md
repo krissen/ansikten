@@ -226,6 +226,15 @@ antal.
    (tränare/gruppbilder/publik/under tröskeln). Tabellen speglar `rakna_spelare`-
    CLI:t. Statistiken uppdateras automatiskt när filer läggs till, tas bort eller
    byter namn i mappen.
+   > **Alternativ (rad under balken):** **Matchgap** (minsta lucka i minuter som
+   > delar upp bilderna i matcher, standard 30), **Baslinje** (median/medel) och
+   > **Min bilder** (minsta antal för att räknas som spelare, standard 3) styr
+   > räkningen live. Under **Uteslutna** redigerar du listorna för tränare och
+   > publik — ändringarna gäller bara den aktuella räkningen tills du klickar
+   > **Spara som standard** (då skrivs de till config och gäller även framtida
+   > räkningar och CLI:t). `Laget`/`FBK`/`Klacken` är alltid uteslutna och visas
+   > låsta. Motsvarar CLI:ns `--gap-minutes`/`--baseline`/`--min-images` och
+   > `--tranare`/`--publik`.
 2. Klicka på en spelare i tabellen för att öppna **Gallra spelare**
    (`Cmd+Shift+G`) filtrerad på den spelaren. Filtret kan finjusteras med
    spelar-menyn eller ett eget glob (t.ex. `*ArvidW*`) i balken. Välj filtyp

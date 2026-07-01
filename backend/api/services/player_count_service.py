@@ -17,8 +17,11 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).parent.parent.parent))
 
 from rakna_spelare import (  # noqa: E402
+    ALWAYS_GRUPP,
+    ALWAYS_PUBLIK,
     compute_player_stats,
     resolve_exclusion_sets,
+    save_exclusion_config,
 )
 
 from .file_resolver import preset_extensions, resolve_files  # noqa: E402
@@ -42,6 +45,34 @@ class PlayerCountService:
         always merged in.
         """
         return resolve_exclusion_sets(tranare=tranare, publik=publik)
+
+    def get_exclusions(self) -> dict:
+        """Return the currently resolved coach/audience/group exclusion lists.
+
+        Uses the shared resolver with no per-request overrides, so the GUI sees
+        exactly the config/env defaults (with the built-in ALWAYS markers merged
+        in). ``always`` lists the locked markers the GUI renders non-removable.
+        """
+        tranare_set, publik_set, grupp_set = resolve_exclusion_sets()
+        return {
+            "tranare": sorted(tranare_set),
+            "publik": sorted(publik_set),
+            "grupp": sorted(grupp_set),
+            "always": {
+                "publik": sorted(ALWAYS_PUBLIK),
+                "grupp": sorted(ALWAYS_GRUPP),
+            },
+        }
+
+    def save_exclusions(
+        self,
+        tranare: list[str] | None = None,
+        publik: list[str] | None = None,
+    ) -> dict:
+        """Persist coach/audience lists to the config file, then return the
+        newly resolved exclusions (``get_exclusions`` shape)."""
+        save_exclusion_config(tranare=tranare, publik=publik)
+        return self.get_exclusions()
 
     def count(
         self,

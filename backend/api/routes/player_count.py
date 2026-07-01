@@ -35,6 +35,32 @@ class PlayerCountRequest(BaseModel):
     publik: Optional[List[str]] = None  # override audience exclusion list
 
 
+class ExclusionConfigRequest(BaseModel):
+    """Coach/audience lists to persist as the new defaults."""
+
+    tranare: List[str] = []
+    publik: List[str] = []
+
+
+@router.get("/players/exclusions")
+async def get_exclusions():
+    """Return the currently resolved coach/audience/group exclusion lists."""
+    return player_count_service.get_exclusions()
+
+
+@router.post("/players/exclusions")
+async def save_exclusions(request: ExclusionConfigRequest):
+    """Persist coach/audience lists to the config file (make them the default)."""
+    try:
+        return player_count_service.save_exclusions(
+            tranare=request.tranare,
+            publik=request.publik,
+        )
+    except OSError as e:
+        logger.exception("Saving exclusion config failed")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
 @router.post("/players/count")
 async def count_players(request: PlayerCountRequest):
     """Resolve the selection and return per-player image counts + statistics."""

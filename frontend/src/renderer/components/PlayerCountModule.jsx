@@ -16,6 +16,30 @@ import './PlayerCountModule.css';
 
 const REFRESH_DEBOUNCE_MS = 400;
 
+// Default counting options, mirroring the CLI's argparse defaults.
+export const DEFAULT_OPTIONS = { gapMinutes: 30, baseline: 'median', minImages: 3 };
+
+// Build the /players/count request body. Pure + exported for unit tests.
+// `exclOverride` is { tranare, publik } to override the config/env exclusion
+// lists, or null/undefined to keep the backend defaults (config/env).
+export function buildCountParams(inp, options, includePerMatch, exclOverride) {
+  const opts = options || DEFAULT_OPTIONS;
+  return {
+    roots: inp.roots,
+    globs: inp.glob.trim() ? [inp.glob.trim()] : [],
+    extension_preset: inp.preset,
+    recursive: inp.recursive,
+    date_from: inp.dateFrom || null,
+    date_to: inp.dateTo || null,
+    gap_minutes: opts.gapMinutes,
+    baseline: opts.baseline,
+    min_images: opts.minImages,
+    per_match: includePerMatch,
+    tranare: exclOverride ? exclOverride.tranare : null,
+    publik: exclOverride ? exclOverride.publik : null,
+  };
+}
+
 export function PlayerCountModule() {
   const { api } = useBackend();
   const { emit, waitForListeners } = useModuleAPI();
@@ -28,6 +52,15 @@ export function PlayerCountModule() {
   const [isRefreshing, setIsRefreshing] = useState(false);
   const [hasRun, setHasRun] = useState(false);
 
+  // Counting options (CLI parity: gap_minutes / baseline / min_images).
+  const [options, setOptions] = useState(DEFAULT_OPTIONS);
+  // Editable coach/audience exclusion lists (always-markers held separately and
+  // shown locked). Sent as a per-request override only once the user edits them.
+  const [exclusions, setExclusions] = useState({ tranare: [], publik: [] });
+  const [alwaysMarkers, setAlwaysMarkers] = useState({ publik: [], grupp: [] });
+  const [exclusionsDirty, setExclusionsDirty] = useState(false);
+  const [savingDefaults, setSavingDefaults] = useState(false);
+
   // Params of the last submitted query, so auto-refresh re-runs the same thing.
   const lastParamsRef = useRef(null);
   // Monotonic id so a slower older request can't overwrite a newer result
@@ -37,15 +70,8 @@ export function PlayerCountModule() {
   const debounceRef = useRef(null);
 
   const buildParams = useCallback(
-    (inp, includePerMatch) => ({
-      roots: inp.roots,
-      globs: inp.glob.trim() ? [inp.glob.trim()] : [],
-      extension_preset: inp.preset,
-      recursive: inp.recursive,
-      date_from: inp.dateFrom || null,
-      date_to: inp.dateTo || null,
-      per_match: includePerMatch,
-    }),
+    (inp, includePerMatch, opts, exclOverride) =>
+      buildCountParams(inp, opts, includePerMatch, exclOverride),
     []
   );
 
@@ -101,8 +127,11 @@ export function PlayerCountModule() {
   }, []);
 
   const submitWith = useCallback(
-    (inp, includePerMatch) => {
-      const params = buildParams(inp, includePerMatch);
+    (inp, includePerMatch, opts = options, exclOverride) => {
+      // Undefined = fall back to current state; explicit null = force defaults.
+      const override =
+        exclOverride !== undefined ? exclOverride : exclusionsDirty ? exclusions : null;
+      const params = buildParams(inp, includePerMatch, opts, override);
       lastParamsRef.current = params;
       // Publish the scan scope so Gallra spelare mirrors the same selection.
       setScanScope({
@@ -116,7 +145,7 @@ export function PlayerCountModule() {
       runCount(params);
       updateWatches(watchDirsFor(inp));
     },
-    [buildParams, runCount, updateWatches, watchDirsFor]
+    [buildParams, runCount, updateWatches, watchDirsFor, options, exclusions, exclusionsDirty]
   );
 
   const handleSubmit = useCallback(
@@ -155,10 +184,99 @@ export function PlayerCountModule() {
     [submitWith, perMatch]
   );
 
+  // Counting-option changes apply immediately (like the InputBar selects), but
+  // only once a query has run. Thread the new options explicitly so we don't
+  // race the async state update.
+  const applyOptions = useCallback(
+    (next) => {
+      setOptions(next);
+      if (lastParamsRef.current) submitWith(input, perMatch, next);
+    },
+    [submitWith, input, perMatch]
+  );
+
+  // Fetch the resolved exclusion lists (config/env + always-markers). The
+  // always-markers are kept separate and rendered locked; the editable lists
+  // exclude them.
+  const loadExclusions = useCallback(async () => {
+    try {
+      const data = await api.get('/api/v1/players/exclusions');
+      const always = data.always || { publik: [], grupp: [] };
+      const strip = (list, locked) => (list || []).filter((n) => !(locked || []).includes(n));
+      setAlwaysMarkers(always);
+      setExclusions({
+        tranare: strip(data.tranare, always.tranare),
+        publik: strip(data.publik, always.publik),
+      });
+    } catch {
+      /* Non-fatal: leave the editor empty. */
+    }
+  }, [api]);
+
+  useEffect(() => {
+    loadExclusions();
+  }, [loadExclusions]);
+
+  // Edit the exclusion lists (per-request override; marks dirty + re-runs).
+  const applyExclusions = useCallback(
+    (next) => {
+      setExclusions(next);
+      setExclusionsDirty(true);
+      if (lastParamsRef.current) submitWith(input, perMatch, options, next);
+    },
+    [submitWith, input, perMatch, options]
+  );
+
+  const addExcluded = useCallback(
+    (kind, name) => {
+      const clean = name.trim();
+      if (!clean || exclusions[kind].includes(clean)) return;
+      applyExclusions({ ...exclusions, [kind]: [...exclusions[kind], clean] });
+    },
+    [exclusions, applyExclusions]
+  );
+
+  const removeExcluded = useCallback(
+    (kind, name) => {
+      applyExclusions({ ...exclusions, [kind]: exclusions[kind].filter((n) => n !== name) });
+    },
+    [exclusions, applyExclusions]
+  );
+
+  // Persist the current lists as the new defaults (config.json → future counts + CLI).
+  const saveDefaults = useCallback(async () => {
+    setSavingDefaults(true);
+    try {
+      const data = await api.post('/api/v1/players/exclusions', {
+        tranare: exclusions.tranare,
+        publik: exclusions.publik,
+      });
+      const always = data.always || { publik: [], grupp: [] };
+      const strip = (list, locked) => (list || []).filter((n) => !(locked || []).includes(n));
+      setAlwaysMarkers(always);
+      setExclusions({
+        tranare: strip(data.tranare, always.tranare),
+        publik: strip(data.publik, always.publik),
+      });
+      setExclusionsDirty(false); // the saved lists are now the default
+    } catch (err) {
+      setError(err.message || String(err));
+    } finally {
+      setSavingDefaults(false);
+    }
+  }, [api, exclusions]);
+
+  // Discard edits and re-run with the saved defaults.
+  const resetExclusions = useCallback(async () => {
+    await loadExclusions();
+    setExclusionsDirty(false);
+    if (lastParamsRef.current) submitWith(input, perMatch, options, null);
+  }, [loadExclusions, submitWith, input, perMatch, options]);
+
   // Open the culling workspace filtered to a player (from the stats table).
   const openCullForPlayer = useCallback(
     async (name) => {
-      const params = lastParamsRef.current || buildParams(input, perMatch);
+      const params = lastParamsRef.current || buildParams(input, perMatch, options, null);
       // Tell culling's adopt-on-mount that we'll immediately load the
       // player-filtered query, so it skips its own unfiltered scan.
       signalExternalLoad();
@@ -174,7 +292,7 @@ export function PlayerCountModule() {
         date_to: params.date_to,
       });
     },
-    [emit, waitForListeners, input, perMatch, buildParams]
+    [emit, waitForListeners, input, perMatch, buildParams, options]
   );
 
   // Subscribe to folder-change events for live auto-refresh.
@@ -228,6 +346,20 @@ export function PlayerCountModule() {
         busy={isLoading}
       />
 
+      <CountOptions
+        options={options}
+        onOptionsChange={applyOptions}
+        exclusions={exclusions}
+        alwaysMarkers={alwaysMarkers}
+        exclusionsDirty={exclusionsDirty}
+        savingDefaults={savingDefaults}
+        onAddExcluded={addExcluded}
+        onRemoveExcluded={removeExcluded}
+        onSaveDefaults={saveDefaults}
+        onReset={resetExclusions}
+        busy={isLoading}
+      />
+
       <div className="module-body player-count-body">
         {error && <div className="status-message error">Fel: {error}</div>}
 
@@ -275,6 +407,182 @@ function ResultSummary({ result }) {
           {fmtTime(tr.start)} → {fmtTime(tr.end)} ({Math.round(tr.duration_minutes)} min)
         </span>
       )}
+    </div>
+  );
+}
+
+// Counting-options row: the three CLI-parity controls (matchgap / baseline /
+// min images) plus a collapsible coach/audience exclusion editor. Purely driven
+// by props — the parent owns state and re-runs the count on change.
+export function CountOptions({
+  options,
+  onOptionsChange,
+  exclusions,
+  alwaysMarkers,
+  exclusionsDirty,
+  savingDefaults,
+  onAddExcluded,
+  onRemoveExcluded,
+  onSaveDefaults,
+  onReset,
+  busy,
+}) {
+  const [open, setOpen] = useState(false);
+
+  const setNum = (key, raw, min) => {
+    const n = parseInt(raw, 10);
+    onOptionsChange({ ...options, [key]: Number.isNaN(n) ? min : Math.max(min, n) });
+  };
+
+  const total =
+    exclusions.tranare.length + exclusions.publik.length + (alwaysMarkers.publik?.length || 0);
+
+  return (
+    <div className="player-count-options">
+      <div className="player-count-options-row">
+        <label className="pc-option">
+          Matchgap (min)
+          <input
+            className="form-input pc-num"
+            type="number"
+            min="1"
+            value={options.gapMinutes}
+            onChange={(e) => setNum('gapMinutes', e.target.value, 1)}
+            disabled={busy}
+            title="Minsta lucka mellan matcher (delar upp bilderna i matcher)"
+          />
+        </label>
+        <label className="pc-option">
+          Baslinje
+          <select
+            className="form-select"
+            value={options.baseline}
+            onChange={(e) => onOptionsChange({ ...options, baseline: e.target.value })}
+            disabled={busy}
+            title="Referens för över-/underrepresentation"
+          >
+            <option value="median">median</option>
+            <option value="mean">medel</option>
+          </select>
+        </label>
+        <label className="pc-option">
+          Min bilder
+          <input
+            className="form-input pc-num"
+            type="number"
+            min="1"
+            value={options.minImages}
+            onChange={(e) => setNum('minImages', e.target.value, 1)}
+            disabled={busy}
+            title="Minsta antal bilder för att räknas som spelare"
+          />
+        </label>
+        <button
+          type="button"
+          className="btn-secondary pc-excl-toggle"
+          onClick={() => setOpen((v) => !v)}
+          aria-expanded={open}
+        >
+          Uteslutna{total > 0 ? ` (${total})` : ''} {open ? '▾' : '▸'}
+        </button>
+      </div>
+
+      {open && (
+        <div className="player-count-exclusions">
+          <ExclusionList
+            title="Tränare"
+            kind="tranare"
+            names={exclusions.tranare}
+            locked={[]}
+            onAdd={onAddExcluded}
+            onRemove={onRemoveExcluded}
+            busy={busy}
+          />
+          <ExclusionList
+            title="Publik"
+            kind="publik"
+            names={exclusions.publik}
+            locked={alwaysMarkers.publik || []}
+            onAdd={onAddExcluded}
+            onRemove={onRemoveExcluded}
+            busy={busy}
+          />
+          <div className="pc-actions">
+            <button
+              type="button"
+              className="btn-secondary"
+              onClick={onSaveDefaults}
+              disabled={busy || savingDefaults || !exclusionsDirty}
+              title="Spara listorna till config (gäller framtida räkningar och CLI)"
+            >
+              {savingDefaults ? 'Sparar…' : 'Spara som standard'}
+            </button>
+            <button
+              type="button"
+              className="btn-secondary"
+              onClick={onReset}
+              disabled={busy || savingDefaults}
+              title="Återställ till sparade standardlistor"
+            >
+              Återställ
+            </button>
+            {exclusionsDirty && <span className="player-count-dim">osparade ändringar</span>}
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
+// One editable exclusion list (Tränare or Publik): locked always-markers first,
+// then removable chips, then an add-name field. `onAdd`/`onRemove` take (kind, name).
+function ExclusionList({ title, kind, names, locked, onAdd, onRemove, busy }) {
+  const [draft, setDraft] = useState('');
+  const commit = () => {
+    onAdd(kind, draft);
+    setDraft('');
+  };
+  return (
+    <div className="pc-list">
+      <div className="pc-list-title">{title}</div>
+      <div className="pc-chips">
+        {locked.map((name) => (
+          <span className="pc-chip pc-chip-locked" key={`lock-${name}`} title="Alltid utesluten">
+            {name}
+          </span>
+        ))}
+        {names.map((name) => (
+          <span className="pc-chip" key={name}>
+            <span className="pc-chip-label">{name}</span>
+            <button
+              type="button"
+              className="pc-chip-remove"
+              onClick={() => onRemove(kind, name)}
+              disabled={busy}
+              aria-label={`Ta bort ${name}`}
+            >
+              ×
+            </button>
+          </span>
+        ))}
+        {names.length === 0 && locked.length === 0 && (
+          <span className="player-count-dim pc-empty">inga</span>
+        )}
+      </div>
+      <input
+        className="form-input pc-add"
+        type="text"
+        placeholder={`Lägg till ${title.toLowerCase()}…`}
+        value={draft}
+        onChange={(e) => setDraft(e.target.value)}
+        onKeyDown={(e) => {
+          if (e.key === 'Enter') {
+            e.preventDefault();
+            commit();
+          }
+        }}
+        disabled={busy}
+      />
     </div>
   );
 }
