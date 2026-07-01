@@ -1158,7 +1158,7 @@ export function CullingModule({ node }) {
               {files.map((f, i) => (
                 <li
                   key={f.path}
-                  className={`${i === currentIndex ? 'active' : ''}${i === currentIndex && namePreviewPending ? ' pending' : ''}`}
+                  className={`${i === currentIndex ? 'active row-selected' : ''}${i === currentIndex && namePreviewPending ? ' pending' : ''}`}
                   onClick={() => guardedNavigate(() => setCurrentIndex(i))}
                   onDoubleClick={() => beginEdit(i)}
                   onContextMenu={(e) => {
@@ -1455,7 +1455,7 @@ function CullingStats({ stats, selected, onSelect, width }) {
               {players.map((p) => (
                 <tr
                   key={p.name}
-                  className={`culling-stat-row${onSelect ? ' clickable' : ''}${p.name === selected ? ' active' : ''}`}
+                  className={`culling-stat-row${onSelect ? ' clickable' : ''}${p.name === selected ? ' active row-selected' : ''}`}
                   onClick={onSelect ? () => onSelect(p.name === selected ? '' : p.name) : undefined}
                   title={onSelect ? `Filtrera på ${p.name}` : `${p.name}: ${p.count}`}
                 >
