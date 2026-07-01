@@ -2,7 +2,12 @@ import { describe, it, expect } from 'vitest';
 import { toFileUrl, bustedFileUrl } from '../src/renderer/shared/fileUrl.js';
 
 describe('toFileUrl', () => {
-  it('encodes a unix path with spaces and commas', () => {
+  it('URL-encodes spaces in a unix path', () => {
+    expect(toFileUrl('/Users/x/My Pictures/a b.jpg'))
+      .toBe('file:///Users/x/My%20Pictures/a%20b.jpg');
+  });
+
+  it('keeps commas and underscores as-is', () => {
     expect(toFileUrl('/Users/x/Pictures/260626_194742_Srirang,_Valter.jpg'))
       .toBe('file:///Users/x/Pictures/260626_194742_Srirang,_Valter.jpg');
   });

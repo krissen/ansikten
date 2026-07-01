@@ -1036,7 +1036,12 @@ export function CullingModule({ node }) {
         }
         setPreviewUrl(bustedFileUrl(currentPath, `${res.mtimeMs}-${res.size}`));
       })
-      .catch((err) => { if (!cancelled) setPreviewError(err.message || String(err)); });
+      .catch((err) => {
+        if (cancelled) return;
+        console.error('[Culling] preview stat failed:', err);
+        setPreviewUrl(null);
+        setPreviewError('Kunde inte läsa in bilden.');
+      });
     return () => { cancelled = true; };
   }, [currentPath, folderNonce]);
 
