@@ -452,7 +452,7 @@ module.exports = {
   // theme-mode selector, preset bindings and action buttons. Save/Reset reuse
   // common.save/common.reset; brand preset names (Terminal Beige, CRT Phosphor)
   // stay untranslated in code. Shared size labels (Small/Medium/…) live in
-  // `sizes` and are reused by both Spacing and Border Radius.
+  // `themeEditor.sizes` and are reused by both Spacing and Border Radius.
   themeEditor: {
     sidebar: {
       categories: 'Kategorier',
@@ -522,15 +522,15 @@ module.exports = {
         secondaryHover: 'Sekundär hovring',
       },
       semantic: {
-        success: 'Lyckat',
-        successBg: 'Lyckat-bakgrund',
+        success: 'Framgång',
+        successBg: 'Framgångsbakgrund',
         warning: 'Varning',
         warningBg: 'Varningsbakgrund',
         error: 'Fel',
         errorBg: 'Felbakgrund',
         info: 'Info',
         infoBg: 'Infobakgrund',
-        successText: 'Lyckat (text)',
+        successText: 'Framgång (text)',
         warningText: 'Varning (text)',
         errorText: 'Fel (text)',
       },

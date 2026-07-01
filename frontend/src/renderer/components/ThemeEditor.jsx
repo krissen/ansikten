@@ -574,7 +574,7 @@ export function ThemeEditor({ api }) {
           {Object.keys(customPresets).map(name => (
             <li key={name} className="list-item-nav custom-preset">
               <span onClick={() => loadPreset(name)}>{name}</span>
-              <button onClick={() => deletePreset(name)} title={t('themeEditor.deleteTitle')}>×</button>
+              <button onClick={() => deletePreset(name)} title={t('themeEditor.deleteTitle')} aria-label={t('themeEditor.deleteTitle')}>×</button>
             </li>
           ))}
         </ul>
