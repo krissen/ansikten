@@ -56,7 +56,7 @@ CLI-paritet — launch-kommandot mot fler arbetsflöden:
   - [x] **Alltid-exkluderade markörer `FBK`/`Klacken`** (#70, 2026-06-30) — behandlas alltid som grupp/publik (som `Laget`); `grupp` blev konfigurerbar (config `grupp` + `RAKNA_GRUPP`); delad `resolve_exclusion_sets` så CLI och GUI aldrig divergerar.
   - [ ] **Saknade UI-kontroller** (backend stödjer parametern, frontend skickar default): `gap_minutes` (matchdelning, default 30), `baseline` (median/mean), `min_images` (default 3), samt per-request `tranare`/`publik` (visa/redigera listorna i GUI).
   - [ ] **`--add-tranare`/`--add-publik`-paritet i API:t** — CLI har append-semantik; route-modellen/`count` exponerar bara replace via per-request `tranare`/`publik` (grupp har nu `RAKNA_GRUPP`/config men inte per-request add).
-  - [ ] **Per-match ofullständigt:** GUI:t renderar per-match tabell + spark, men inte per-match exkluderade hinkar (`m.excluded`) och saknar per-match info-rad (baseline/duration/Δ).
+  - [x] **Per-match komplett** (2026-07-01) — per-match-vyn renderar nu exkluderade hinkar (`m.excluded`: Tränare/Gruppbilder/Publik/Under tröskeln) och en info-rad (spelarantal · exkl. · `Baslinje (median): X`), i paritet med CLI:ns `print_section`. En match med enbart exkluderade personer redovisar dem istället för att se tom ut. Ren frontend (`MatchSections`); ingen backend-ändring. Render-test tillagt.
   - Ej tillämpligt (CLI-only): `--no-color`/`--color`/`--ascii`/`--bar-width`.
   - GUI är redan rikare på input (mappar, extension-preset, recursive, datumspann) — inte en lucka.
   - Egen PR för de kvarvarande kontrollerna.

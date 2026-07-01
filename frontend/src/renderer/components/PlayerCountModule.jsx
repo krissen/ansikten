@@ -266,7 +266,7 @@ function ResultSummary({ result }) {
     <div className="player-count-summary">
       <span><strong>{result.total_images}</strong> bilder</span>
       <span><strong>{result.players.length}</strong> spelare</span>
-      <span>Baseline ({result.baseline_method}): <strong>{result.baseline}</strong></span>
+      <span>Baslinje ({result.baseline_method}): <strong>{result.baseline}</strong></span>
       {result.files_resolved != null && (
         <span className="player-count-dim">{result.files_resolved} filer</span>
       )}
@@ -406,7 +406,35 @@ function ExcludedSections({ excluded }) {
   );
 }
 
-function MatchSections({ matches, onPlayerClick }) {
+// Total distinct names + excluded count for a match, mirroring the CLI's
+// `total_in_list` / `excluded_count` in print_section (players + all excluded
+// buckets). Sums over the same bucket keys `ExcludedSections` renders, so the
+// two never drift.
+function excludedCount(excluded) {
+  if (!excluded) return 0;
+  return Object.keys(EXCLUDED_LABELS).reduce(
+    (sum, key) => sum + (excluded[key]?.length || 0),
+    0
+  );
+}
+
+// Per-match info row: mirrors the CLI's `Spelare: N (av T, exkl. K)  Baseline:
+// method=B` line. Duration/total_images already live in the <summary>.
+function MatchInfoRow({ match }) {
+  const excl = excludedCount(match.excluded);
+  const total = match.players.length + excl;
+  return (
+    <div className="player-count-summary player-count-match-info">
+      <span><strong>{match.players.length}</strong> spelare</span>
+      {excl > 0 && (
+        <span className="player-count-dim">(av {total}, exkl. {excl})</span>
+      )}
+      <span>Baslinje ({match.baseline_method}): <strong>{match.baseline}</strong></span>
+    </div>
+  );
+}
+
+export function MatchSections({ matches, onPlayerClick }) {
   return (
     <div className="player-count-matches">
       {matches.map((m) => (
@@ -414,11 +442,13 @@ function MatchSections({ matches, onPlayerClick }) {
           <summary>
             Match {m.index} — {fmtDateTime(m.start)} → {fmtTime(m.end)} ({Math.round(m.duration_minutes)} min, {m.total_images} bilder)
           </summary>
+          <MatchInfoRow match={m} />
           {m.players.length > 0 ? (
             <PlayerTable players={m.players} baseline={m.baseline} timeRange={{ start: m.start, end: m.end }} onPlayerClick={onPlayerClick} />
           ) : (
             <div className="empty-state compact">Inga spelare över tröskeln.</div>
           )}
+          <ExcludedSections excluded={m.excluded} />
         </details>
       ))}
     </div>

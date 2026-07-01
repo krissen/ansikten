@@ -218,7 +218,9 @@ antal.
    från medianen i procent (Δ%, grön/gul/röd) och antal (ΔN), en fördelningsstapel
    relativt baslinjen (baslinjen = halva stapeln) samt en **tidslinje** som visar
    när spelarens bilder togs under passet. Bocka i **Per match** för samma
-   uppställning per automatiskt detekterad match. Tabellen speglar `rakna_spelare`-
+   uppställning per automatiskt detekterad match — varje match visar även en
+   info-rad (spelarantal och baslinje) och de exkluderade grupperna
+   (tränare/gruppbilder/publik/under tröskeln). Tabellen speglar `rakna_spelare`-
    CLI:t. Statistiken uppdateras automatiskt när filer läggs till, tas bort eller
    byter namn i mappen.
 2. Klicka på en spelare i tabellen för att öppna **Gallra spelare**

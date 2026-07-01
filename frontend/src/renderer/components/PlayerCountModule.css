@@ -30,6 +30,18 @@
   color: var(--text-secondary);
 }
 
+/* Per-match info row: reuses the session summary's flex layout but is a compact
+   inline row inside a match's <details> — drop the top-level summary's divider
+   border and bottom padding (they'd render an unintended line inside every
+   match). */
+.player-count-match-info {
+  margin-top: 6px;
+  margin-bottom: 8px;
+  padding-bottom: 0;
+  border-bottom: none;
+  font-size: 0.85em;
+}
+
 .player-count-table {
   width: 100%;
   border-collapse: collapse;
