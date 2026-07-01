@@ -22,8 +22,14 @@ from pathlib import Path
 # other services).
 sys.path.insert(0, str(Path(__file__).parent.parent.parent))
 
+from collections import Counter  # noqa: E402
+
 from cli_config import load_config, save_config  # noqa: E402
-from rakna_spelare import parse_filename  # noqa: E402
+from rakna_spelare import (  # noqa: E402
+    bucket_counter,
+    parse_filename,
+    resolve_exclusion_sets,
+)
 
 from .file_resolver import TRASH_DIR, preset_extensions, resolve_files  # noqa: E402
 from .rename_service import (  # noqa: E402
@@ -38,6 +44,11 @@ MANIFEST_PATH = TRASH_DIR / "manifest.jsonl"
 
 # Sidecar extensions to carry along when trashing/restoring (without dot).
 SIDECAR_EXTENSIONS = ["xmp"]
+
+# Min images for a name to appear in the filter dropdown, matching the
+# rakna_spelare / stats-column default so the dropdown lists the same "players"
+# set (group/crowd markers and below-threshold names are excluded).
+DROPDOWN_MIN_IMAGES = 3
 
 
 class CullingService:
@@ -64,9 +75,12 @@ class CullingService:
         folder(s) — it narrows the working set, it does not scan the filesystem.
 
         Returns {files: [{path, basename, names, datetime}], players: [name,...]}.
-        ``players`` is the sorted set of names present across the resolved files
-        (for the filter dropdown, computed before name_glob so the dropdown stays
-        complete). Raises ValueError when no folder/glob input is given.
+        ``players`` is the sorted filter-dropdown list: names counted across all
+        resolved files (before the player/name_glob narrowing so it stays
+        complete) then filtered through the shared exclusions + threshold, so it
+        lists the same players as rakna_spelare / the stats column (group/crowd
+        markers, coaches, and below-threshold names are dropped). Raises
+        ValueError when no folder/glob input is given.
         """
         roots = roots or []
         globs = globs or []
@@ -99,10 +113,12 @@ class CullingService:
 
         glob_lower = name_glob.lower() if name_glob else None
 
-        all_names: set[str] = set()
+        # Count every name across the resolved files (before player/name_glob
+        # narrowing) so the dropdown stays complete.
+        name_counts: Counter[str] = Counter()
         out: list[dict] = []
         for dt, names, path in entries:
-            all_names.update(names)
+            name_counts.update(names)
             if player is not None and player not in names:
                 continue
             if glob_lower is not None and not fnmatch.fnmatch(Path(path).name.lower(), glob_lower):
@@ -114,7 +130,16 @@ class CullingService:
                 "datetime": dt.isoformat(),
             })
 
-        return {"files": out, "players": sorted(all_names)}
+        # Dropdown players: apply the same exclusions + threshold as the CLI /
+        # stats column so group/crowd markers (Laget/FBK/Klacken), coaches, and
+        # below-threshold names don't show up as filterable "players".
+        tranare_set, publik_set, grupp_set = resolve_exclusion_sets()
+        buckets = bucket_counter(
+            name_counts, DROPDOWN_MIN_IMAGES, tranare_set, publik_set, grupp_set
+        )
+        players = sorted(buckets["players"].keys())
+
+        return {"files": out, "players": players}
 
     # ----- trash manifest -----------------------------------------------
 
