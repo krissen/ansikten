@@ -86,6 +86,7 @@ Workspace är ett modulärt gränssnitt byggt med FlexLayout. Paneler kan dockas
 | `x` / `Delete` / `Cmd+⌫` | Flytta bilden till papperskorgen och gå vidare (`Cmd+⌫` följer Finder) |
 | `Enter` | Byt namn på filen manuellt (eller dubbelklicka) |
 | `Cmd+Enter` | Tillämpa avbockade namn från förhandsvisningen (döper om filen) |
+| `Esc` | Kasta förhandsvisningens avbockade namn för aktuell fil (ingen dialog) |
 | `Cmd+Z` | Ångra (återställ senast gallrade bild) |
 
 ### Allmänt
@@ -251,7 +252,9 @@ antal.
    - **Snabb bortbockning av namn:** överst i förhandsvisningen visas filens
      namn som ikryssade chips. Bocka av ett namn så uppdateras filnamnet **live
      i fillistan till vänster** — den aktuella raden blir orange så länge
-     ändringen inte är sparad. `Cmd+Enter` döper om filen på riktigt. Snabbare än
+     ändringen inte är sparad. `Cmd+Enter` döper om filen på riktigt; `Esc`
+     kastar de avbockade namnen för aktuell fil (raden blir vit igen) utan
+     dialog. Snabbare än
      manuell redigering när bara en spelare ska bort ur ett beskuret foto. Om du
      navigerar vidare med en osparad ändring frågar en dialog: `Cmd+Enter`
      sparar, `Enter` kastar (förval), `Esc` avbryter — så en påbörjad omdöpning
