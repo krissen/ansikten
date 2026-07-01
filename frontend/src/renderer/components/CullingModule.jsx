@@ -1026,7 +1026,13 @@ export function CullingModule({ node }) {
       setPreviewUrl(null); setPreviewError(null); setPreviewLoading(false);
       return;
     }
-    if (isRaw(currentPath)) return; // RAW is handled by the conversion effect below
+    if (isRaw(currentPath)) {
+      // RAW is handled by the conversion effect below. Clear the ref so returning
+      // to a JPEG counts as a new path (the current frame is now the RAW preview,
+      // not that JPEG) and doesn't keep showing the wrong photo.
+      lastPreviewPathRef.current = null;
+      return;
+    }
     // A genuine selection change vs. a same-path folderNonce re-check (in-place
     // re-export). On a change we must not keep showing the previous photo; on a
     // re-check we keep the current frame so the update is seamless.
@@ -1034,6 +1040,11 @@ export function CullingModule({ node }) {
     lastPreviewPathRef.current = currentPath;
     let cancelled = false;
     setPreviewError(null);
+    // Clear any loading state inherited from the previous selection (e.g. a RAW
+    // conversion or a still-writing JPEG that left it true) so an already-settled
+    // JPEG doesn't briefly show the placeholder. The delayed timer below re-sets
+    // it only if this file's stat is actually slow.
+    setPreviewLoading(false);
     // Only blank + show a loading indicator if the stat is slow (a fresh,
     // still-writing file). Already-settled files resolve first, so stepping
     // through old photos swaps without a flash.
