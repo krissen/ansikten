@@ -99,7 +99,8 @@ CLI-paritet — launch-kommandot mot fler arbetsflöden:
   - [x] **Preferences** (~180 str) — hela PreferencesModule migrerad till `t()` via `preferences.*`-namnrymden (sektioner/fält/hintar/options/dialoger); Spara/Återställ återanvänder `common.*`.
   - [x] **ThemeEditor** (~65 str) — kategorier, variabel-etiketter, temaläges-options, förval-labels, export/import migrerade via `themeEditor.*`.
   - [x] **Database Management** (~99 nycklar) — titel/sektioner/operationer/knappar/placeholders/toaster/dialoger via `database.*`.
-  - [ ] **Refine Faces** (~55), **Statistics** (~35), **Log Viewer** (~25), **ConnectionStatus** (2).
+  - [x] **Refine Faces** (~54 nycklar) — filterlägen/inställningar/knappar/tabell/reason-koder/info via `refineFaces.*`.
+  - [ ] **Statistics** (~35), **Log Viewer** (~25), **ConnectionStatus** (2).
   - [ ] **FileQueue** (~74, kritisk), **ReviewModule** (~21: `Confirm name change`/`Best match`/`You chose…` + status-toaster), **OriginalView** (~7), **ImageViewer** (~4).
   - [ ] **PlayerCount** (2: `Per match`, `Matchgap`), **StartupStatus** (~11), genvägshjälpen (~50), api-client-toaster.
   - Rena redan (mönster): Culling, Import, RenameNef, InputBar, StartupLanding.
