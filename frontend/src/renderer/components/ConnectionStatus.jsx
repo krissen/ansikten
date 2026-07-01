@@ -4,6 +4,7 @@
 
 import React from 'react';
 import { useBackend } from '../context/BackendContext.jsx';
+import { t } from '../../i18n/index.js';
 import './ConnectionStatus.css';
 
 export function ConnectionStatus() {
@@ -14,8 +15,8 @@ export function ConnectionStatus() {
   }
 
   const message = isOffline
-    ? 'Backend unreachable - check your connection'
-    : 'Connecting to backend...';
+    ? t('connection.unreachable')
+    : t('connection.connecting');
 
   return (
     <div className="connection-status-banner">
