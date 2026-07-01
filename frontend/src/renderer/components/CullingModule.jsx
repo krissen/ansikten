@@ -16,6 +16,7 @@ import { useModuleEvent } from '../hooks/useModuleEvent.js';
 import { namesInBasename, removeNamesFromBasename } from './culling-names.js';
 import { preferences } from '../workspace/preferences.js';
 import { getScanScope, setScanScope, scanScopeHasSelection, takeExternalLoad } from '../shared/scanScope.js';
+import { toFileUrl, bustedFileUrl } from '../shared/fileUrl.js';
 import './CullingModule.css';
 
 const REFRESH_DEBOUNCE_MS = 400;
@@ -114,6 +115,10 @@ export function CullingModule({ node }) {
   const [previewUrl, setPreviewUrl] = useState(null);
   const [previewLoading, setPreviewLoading] = useState(false);
   const [previewError, setPreviewError] = useState(null);
+  // Bumped on every folder-change so the current JPEG preview re-checks the file
+  // on disk — a Lightroom re-export overwrites it in place (same path), so this
+  // is what lets the preview pick up the fresh bytes.
+  const [folderNonce, setFolderNonce] = useState(0);
 
   // Latest filter params for auto-refresh; undo stack of trashed ids.
   const lastQueryRef = useRef(null);
@@ -283,6 +288,9 @@ export function CullingModule({ node }) {
       debounceRef.current = setTimeout(() => {
         loadList(lastQueryRef.current, { keepIndex: true });
         loadStats(statsScopeFromQuery(lastQueryRef.current));
+        // Re-check the current file too — if it was re-exported in place, the
+        // preview needs to reload the new bytes (same path, changed content).
+        setFolderNonce((n) => n + 1);
       }, REFRESH_DEBOUNCE_MS);
     });
     return () => {
@@ -999,19 +1007,44 @@ export function CullingModule({ node }) {
   // Menu command (View menu / ⌘⇧L) → same action as the `l` key.
   useModuleEvent('open-raw-in-lightroom', () => openRawRef.current?.());
 
-  // Resolve the preview for the current file. RAW is converted via the NEF
-  // pipeline; the cancelled guard prevents a slow conversion from painting over
-  // a newer selection when the user steps quickly.
   const currentPath = current?.path;
+
+  // Resolve the preview for a plain JPEG. We wait (in the main process) for the
+  // file to finish being written before reading it, so a Lightroom export that's
+  // still flushing can't decode into a truncated strip; then we cache-bust the
+  // <img> URL by the file's mtime+size so a re-export in place reloads the fresh
+  // bytes instead of the browser's cached (possibly stale) decode. Re-runs on
+  // folderNonce so an in-place re-export of the current file is picked up.
   useEffect(() => {
     if (!currentPath) {
       setPreviewUrl(null); setPreviewError(null); setPreviewLoading(false);
       return;
     }
-    if (!isRaw(currentPath)) {
-      setPreviewUrl(toFileUrl(currentPath)); setPreviewError(null); setPreviewLoading(false);
-      return;
-    }
+    if (isRaw(currentPath)) return; // RAW is handled by the conversion effect below
+    let cancelled = false;
+    setPreviewError(null); setPreviewLoading(false);
+    // Don't blank the current image while we re-check — keep showing the last
+    // good frame until the fresh one is ready (smooth stepping + no flash on
+    // re-export). The main process returns instantly for already-settled files.
+    window.ansiktenAPI.invoke('stat-file-stable', { filePath: currentPath })
+      .then((res) => {
+        if (cancelled) return;
+        if (!res?.ok) {
+          setPreviewUrl(null);
+          setPreviewError(res?.reason === 'not-found' ? 'Filen hittades inte.' : 'Filen kunde inte läsas.');
+          return;
+        }
+        setPreviewUrl(bustedFileUrl(currentPath, `${res.mtimeMs}-${res.size}`));
+      })
+      .catch((err) => { if (!cancelled) setPreviewError(err.message || String(err)); });
+    return () => { cancelled = true; };
+  }, [currentPath, folderNonce]);
+
+  // Resolve the preview for a RAW file via the NEF conversion pipeline. The
+  // cancelled guard prevents a slow conversion from painting over a newer
+  // selection when the user steps quickly.
+  useEffect(() => {
+    if (!currentPath || !isRaw(currentPath)) return;
     let cancelled = false;
     setPreviewLoading(true); setPreviewError(null); setPreviewUrl(null);
     // Debounced: clearing the timer on a fast step cancels the POST before it
@@ -1380,17 +1413,6 @@ export function trashGroup(name) {
 }
 
 // file:// URL builder - mirrors ImageViewer.loadImage encoding.
-function toFileUrl(p) {
-  if (p.startsWith('file://')) return p;
-  const normalized = p.replace(/\\/g, '/');
-  const isWin = /^[a-zA-Z]:\//.test(normalized);
-  const encoded = encodeURI(normalized)
-    .replace(/#/g, '%23')
-    .replace(/\?/g, '%3F')
-    .replace(/\[/g, '%5B')
-    .replace(/\]/g, '%5D');
-  return isWin ? 'file:///' + encoded : 'file://' + encoded;
-}
 
 function globBaseDir(pattern) {
   const idx = pattern.search(/[*?[]/);
