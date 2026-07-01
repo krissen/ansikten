@@ -7,12 +7,13 @@
 
 const { app, BrowserWindow, ipcMain, dialog, Menu } = require("electron");
 const path = require("path");
-const { spawn } = require("child_process");
+const { spawn, execFile } = require("child_process");
 const fs = require("fs");
 const os = require("os");
 const { BackendService } = require("./backend-service");
 const { createApplicationMenu } = require("./menu");
 const { parseCliArgs } = require("./cli-args");
+const { deriveRawToken, basenameMatchesToken } = require("./raw-match");
 
 function getVersionInfo() {
   try {
@@ -504,6 +505,61 @@ ipcMain.handle("open-file-dialog", async () => {
   }
 
   return result.filePaths[0];
+});
+
+// Resolve the original NEF for a developed JPEG (shared only via the leading
+// `YYMMDD_HHMMSS[-N]` timestamp token — the files live in different trees and
+// don't share a full name) and open it in Adobe Lightroom. macOS-only.
+ipcMain.handle("open-raw-in-lightroom", async (event, { imagePath, rawRoot } = {}) => {
+  if (process.platform !== "darwin") {
+    return { ok: false, reason: "unsupported-platform" };
+  }
+  if (!imagePath) return { ok: false, reason: "no-image" };
+
+  const token = deriveRawToken(path.basename(imagePath));
+  if (!token) return { ok: false, reason: "no-timestamp" };
+
+  // Expand ~ and resolve the configured RAW root.
+  let root = rawRoot || "~/Pictures/nerladdat";
+  if (root.startsWith("~")) root = path.join(os.homedir(), root.slice(1));
+  root = path.resolve(root);
+
+  let match = null;
+  try {
+    const entries = await fs.promises.readdir(root, {
+      recursive: true,
+      withFileTypes: true,
+    });
+    const matches = [];
+    for (const entry of entries) {
+      if (!entry.isFile()) continue;
+      if (basenameMatchesToken(entry.name, token)) {
+        // entry.parentPath (Node 20+) is the directory the file was found in.
+        const dir = entry.parentPath || entry.path || root;
+        matches.push(path.join(dir, entry.name));
+      }
+    }
+    // Deterministic "first" match; Lightroom shows it in-folder so burst
+    // neighbours remain visible.
+    matches.sort();
+    match = matches[0] || null;
+  } catch (err) {
+    console.error("[Main] open-raw-in-lightroom scan failed:", err.message);
+    return { ok: false, reason: "scan-error", error: err.message };
+  }
+
+  if (!match) return { ok: false, reason: "not-found", token };
+
+  return await new Promise((resolve) => {
+    execFile("open", ["-a", "Adobe Lightroom", match], (err) => {
+      if (err) {
+        console.error("[Main] Failed to open in Lightroom:", err.message);
+        resolve({ ok: false, reason: "open-failed", error: err.message, path: match });
+      } else {
+        resolve({ ok: true, path: match });
+      }
+    });
+  });
 });
 
 // Multi-file dialog for File Queue (files only - normal navigation)

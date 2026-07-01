@@ -109,7 +109,8 @@ const SHORTCUT_SECTIONS = [
       { keys: ['X', 'Delete', 'Cmd+⌫'], desc: 'Cull to trash', sep: ' / ' },
       { keys: ['Enter'], desc: 'Rename file (double-click)' },
       { keys: ['Cmd', 'Enter'], desc: 'Apply name removals from preview' },
-      { keys: ['Cmd', 'Z'], desc: 'Undo last cull' }
+      { keys: ['Cmd', 'Z'], desc: 'Undo last cull' },
+      { keys: ['L'], desc: 'Open original NEF in Lightroom' }
     ]
   },
   {

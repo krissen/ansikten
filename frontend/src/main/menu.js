@@ -313,6 +313,13 @@ function createApplicationMenu(mainWindow) {
           }
         },
         {
+          label: 'Öppna i Lightroom',
+          accelerator: 'CmdOrCtrl+Shift+L',
+          click: () => {
+            sendMenuCommand('open-raw-in-lightroom');
+          }
+        },
+        {
           label: 'Database Management',
           accelerator: 'CmdOrCtrl+Shift+D',
           click: () => {

@@ -88,6 +88,7 @@ Workspace är ett modulärt gränssnitt byggt med FlexLayout. Paneler kan dockas
 | `Cmd+Enter` | Tillämpa avbockade namn från förhandsvisningen (döper om filen) |
 | `Esc` | Kasta förhandsvisningens avbockade namn för aktuell fil (ingen dialog) |
 | `Cmd+Z` | Ångra (återställ senast gallrade bild) |
+| `L` | Öppna aktuell bilds original-NEF i Lightroom (även högerklick-menyn) |
 
 ### Allmänt
 
@@ -99,6 +100,7 @@ Workspace är ett modulärt gränssnitt byggt med FlexLayout. Paneler kan dockas
 | `Cmd+Shift+B` | Byt namn (NEF) |
 | `Cmd+Shift+K` | Räkna spelare |
 | `Cmd+Shift+G` | Gallra spelare |
+| `Cmd+Shift+L` | Öppna i Lightroom (original-NEF för aktuell bild i Gallra spelare) |
 | `Cmd+,` | Inställningar |
 | `Cmd+S` | Spara ändringar |
 
