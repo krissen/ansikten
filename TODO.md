@@ -126,7 +126,6 @@ CLI-paritet — launch-kommandot mot fler arbetsflöden:
 - [x] **Räkna spelare CLI-visualiseringsparitet** (#73) — se Räkna-paritet ovan (spark, ΔN, baslinje-bar).
 - [x] **Culling overlay-cluster** (#74) — filnamnet visas en gång (live i fillistraden, orange medan osparat); dialog vid navigering med osparad ändring (`Cmd+Enter` spara / `Enter` kasta / `Esc` avbryt). Render-smoketest tillagt.
 - [x] **Odefinierade CSS-vars → tema-vars** (#75) — `--border-color`/`--warning`/`--success`/`--error`/`--warning-bg`/`--warning-text` i ImportModule/RenameNefModule/ConnectionStatus/PlayerCountModule/InputBar.
-- [x] **Räkna spelare per-match komplett** (2026-07-01) — per-match-vyn visar nu exkluderade hinkar (`m.excluded`) och en baslinje-info-rad, i paritet med CLI:ns `print_section`; matcher med enbart exkluderade personer redovisas. Ren `MatchSections`-rendering + render-test.
 
 ### 2026-01-10: Moduluppdelning och refaktorering
 
