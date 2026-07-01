@@ -1,6 +1,7 @@
 // Swedish catalog namespace: statistics
 module.exports = {
   "title": "Statistik",
+  "ignored": "Ignorerade",
 
   "autoRefresh": "Automatisk uppdatering",
   "refreshNow": "Uppdatera nu",

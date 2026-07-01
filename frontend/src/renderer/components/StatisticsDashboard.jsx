@@ -286,7 +286,7 @@ function TopFacesSection({ faces, ignoredStats, isLoading }) {
 
           if (item.name) {
             if (item.name === 'Ignored') {
-              content = `${item.name} ${item.face_count}`;
+              content = `${t('statistics.ignored')} ${item.face_count}`;
             } else {
               // Show count and percentage (e.g., "Elton (259, 15%)")
               const pct = item.percentage !== undefined ? `, ${item.percentage}%` : '';
