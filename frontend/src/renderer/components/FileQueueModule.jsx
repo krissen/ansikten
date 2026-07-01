@@ -20,6 +20,7 @@ import { Icon } from './Icon.jsx';
 import { isFileEligible as isFileEligiblePure, findNextEligibleIndex, isRenameEligible } from './fileQueueEligibility.js';
 import { compileFilter } from './filterExpression.js';
 import { formatNamesToFit, measureTextWidth } from '../shared/nameFormatter.js';
+import { t } from '../../i18n/index.js';
 import './FileQueueModule.css';
 
 /**
@@ -310,7 +311,7 @@ export function FileQueueModule({ node }) {
       setProcessedFilesLoaded(true);
       if (!loadProcessedFilesFailedRef.current) {
         loadProcessedFilesFailedRef.current = true;
-        showToast('⚠️ Could not load processed files status', 'warning', 3000);
+        showToast(t('fileQueue.toasts.loadProcessedFailed'), 'warning', 3000);
       }
     }
   }, [api, showToast]);
@@ -461,7 +462,7 @@ export function FileQueueModule({ node }) {
       debugWarn('FileQueue', 'Preprocessing error:', filePath, error);
       // Show error toast for preprocessing failure
       const fileName = filePath.split('/').pop();
-      showToast(`Preprocessing failed: ${fileName}`, 'error', 4000);
+      showToast(t('fileQueue.toasts.preprocessingFailed', { fileName }), 'error', 4000);
     };
 
     const handleFileNotFound = ({ filePath }) => {
@@ -489,7 +490,7 @@ export function FileQueueModule({ node }) {
           if (count > 0) {
             const pathsToRemove = new Set(missingFilesRef.current);
             setQueue(prev => prev.filter(item => !pathsToRemove.has(item.filePath)));
-            showToast(`Removed ${count} missing file${count > 1 ? 's' : ''} from queue`, 'info', 3000);
+            showToast(t('fileQueue.toasts.removedMissing', { count }), 'info', 3000);
             debug('FileQueue', `Auto-removed ${count} missing files`);
             missingFilesRef.current = [];
           }
@@ -509,7 +510,7 @@ export function FileQueueModule({ node }) {
       setPreprocessingPaused(true);
       const showPauseToast = getNotificationPreference('showToastOnPause');
       if (showPauseToast) {
-        showToast(`Preprocessing paused (${readyCount} files ready)`, 'info', 3000);
+        showToast(t('fileQueue.toasts.preprocessingPaused', { count: readyCount }), 'info', 3000);
       }
     };
 
@@ -518,7 +519,7 @@ export function FileQueueModule({ node }) {
       setPreprocessingPaused(false);
       const showResumeToast = getNotificationPreference('showToastOnResume');
       if (showResumeToast) {
-        showToast('Preprocessing resumed', 'info', 2000);
+        showToast(t('fileQueue.toasts.preprocessingResumed'), 'info', 2000);
       }
     };
 
@@ -612,7 +613,7 @@ export function FileQueueModule({ node }) {
 
       const fileName = filePath.split('/').pop();
       setQueue(prev => prev.filter(item => item.filePath !== filePath));
-      showToast(`Removed deleted file: ${fileName}`, 'info', 3000);
+      showToast(t('fileQueue.toasts.removedDeletedFile', { fileName }), 'info', 3000);
     };
 
     const unsubscribe = window.ansiktenAPI?.onFileDeleted(handleFileDeleted);
@@ -762,7 +763,7 @@ export function FileQueueModule({ node }) {
         preprocessingStatus[item.filePath] === PreprocessingStatus.COMPLETED
       ).length;
       if (completedCount > 0) {
-        showToast(`Preprocessing complete (${completedCount} files cached)`, 'success', 3000);
+        showToast(t('fileQueue.toasts.preprocessingComplete', { count: completedCount }), 'success', 3000);
       }
     }
 
@@ -783,7 +784,7 @@ export function FileQueueModule({ node }) {
     if (state.prev !== isConnected) {
       if (isConnected) {
         if (state.hasEverConnected) {
-          showToast('🟢 Backend reconnected', 'success', 2500);
+          showToast(t('fileQueue.toasts.backendReconnected'), 'success', 2500);
         }
         state.hasEverConnected = true;
       } else {
@@ -791,7 +792,7 @@ export function FileQueueModule({ node }) {
         if (renameInProgressRef.current) {
           debug('FileQueue', 'Backend disconnected during rename - ignoring');
         } else {
-          showToast('🔴 Backend disconnected', 'error', 4000);
+          showToast(t('fileQueue.toasts.backendDisconnected'), 'error', 4000);
         }
       }
       state.prev = isConnected;
@@ -813,7 +814,7 @@ export function FileQueueModule({ node }) {
       if (queue.length > 0) {
         const pending = queue.filter(q => q.status === 'pending').length;
         if (pending > 0) {
-          queueToast(`${queue.length} files in queue (${pending} pending)`, 'info', 3000);
+          queueToast(t('fileQueue.toasts.filesInQueue', { total: queue.length, pending }), 'info', 3000);
         }
       }
 
@@ -824,7 +825,11 @@ export function FileQueueModule({ node }) {
         const cacheStatus = await api.get('/api/v1/preprocessing/cache/status');
         if (cacheStatus && cacheStatus.usage_percent > 80) {
           queueToast(
-            `⚠️ Cache ${Math.round(cacheStatus.usage_percent)}% full (${Math.round(cacheStatus.total_size_mb)}/${cacheStatus.max_size_mb} MB)`,
+            t('fileQueue.toasts.cacheFull', {
+              percent: Math.round(cacheStatus.usage_percent),
+              used: Math.round(cacheStatus.total_size_mb),
+              max: cacheStatus.max_size_mb
+            }),
             'warning',
             5000
           );
@@ -872,7 +877,7 @@ export function FileQueueModule({ node }) {
     }
 
     if (showToastIfNone && q.length > 0) {
-      showToast('All files already processed. Enable fix-mode to reprocess.', 'info', 5000);
+      showToast(t('fileQueue.toasts.allProcessed'), 'info', 5000);
     }
     return false;
   }, [getEligibilityContext, showToast]);
@@ -923,7 +928,7 @@ export function FileQueueModule({ node }) {
     }
     if (supportedPaths.length === 0) {
       if (skippedCount > 0) {
-        showToast(`No supported image files (skipped ${skippedCount} non-image files)`, 'warning', 3000);
+        showToast(t('fileQueue.toasts.noSupportedSkipped', { count: skippedCount }), 'warning', 3000);
       }
       return;
     }
@@ -973,15 +978,15 @@ export function FileQueueModule({ node }) {
     if (newItems.length > 0) {
       const dupeCount = newItems.length - addedCount;
       if (addedCount > 0) {
-        let msg = `Added ${addedCount} file${addedCount !== 1 ? 's' : ''} to queue`;
+        let msg = t('fileQueue.toasts.addedFiles', { count: addedCount });
         if (dupeCount > 0) {
-          msg += ` (${dupeCount} already in queue)`;
+          msg += t('fileQueue.toasts.alreadyInQueueSuffix', { count: dupeCount });
         }
         showToast(msg, 'info', 3000);
       } else if (dupeCount > 0) {
         const msg = dupeCount === 1
-          ? 'File already in queue'
-          : `All ${dupeCount} files already in queue`;
+          ? t('fileQueue.toasts.fileAlreadyInQueue')
+          : t('fileQueue.toasts.allFilesAlreadyInQueue', { count: dupeCount });
         showToast(msg, 'info', 2500);
       }
     }
@@ -1018,7 +1023,7 @@ export function FileQueueModule({ node }) {
   // Sort existing queue alphabetically
   const sortQueue = useCallback(() => {
     setQueue(prev => [...prev].sort(naturalSortCompare));
-    showToast('Queue sorted alphabetically', 'info', 2000);
+    showToast(t('fileQueue.toasts.queueSorted'), 'info', 2000);
   }, [showToast]);
 
   // Remove file from queue
@@ -1155,7 +1160,7 @@ export function FileQueueModule({ node }) {
     if (!processedFilesLoadedRef.current) {
       debug('FileQueue', 'loadFile: Queuing load - processed files not loaded yet');
       pendingManualLoadRef.current = index;
-      showToast('Laddar fillista...', 'info', 2000);
+      showToast(t('fileQueue.toasts.loadingFileList'), 'info', 2000);
       return;
     }
 
@@ -1182,7 +1187,7 @@ export function FileQueueModule({ node }) {
 
     if (skipAutoDetect) {
       debug('FileQueue', 'loadFile: BLOCKED - file already processed, fix-mode OFF');
-      showToast(`${item.fileName} already processed. Enable fix-mode or click 🔄 to reprocess.`, 'info', 5000);
+      showToast(t('fileQueue.toasts.fileAlreadyProcessed', { fileName: item.fileName }), 'info', 5000);
       return;
     }
 
@@ -1209,10 +1214,10 @@ export function FileQueueModule({ node }) {
           filename_pattern: item.fileName
         });
         await loadProcessedFiles();
-        showToast(`🔄 Undid ${item.fileName}`, 'info', 2500);
+        showToast(t('fileQueue.toasts.undid', { fileName: item.fileName }), 'info', 2500);
       } catch (err) {
         debugError('FileQueue', 'Failed to undo file:', err);
-        showToast(`Failed to undo ${item.fileName}`, 'error', 3000);
+        showToast(t('fileQueue.toasts.undoFailed', { fileName: item.fileName }), 'error', 3000);
       }
     }
 
@@ -1265,13 +1270,13 @@ export function FileQueueModule({ node }) {
         preprocessingManager.current.addToQueue(item.filePath, { priority: true });
       }
 
-      showToast(`🔄 Reprocessing ${item.fileName}`, 'info', 2500);
+      showToast(t('fileQueue.toasts.reprocessing', { fileName: item.fileName }), 'info', 2500);
 
       // 6. Load the file
       loadFile(index);
     } catch (err) {
       debugError('FileQueue', 'Failed to force reprocess:', err);
-      showToast(`Failed to reprocess ${item.fileName}`, 'error', 3000);
+      showToast(t('fileQueue.toasts.reprocessFailed', { fileName: item.fileName }), 'error', 3000);
     }
   }, [api, loadProcessedFiles, loadFile, showToast]);
 
@@ -1375,7 +1380,7 @@ export function FileQueueModule({ node }) {
 
     // Show loading indicator for large batches
     if (eligiblePaths.length > 5) {
-      showToast(`Generating name suggestions for ${eligiblePaths.length} files...`, 'info', 2000);
+      showToast(t('fileQueue.toasts.generatingNames', { count: eligiblePaths.length }), 'info', 2000);
     }
 
     // Get rename config from preferences
@@ -1466,11 +1471,12 @@ export function FileQueueModule({ node }) {
     const requireConfirmation = getRequireRenameConfirmation();
 
     if (requireConfirmation) {
-      const selectionNote = hasSelection ? ' (selected)' : '';
+      const selectionNote = hasSelection ? t('fileQueue.dialogs.renameConfirmSelection') : '';
       const confirmed = window.confirm(
-        `Rename ${eligiblePaths.length} file(s)${selectionNote}?\n\n` +
-        `This will rename files based on detected faces.\n` +
-        `Check Preferences for rename format settings.`
+        t('fileQueue.dialogs.renameConfirm', {
+          count: eligiblePaths.length,
+          selection: selectionNote
+        })
       );
       if (!confirmed) return;
     }
@@ -1478,7 +1484,7 @@ export function FileQueueModule({ node }) {
     setRenameInProgress(true);
 
     // Show progress toast
-    showToast(`Renaming ${eligiblePaths.length} file(s)...`, 'info', null);
+    showToast(t('fileQueue.toasts.renaming', { count: eligiblePaths.length }), 'info', null);
 
     // Get rename config from preferences
     const renameConfig = getRenameConfig();
@@ -1546,14 +1552,14 @@ export function FileQueueModule({ node }) {
       }
 
       // Show toast notification
-      let message = `Renamed ${renamedCount} file(s)`;
-      if (skippedCount > 0) message += ` · ${skippedCount} skipped`;
-      if (errorCount > 0) message += ` · ${errorCount} error(s)`;
+      let message = t('fileQueue.toasts.renamed', { count: renamedCount });
+      if (skippedCount > 0) message += t('fileQueue.toasts.renamedSkippedSuffix', { count: skippedCount });
+      if (errorCount > 0) message += t('fileQueue.toasts.renamedErrorSuffix', { count: errorCount });
       showToast(message, errorCount > 0 ? 'warning' : 'success');
 
     } catch (err) {
       debugError('FileQueue', 'Rename failed:', err);
-      showToast(`Rename failed: ${err.message}`, 'error');
+      showToast(t('fileQueue.toasts.renameFailed', { message: err.message }), 'error');
     } finally {
       setRenameInProgress(false);
     }
@@ -1617,9 +1623,9 @@ export function FileQueueModule({ node }) {
 
       // Show toast for review result
       if (success) {
-        showToast(`Saved review for ${fileName} (${faceCount} face${faceCount !== 1 ? 's' : ''})`, 'success', 2500);
+        showToast(t('fileQueue.toasts.savedReview', { fileName, count: faceCount }), 'success', 2500);
       } else {
-        showToast(`Failed to save review for ${fileName}`, 'error', 4000);
+        showToast(t('fileQueue.toasts.saveReviewFailed', { fileName }), 'error', 4000);
       }
 
       // Clear preview data when queue changes (force re-fetch)
@@ -1641,7 +1647,7 @@ export function FileQueueModule({ node }) {
         debug('FileQueue', 'No more pending files (or all skipped due to fix-mode OFF)');
         setCurrentIndex(-1);
         // Show queue complete toast
-        showToast('🎉 Queue complete - all files reviewed!', 'success', 4000);
+        showToast(t('fileQueue.toasts.queueComplete'), 'success', 4000);
       }
     }
   }, [autoAdvance, loadFile, loadProcessedFiles, showToast, emit, isFileEligible]));
@@ -1777,7 +1783,7 @@ export function FileQueueModule({ node }) {
         setTimeout(() => startNextEligible(), 100);
       }
     } else {
-      showToast('No supported image files found', 'warning');
+      showToast(t('fileQueue.toasts.noSupportedFound'), 'warning');
     }
   }, [addFiles, queue.length, startNextEligible, showToast]);
 
@@ -1985,26 +1991,26 @@ export function FileQueueModule({ node }) {
     >
       {/* Header */}
       <div className="module-header">
-        <span className="module-title">File Queue</span>
+        <span className="module-title">{t('fileQueue.title')}</span>
         <div className="file-queue-actions">
           <button
             className="btn-icon"
             onClick={openFileDialog}
-            title="Add files"
+            title={t('fileQueue.buttons.addFiles')}
           >
             <Icon name="plus" size={14} />
           </button>
           <button
             className="btn-icon"
             onClick={openFolderDialog}
-            title="Add folder"
+            title={t('fileQueue.buttons.addFolder')}
           >
             <Icon name="folder-plus" size={14} />
           </button>
           <button
             className="btn-icon"
             onClick={sortQueue}
-            title="Sort queue alphabetically"
+            title={t('fileQueue.buttons.sortQueue')}
             disabled={queue.length < 2}
           >
             <Icon name="sort" size={14} />
@@ -2012,7 +2018,7 @@ export function FileQueueModule({ node }) {
           <button
             className="btn-icon"
             onClick={() => setAutoAdvance(!autoAdvance)}
-            title={autoAdvance ? 'Auto-advance ON' : 'Auto-advance OFF'}
+            title={autoAdvance ? t('fileQueue.buttons.autoAdvanceOn') : t('fileQueue.buttons.autoAdvanceOff')}
           >
             <Icon name={autoAdvance ? 'play' : 'pause'} size={14} />
           </button>
@@ -2027,7 +2033,7 @@ export function FileQueueModule({ node }) {
             checked={fixMode}
             onChange={(e) => setFixMode(e.target.checked)}
           />
-          <span>Fix mode</span>
+          <span>{t('fileQueue.toggles.fixMode')}</span>
         </label>
         {completedCount > 0 && (
           <label className="preview-toggle">
@@ -2036,7 +2042,7 @@ export function FileQueueModule({ node }) {
               checked={showPreviewNames}
               onChange={handlePreviewToggle}
             />
-            <span>Show new names</span>
+            <span>{t('fileQueue.toggles.showNewNames')}</span>
           </label>
         )}
         {queue.length > 0 && (
@@ -2045,26 +2051,26 @@ export function FileQueueModule({ node }) {
               <button
                 className="btn-secondary"
                 onClick={clearSelected}
-                title="Clear selected files"
+                title={t('fileQueue.buttons.clearSelectedTitle')}
               >
-                Clear selected
+                {t('fileQueue.buttons.clearSelected')}
               </button>
             )}
             {completedCount > 0 && selectedFiles.size === 0 && (
               <button
                 className="btn-secondary"
                 onClick={clearCompleted}
-                title="Clear completed files"
+                title={t('fileQueue.buttons.clearDoneTitle')}
               >
-                Clear done
+                {t('fileQueue.buttons.clearDone')}
               </button>
             )}
             <button
               className="btn-secondary"
               onClick={clearQueue}
-              title="Clear all files from queue"
+              title={t('fileQueue.buttons.clearAllTitle')}
             >
-              Clear all
+              {t('fileQueue.buttons.clearAll')}
             </button>
           </>
         )}
@@ -2078,7 +2084,7 @@ export function FileQueueModule({ node }) {
             ref={filterInputRef}
             type="text"
             className="filter-input"
-            placeholder="Filter...  a|b = or  a&b = and"
+            placeholder={t('fileQueue.filter.placeholder')}
             value={filterText}
             onChange={(e) => setFilterText(e.target.value)}
             onKeyDown={(e) => {
@@ -2102,7 +2108,7 @@ export function FileQueueModule({ node }) {
           <button
             className="btn-icon filter-close"
             onClick={closeFilter}
-            title="Clear filter (Esc)"
+            title={t('fileQueue.filter.clearTitle')}
           >
             <Icon name="close" size={12} />
           </button>
@@ -2117,7 +2123,7 @@ export function FileQueueModule({ node }) {
         }}>
           <Icon name="play" size={12} />
           <span className="current-file-name">{activeFile.fileName}</span>
-          <span className="current-file-hint">click to scroll</span>
+          <span className="current-file-hint">{t('fileQueue.currentFile.scrollHint')}</span>
         </div>
       )}
 
@@ -2125,8 +2131,8 @@ export function FileQueueModule({ node }) {
       <div ref={listRef} className="module-body file-queue-list">
         {queue.length === 0 ? (
           <div className="empty-state">
-            <p>No files in queue</p>
-            <p className="hint">Click + to add files</p>
+            <p>{t('fileQueue.emptyStates.noFiles')}</p>
+            <p className="hint">{t('fileQueue.emptyStates.addHint')}</p>
           </div>
         ) : (
           displayOrder.map(({ item, originalIndex }) => (
@@ -2168,8 +2174,8 @@ export function FileQueueModule({ node }) {
           {getNotificationPreference('showStatusIndicator') && (
             <div className="preprocessing-status">
               {preprocessingPaused ? (
-                <span className="status-paused" title="Preprocessing paused - buffer full">
-                  <Icon name="layers" size={12} /> Buffered
+                <span className="status-paused" title={t('fileQueue.preprocessing.bufferedTitle')}>
+                  <Icon name="layers" size={12} /> {t('fileQueue.preprocessing.buffered')}
                 </span>
               ) : queue.some(q => {
                 const status = preprocessingStatus[q.filePath];
@@ -2177,12 +2183,12 @@ export function FileQueueModule({ node }) {
                        status.status !== PreprocessingStatus.ERROR &&
                        status.status !== PreprocessingStatus.FILE_NOT_FOUND;
               }) ? (
-                <span className="status-active" title="Preprocessing in progress">
-                  <Icon name="refresh" size={12} className="spinning" /> Processing
+                <span className="status-active" title={t('fileQueue.preprocessing.processingTitle')}>
+                  <Icon name="refresh" size={12} className="spinning" /> {t('fileQueue.preprocessing.processing')}
                 </span>
               ) : (
-                <span className="status-ready" title="All files preprocessed">
-                  <Icon name="check" size={12} /> Ready
+                <span className="status-ready" title={t('fileQueue.preprocessing.readyTitle')}>
+                  <Icon name="check" size={12} /> {t('fileQueue.preprocessing.ready')}
                 </span>
               )}
             </div>
@@ -2194,34 +2200,34 @@ export function FileQueueModule({ node }) {
               let renameCount, renameLabel;
               if (hasSelection) {
                 renameCount = queue.filter(q => selectedFiles.has(q.id) && isEligible(q)).length;
-                renameLabel = `Rename (${renameCount} selected)`;
+                renameLabel = t('fileQueue.buttons.renameSelected', { count: renameCount });
               } else if (visibleIds) {
                 renameCount = queue.filter(q => visibleIds.has(q.id) && isEligible(q)).length;
-                renameLabel = `Rename (${renameCount} filtered)`;
+                renameLabel = t('fileQueue.buttons.renameFiltered', { count: renameCount });
               } else {
                 // Use the gated predicate (not completedCount) so the count excludes
                 // files transiently held out of rename by unsaved review changes.
                 renameCount = queue.filter(isEligible).length;
-                renameLabel = `Rename (${renameCount})`;
+                renameLabel = t('fileQueue.buttons.rename', { count: renameCount });
               }
               return renameCount > 0 && (
                 <button
                   className="btn-secondary"
                   onClick={handleRename}
                   disabled={renameInProgress}
-                  title={hasSelection ? "Rename selected files" : visibleIds ? "Rename filtered files" : "Rename files based on detected faces"}
+                  title={hasSelection ? t('fileQueue.buttons.renameSelectedTitle') : visibleIds ? t('fileQueue.buttons.renameFilteredTitle') : t('fileQueue.buttons.renameTitle')}
                 >
-                  {renameInProgress ? 'Renaming...' : renameLabel}
+                  {renameInProgress ? t('fileQueue.buttons.renaming') : renameLabel}
                 </button>
               );
             })()}
             {currentIndex >= 0 ? (
               <button className="btn-secondary" onClick={skipCurrent}>
-                Skip <Icon name="skip-next" size={12} />
+                {t('fileQueue.buttons.skip')} <Icon name="skip-next" size={12} />
               </button>
             ) : queue.some(isFileEligible) ? (
               <button className="btn-action" onClick={() => startNextEligible({ showToastIfNone: false })}>
-                Start <Icon name="play" size={12} />
+                {t('fileQueue.buttons.start')} <Icon name="play" size={12} />
               </button>
             ) : null}
           </div>
@@ -2233,7 +2239,7 @@ export function FileQueueModule({ node }) {
         <div className="drop-overlay">
           <div className="drop-overlay-content">
             <Icon name="plus" size={48} />
-            <span>Drop files to add to queue</span>
+            <span>{t('fileQueue.dropOverlay')}</span>
           </div>
         </div>
       )}
@@ -2344,7 +2350,7 @@ function FileQueueItem({ item, index, isActive, isFocused, isSelected, onClick, 
       case 'error':
         return <span className="status-icon error"><Icon name="close" size={12} /></span>;
       case 'missing':
-        return <span className="status-icon missing" title="File not found"><Icon name="warning" size={12} /></span>;
+        return <span className="status-icon missing" title={t('fileQueue.tooltips.fileNotFound')}><Icon name="warning" size={12} /></span>;
       default:
         if (item.isAlreadyProcessed) {
           if (fixMode) {
@@ -2361,15 +2367,15 @@ function FileQueueItem({ item, index, isActive, isFocused, isSelected, onClick, 
 
   const getStatusText = () => {
     switch (item.status) {
-      case 'completed': return 'Done';
-      case 'active': return 'Active';
-      case 'error': return 'Error';
-      case 'missing': return 'Not found';
+      case 'completed': return t('fileQueue.status.done');
+      case 'active': return t('fileQueue.status.active');
+      case 'error': return t('fileQueue.status.error');
+      case 'missing': return t('fileQueue.status.notFound');
       default:
         if (item.isAlreadyProcessed) {
-          return fixMode ? 'Queued (reprocess)' : 'Processed';
+          return fixMode ? t('fileQueue.status.queuedReprocess') : t('fileQueue.status.processed');
         }
-        return 'Queued';
+        return t('fileQueue.status.queued');
     }
   };
 
@@ -2385,16 +2391,16 @@ function FileQueueItem({ item, index, isActive, isFocused, isSelected, onClick, 
     }
     // Show checkmark for completed preprocessing
     if (ppStatus === PreprocessingStatus.COMPLETED) {
-      return <Icon name="bolt" size={14} className="preprocess-indicator completed" title="Cached" />;
+      return <Icon name="bolt" size={14} className="preprocess-indicator completed" title={t('fileQueue.tooltips.cached')} />;
     }
     if (ppStatus === PreprocessingStatus.FILE_NOT_FOUND) {
       return null; // Status already shown in main icon
     }
     if (ppStatus === PreprocessingStatus.ERROR) {
-      return <span className="preprocess-indicator error" title="Preprocessing failed">!</span>;
+      return <span className="preprocess-indicator error" title={t('fileQueue.tooltips.preprocessingFailed')}>!</span>;
     }
     // Show spinner for any in-progress state
-    return <Icon name="refresh" size={14} className="preprocess-indicator loading" title={`Preprocessing: ${ppStatus}`} />;
+    return <Icon name="refresh" size={14} className="preprocess-indicator loading" title={t('fileQueue.tooltips.preprocessing', { status: ppStatus })} />;
   };
 
   // Truncate filename for display (Unicode-safe, preserves extension)
@@ -2485,8 +2491,8 @@ function FileQueueItem({ item, index, isActive, isFocused, isSelected, onClick, 
           <span className={`inline-preview ${previewStatus === 'no_persons' || previewStatus === 'already_renamed' ? 'muted' : 'error'}`}>
             <span className="arrow">→</span>
             <span className={previewStatus === 'no_persons' || previewStatus === 'already_renamed' ? 'preview-muted' : 'preview-error'}>
-              {previewStatus === 'no_persons' ? '(no persons)' :
-               previewStatus === 'already_renamed' ? '(already renamed)' :
+              {previewStatus === 'no_persons' ? t('fileQueue.status.noPersons') :
+               previewStatus === 'already_renamed' ? t('fileQueue.status.alreadyRenamed') :
                previewStatus}
             </span>
           </span>
@@ -2496,7 +2502,7 @@ function FileQueueItem({ item, index, isActive, isFocused, isSelected, onClick, 
       <span className="preprocess-col">
         {getPreprocessingIndicator()}
       </span>
-      <span className="face-count" title={confirmedNames.length > 0 ? `Confirmed: ${confirmedNames.join(', ')}` : (hasDetectedFaces ? `${detectedFaceCount} detected` : 'Not loaded')}>
+      <span className="face-count" title={confirmedNames.length > 0 ? t('fileQueue.tooltips.confirmedList', { names: confirmedNames.join(', ') }) : (hasDetectedFaces ? t('fileQueue.tooltips.detectedCount', { count: detectedFaceCount }) : t('fileQueue.tooltips.notLoaded'))}>
         <Icon name="user" size={12} />{hasDetectedFaces ? detectedFaceCount : '–'}
       </span>
       <span className="file-status">{getStatusText()}</span>
@@ -2507,7 +2513,7 @@ function FileQueueItem({ item, index, isActive, isFocused, isSelected, onClick, 
             e.stopPropagation();
             onForceReprocess();
           }}
-          title="Reprocess this file"
+          title={t('fileQueue.tooltips.reprocessFile')}
         >
           <Icon name="refresh" size={12} />
         </button>
@@ -2520,7 +2526,7 @@ function FileQueueItem({ item, index, isActive, isFocused, isSelected, onClick, 
           e.stopPropagation();
           onRemove();
         }}
-        title="Remove from queue"
+        title={t('fileQueue.tooltips.removeFromQueue')}
       >
         ×
       </button>
@@ -2532,40 +2538,40 @@ function FileQueueItem({ item, index, isActive, isFocused, isSelected, onClick, 
           style={{ left: tooltipPos.x, top: tooltipPos.y }}
         >
           <div className="tooltip-row">
-            <span className="tooltip-label">File:</span>
+            <span className="tooltip-label">{t('fileQueue.tooltips.file')}</span>
             <span className="tooltip-value">{item.fileName}</span>
           </div>
           <div className="tooltip-row">
-            <span className="tooltip-label">Folder:</span>
+            <span className="tooltip-label">{t('fileQueue.tooltips.folder')}</span>
             <span className="tooltip-value tooltip-path">{item.filePath.replace(/\\/g, '/').replace(/\/[^/]*$/, '')}</span>
           </div>
           {hasDetectedFaces && (
             <div className="tooltip-row">
-              <span className="tooltip-label">Detected:</span>
-              <span className="tooltip-value">{detectedFaceCount} face{detectedFaceCount !== 1 ? 's' : ''}</span>
+              <span className="tooltip-label">{t('fileQueue.tooltips.detected')}</span>
+              <span className="tooltip-value">{t('fileQueue.tooltips.faceCount', { count: detectedFaceCount })}</span>
             </div>
           )}
           {confirmedCount > 0 && (
             <div className="tooltip-row">
-              <span className="tooltip-label">Confirmed ({confirmedCount}):</span>
+              <span className="tooltip-label">{t('fileQueue.tooltips.confirmed', { count: confirmedCount })}</span>
               <span className="tooltip-value">{confirmedNames.join(', ')}</span>
             </div>
           )}
           {shouldShowPreview && nameWouldChange && (
             <div className="tooltip-row tooltip-newname">
-              <span className="tooltip-label">New name:</span>
+              <span className="tooltip-label">{t('fileQueue.tooltips.newName')}</span>
               <span className="tooltip-value">{newName}</span>
             </div>
           )}
           {shouldShowPreview && hasSidecars && (
             <div className="tooltip-row tooltip-sidecars">
-              <span className="tooltip-label">Sidecars ({sidecars.length}):</span>
+              <span className="tooltip-label">{t('fileQueue.tooltips.sidecars', { count: sidecars.length })}</span>
               <span className="tooltip-value">{sidecars.map(s => s.split('/').pop()).join(', ')}</span>
             </div>
           )}
           {shouldShowPreview && !newName && previewStatus && (
             <div className="tooltip-row tooltip-error">
-              <span className="tooltip-label">Rename:</span>
+              <span className="tooltip-label">{t('fileQueue.tooltips.rename')}</span>
               <span className="tooltip-value">{previewStatus}</span>
             </div>
           )}
