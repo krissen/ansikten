@@ -15,6 +15,7 @@ import { useBackend } from '../context/BackendContext.jsx';
 import { useAutoRefresh } from '../hooks/useAutoRefresh.js';
 import { debug, debugWarn, debugError, getLogBuffer } from '../shared/debug.js';
 import { preferences } from '../workspace/preferences.js';
+import { t } from '../../i18n/index.js';
 import './StatisticsDashboard.css';
 
 /**
@@ -110,7 +111,7 @@ export function StatisticsDashboard() {
   return (
     <div className="module-container stats-dashboard">
       <div className="module-header">
-        <h3 className="module-title">Statistics Dashboard</h3>
+        <h3 className="module-title">{t('statistics.title')}</h3>
         <div className="button-group">
           <label className="form-checkbox">
             <input
@@ -118,7 +119,7 @@ export function StatisticsDashboard() {
               checked={autoRefresh}
               onChange={(e) => setAutoRefresh(e.target.checked)}
             />
-            Auto-refresh
+            {t('statistics.autoRefresh')}
           </label>
           <select
             className="form-select"
@@ -131,7 +132,7 @@ export function StatisticsDashboard() {
             <option value="30000">30s</option>
           </select>
           <button className="btn-secondary" onClick={refresh}>
-            Refresh Now
+            {t('statistics.refreshNow')}
           </button>
         </div>
       </div>
@@ -166,8 +167,8 @@ export function StatisticsDashboard() {
         {/* Show message if all sections are hidden */}
         {!showAttemptStats && !showTopFaces && !showRecentImages && !showRecentLogs && (
           <div className="empty-state">
-            All dashboard sections are hidden.<br/>
-            Enable sections in Preferences → Dashboard.
+            {t('statistics.emptyState.line1')}<br/>
+            {t('statistics.emptyState.line2')}
           </div>
         )}
       </div>
@@ -182,8 +183,8 @@ function AttemptStatsSection({ stats, isLoading }) {
   if (isLoading) {
     return (
       <div className="section-card">
-        <h4 className="section-title">Attempt Statistics</h4>
-        <div className="empty-state compact">Loading...</div>
+        <h4 className="section-title">{t('statistics.sections.attemptStats')}</h4>
+        <div className="empty-state compact">{t('statistics.loading')}</div>
       </div>
     );
   }
@@ -191,24 +192,24 @@ function AttemptStatsSection({ stats, isLoading }) {
   if (!stats || stats.length === 0) {
     return (
       <div className="section-card">
-        <h4 className="section-title">Attempt Statistics</h4>
-        <div className="empty-state compact">No attempt statistics available</div>
+        <h4 className="section-title">{t('statistics.sections.attemptStats')}</h4>
+        <div className="empty-state compact">{t('statistics.empty.attemptStats')}</div>
       </div>
     );
   }
 
   return (
     <div className="section-card">
-      <h4 className="section-title">Attempt Statistics</h4>
+      <h4 className="section-title">{t('statistics.sections.attemptStats')}</h4>
       <table className="attempt-stats-table">
         <thead>
           <tr>
-            <th>Backend &amp; Settings</th>
-            <th className="num">Attempts</th>
-            <th className="num">Chosen</th>
-            <th className="num">Hit %</th>
-            <th className="num">Avg Faces</th>
-            <th className="num">Avg Time</th>
+            <th>{t('statistics.table.backendSettings')}</th>
+            <th className="num">{t('statistics.table.attempts')}</th>
+            <th className="num">{t('statistics.table.chosen')}</th>
+            <th className="num">{t('statistics.table.hitRate')}</th>
+            <th className="num">{t('statistics.table.avgFaces')}</th>
+            <th className="num">{t('statistics.table.avgTime')}</th>
           </tr>
         </thead>
         <tbody>
@@ -241,8 +242,8 @@ function TopFacesSection({ faces, ignoredStats, isLoading }) {
   if (isLoading) {
     return (
       <div className="section-card">
-        <h4 className="section-title">Top Faces (19 most common + Ignored)</h4>
-        <div className="empty-state compact">Loading...</div>
+        <h4 className="section-title">{t('statistics.sections.topFaces', { count: 19 })}</h4>
+        <div className="empty-state compact">{t('statistics.loading')}</div>
       </div>
     );
   }
@@ -275,7 +276,7 @@ function TopFacesSection({ faces, ignoredStats, isLoading }) {
 
   return (
     <div className="section-card">
-      <h4 className="section-title">Top Faces (19 most common + Ignored)</h4>
+      <h4 className="section-title">{t('statistics.sections.topFaces', { count: 19 })}</h4>
       <div className="top-faces-grid">
         {gridItems.map((item, idx) => {
           if (!item) return <div key={idx} className="face-cell">—</div>;
@@ -311,8 +312,8 @@ function RecentImagesSection({ images, isLoading }) {
   if (isLoading) {
     return (
       <div className="section-card">
-        <h4 className="section-title">Recent Images</h4>
-        <div className="empty-state compact">Loading...</div>
+        <h4 className="section-title">{t('statistics.sections.recentImages')}</h4>
+        <div className="empty-state compact">{t('statistics.loading')}</div>
       </div>
     );
   }
@@ -320,15 +321,15 @@ function RecentImagesSection({ images, isLoading }) {
   if (!images || images.length === 0) {
     return (
       <div className="section-card">
-        <h4 className="section-title">Recent Images</h4>
-        <div className="empty-state compact">No recent images</div>
+        <h4 className="section-title">{t('statistics.sections.recentImages')}</h4>
+        <div className="empty-state compact">{t('statistics.empty.recentImages')}</div>
       </div>
     );
   }
 
   return (
     <div className="section-card">
-      <h4 className="section-title">Recent Images</h4>
+      <h4 className="section-title">{t('statistics.sections.recentImages')}</h4>
       <div className="recent-images-list">
         {images.map((img, idx) => (
           <div key={idx} className={`image-entry ${img.source === 'ansikten' ? 'source-ansikten' : 'source-cli'}`}>
@@ -355,8 +356,8 @@ function RecentLogsSection({ logs, isLoading }) {
   if (isLoading) {
     return (
       <div className="section-card">
-        <h4 className="section-title">Recent Log Lines</h4>
-        <div className="empty-state compact">Loading...</div>
+        <h4 className="section-title">{t('statistics.sections.recentLogs')}</h4>
+        <div className="empty-state compact">{t('statistics.loading')}</div>
       </div>
     );
   }
@@ -364,15 +365,15 @@ function RecentLogsSection({ logs, isLoading }) {
   if (!logs || logs.length === 0) {
     return (
       <div className="section-card">
-        <h4 className="section-title">Recent Log Lines</h4>
-        <div className="empty-state compact">No recent logs</div>
+        <h4 className="section-title">{t('statistics.sections.recentLogs')}</h4>
+        <div className="empty-state compact">{t('statistics.empty.recentLogs')}</div>
       </div>
     );
   }
 
   return (
     <div className="section-card">
-      <h4 className="section-title">Recent Log Lines</h4>
+      <h4 className="section-title">{t('statistics.sections.recentLogs')}</h4>
       <div className="recent-logs-list">
         {logs.map((log, idx) => (
           <div key={idx} className={`stats-log-entry ${log.level}`}>
