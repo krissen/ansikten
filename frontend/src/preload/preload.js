@@ -38,7 +38,8 @@ contextBridge.exposeInMainWorld("ansiktenAPI", {
       "open-folder-paths",
       "expand-glob",
       "check-file-changed",
-      "get-initial-file"
+      "get-initial-file",
+      "open-raw-in-lightroom"
     ];
     if (allowedChannels.includes(channel)) {
       return ipcRenderer.invoke(channel, ...args);
