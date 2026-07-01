@@ -69,6 +69,14 @@
   background: var(--bg-secondary);
 }
 
+/* On the warm beige (light) theme the caramel --bg-secondary is too dark behind
+   the deviation-colored numbers; lighten the stats column to the light peach
+   --bg-elevated so the status-text hues read clearly. (Row hover uses the shared
+   --bg-row-hover; see below.) Dark theme keeps --bg-secondary. */
+:root[data-theme="light"] .culling-stats {
+  background: var(--bg-elevated);
+}
+
 .culling-stats-header {
   display: flex;
   justify-content: space-between;
@@ -129,15 +137,9 @@
 }
 
 .culling-stat-row.clickable { cursor: pointer; }
-.culling-stat-row:hover { background: var(--bg-tertiary, var(--bg-secondary)); }
-/* Mark the active row with a left accent bar + faint tint rather than a solid
-   fill: a strong fill (e.g. the gold --bg-active) drowns the warn-level deviation
-   text (yellow-on-gold). The subtle tint keeps all three delta hues legible. */
-.culling-stat-row.active {
-  background: var(--accent-primary-alpha-20);
-  box-shadow: inset 3px 0 0 var(--accent-primary);
-  font-weight: 600;
-}
+/* The active row uses the shared .row-selected highlight (added in JSX); hover
+   must not override its background, hence :not(.row-selected). */
+.culling-stat-row:hover:not(.row-selected) { background: var(--bg-row-hover); }
 
 /* Distribution bar + deviation colors mirror the player-count level thresholds. */
 .culling-stats-table .bar-col { width: 30%; }
@@ -159,9 +161,12 @@
 .culling-bar-fill.level-warn { background: var(--color-warning); }
 .culling-bar-fill.level-high { background: var(--color-error); }
 
-.culling-stats-table .delta.delta-ok { color: var(--color-success); }
-.culling-stats-table .delta.delta-warn { color: var(--color-warning); }
-.culling-stats-table .delta.delta-high { color: var(--color-error); }
+/* Δ text uses the dedicated deviation vars (darker than the bright semantic
+   --color-* on the beige theme so small numbers stay legible; the bar fills
+   above keep the bright --color-* since solid blocks read fine). */
+.culling-stats-table .delta.delta-ok { color: var(--color-success-text); }
+.culling-stats-table .delta.delta-warn { color: var(--color-warning-text); }
+.culling-stats-table .delta.delta-high { color: var(--color-error-text); }
 
 /* Excluded groups (coaches / group photos / audience / below-threshold). */
 .culling-stats-excluded {
@@ -240,20 +245,19 @@
   font-variant-numeric: tabular-nums;
 }
 
-.culling-files li:hover {
-  background: var(--bg-secondary);
+/* The active row uses the shared .row-selected highlight (added in JSX); hover
+   must not override its background, hence :not(.row-selected). */
+.culling-files li:hover:not(.row-selected) {
+  background: var(--bg-row-hover);
 }
 
-.culling-files li.active {
-  background: var(--accent-primary);
-  color: var(--text-on-accent);
-}
-
-/* Current row with uncommitted name toggles: orange (not the green accent) and
-   showing the previewed filename, so a pending rename reads at a glance. */
+/* Current row with uncommitted name toggles: a solid orange warning (not the
+   .row-selected green) showing the previewed filename, so a pending rename reads
+   at a glance. Overrides the selection highlight for this distinct state. */
 .culling-files li.active.pending {
   background: var(--color-warning);
   color: var(--text-on-accent);
+  box-shadow: none;
 }
 
 .culling-rename-input {

@@ -67,7 +67,7 @@
 }
 
 .player-count-table tbody tr:hover {
-  background: var(--bg-secondary);
+  background: var(--bg-row-hover);
 }
 
 .player-count-table tbody tr.clickable {
@@ -126,9 +126,11 @@
 .player-bar-fill.level-warn { background: var(--color-warning); }
 .player-bar-fill.level-high { background: var(--color-error); }
 
-.delta.delta-ok { color: var(--color-success); }
-.delta.delta-warn { color: var(--color-warning); }
-.delta.delta-high { color: var(--color-error); }
+/* Δ text uses the dedicated deviation vars (darker on the beige theme so small
+   numbers stay legible; the bar fills keep the bright --color-*). */
+.delta.delta-ok { color: var(--color-success-text); }
+.delta.delta-warn { color: var(--color-warning-text); }
+.delta.delta-high { color: var(--color-error-text); }
 
 .player-count-excluded,
 .player-count-matches {
