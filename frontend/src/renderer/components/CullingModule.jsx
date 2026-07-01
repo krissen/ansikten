@@ -42,6 +42,10 @@ function readStoredNumber(key, fallback) {
 // Delay RAW conversion until the selection settles, so fast keyboard stepping
 // only converts the file the user rests on, not every file passed through.
 const PREVIEW_DEBOUNCE_MS = 150;
+// Delay before showing a loading indicator on a new JPEG selection — an
+// already-settled file resolves faster than this, so stepping through old
+// photos never flashes a placeholder; only a fresh, still-writing file waits.
+const PREVIEW_LOADING_DELAY_MS = 150;
 
 // The live stats panel counts every player in the folder, so it uses the
 // scan scope only — not the player/name_glob filter that narrows the file list.
@@ -1015,20 +1019,35 @@ export function CullingModule({ node }) {
   // <img> URL by the file's mtime+size so a re-export in place reloads the fresh
   // bytes instead of the browser's cached (possibly stale) decode. Re-runs on
   // folderNonce so an in-place re-export of the current file is picked up.
+  const lastPreviewPathRef = useRef(null);
   useEffect(() => {
     if (!currentPath) {
+      lastPreviewPathRef.current = null;
       setPreviewUrl(null); setPreviewError(null); setPreviewLoading(false);
       return;
     }
     if (isRaw(currentPath)) return; // RAW is handled by the conversion effect below
+    // A genuine selection change vs. a same-path folderNonce re-check (in-place
+    // re-export). On a change we must not keep showing the previous photo; on a
+    // re-check we keep the current frame so the update is seamless.
+    const isNewPath = currentPath !== lastPreviewPathRef.current;
+    lastPreviewPathRef.current = currentPath;
     let cancelled = false;
-    setPreviewError(null); setPreviewLoading(false);
-    // Don't blank the current image while we re-check — keep showing the last
-    // good frame until the fresh one is ready (smooth stepping + no flash on
-    // re-export). The main process returns instantly for already-settled files.
+    setPreviewError(null);
+    // Only blank + show a loading indicator if the stat is slow (a fresh,
+    // still-writing file). Already-settled files resolve first, so stepping
+    // through old photos swaps without a flash.
+    let loadingTimer = null;
+    if (isNewPath) {
+      loadingTimer = setTimeout(() => {
+        if (!cancelled) { setPreviewUrl(null); setPreviewLoading(true); }
+      }, PREVIEW_LOADING_DELAY_MS);
+    }
+    const done = () => { if (loadingTimer) clearTimeout(loadingTimer); if (!cancelled) setPreviewLoading(false); };
     window.ansiktenAPI.invoke('stat-file-stable', { filePath: currentPath })
       .then((res) => {
         if (cancelled) return;
+        done();
         if (!res?.ok) {
           setPreviewUrl(null);
           setPreviewError(res?.reason === 'not-found' ? 'Filen hittades inte.' : 'Filen kunde inte läsas.');
@@ -1038,11 +1057,12 @@ export function CullingModule({ node }) {
       })
       .catch((err) => {
         if (cancelled) return;
+        done();
         console.error('[Culling] preview stat failed:', err);
         setPreviewUrl(null);
         setPreviewError('Kunde inte läsa in bilden.');
       });
-    return () => { cancelled = true; };
+    return () => { cancelled = true; if (loadingTimer) clearTimeout(loadingTimer); };
   }, [currentPath, folderNonce]);
 
   // Resolve the preview for a RAW file via the NEF conversion pipeline. The
@@ -1311,7 +1331,7 @@ export function CullingModule({ node }) {
             ) : previewError ? (
               <div className="status-message error">Fel: {previewError}</div>
             ) : previewLoading ? (
-              <div className="empty-state">Konverterar…</div>
+              <div className="empty-state">{isRaw(currentPath) ? 'Konverterar…' : 'Läser in…'}</div>
             ) : previewUrl ? (
               <img className="culling-image" src={previewUrl} alt={current.basename} />
             ) : null}
@@ -1416,8 +1436,6 @@ export function trashGroup(name) {
   if (RAW_EXTS.includes(ext)) return 'nef';
   return 'other';
 }
-
-// file:// URL builder - mirrors ImageViewer.loadImage encoding.
 
 function globBaseDir(pattern) {
   const idx = pattern.search(/[*?[]/);
