@@ -36,10 +36,15 @@ class PlayerCountRequest(BaseModel):
 
 
 class ExclusionConfigRequest(BaseModel):
-    """Coach/audience lists to persist as the new defaults."""
+    """Coach/audience lists to persist as the new defaults.
 
-    tranare: List[str] = []
-    publik: List[str] = []
+    Both fields are required (no defaults): a partial/empty payload like ``{}``
+    must fail validation rather than silently persist empty lists and wipe the
+    existing config. An explicit ``{"tranare": [], "publik": []}`` still clears.
+    """
+
+    tranare: List[str]
+    publik: List[str]
 
 
 @router.get("/players/exclusions")

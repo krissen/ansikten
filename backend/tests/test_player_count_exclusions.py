@@ -80,3 +80,22 @@ def test_save_exclusions_service_persists_and_returns(config):
     result = PlayerCountService().save_exclusions(tranare=["Anna"], publik=["Cecilia"])
     assert result["tranare"] == ["Anna"]
     assert load_exclusion_config()["tranare"] == ["Anna"]
+
+
+def test_post_partial_payload_rejected_without_wiping(config):
+    # Both lists are required: an accidental {} must 422, not silently wipe the
+    # existing config.
+    from fastapi.testclient import TestClient
+    from api.server import app
+
+    save_exclusion_config(tranare=["Anna"], publik=["Cecilia"])
+    client = TestClient(app)
+
+    resp = client.post("/api/v1/players/exclusions", json={})
+    assert resp.status_code == 422
+    assert load_exclusion_config()["tranare"] == ["Anna"]  # untouched
+
+    # An explicit both-lists save still works (and can clear).
+    ok = client.post("/api/v1/players/exclusions", json={"tranare": ["Bo"], "publik": []})
+    assert ok.status_code == 200
+    assert load_exclusion_config() == {"tranare": ["Bo"], "publik": [], "grupp": []}
