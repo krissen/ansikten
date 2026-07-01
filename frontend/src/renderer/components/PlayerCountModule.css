@@ -30,6 +30,14 @@
   color: var(--text-secondary);
 }
 
+/* Per-match info row: same layout as the session summary but tucked under the
+   match's <summary>, slightly smaller and spaced from it. */
+.player-count-match-info {
+  margin-top: 6px;
+  margin-bottom: 8px;
+  font-size: 0.85em;
+}
+
 .player-count-table {
   width: 100%;
   border-collapse: collapse;
