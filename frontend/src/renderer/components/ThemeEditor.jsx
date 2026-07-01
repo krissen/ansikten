@@ -83,7 +83,10 @@ const VARIABLE_GROUPS = {
       { name: '--color-error', label: 'Error' },
       { name: '--color-error-bg', label: 'Error Background' },
       { name: '--color-info', label: 'Info' },
-      { name: '--color-info-bg', label: 'Info Background' }
+      { name: '--color-info-bg', label: 'Info Background' },
+      { name: '--color-success-text', label: 'Success (text)' },
+      { name: '--color-warning-text', label: 'Warning (text)' },
+      { name: '--color-error-text', label: 'Error (text)' }
     ]
   },
   'Overlay Colors': {

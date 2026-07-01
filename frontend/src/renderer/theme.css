@@ -50,6 +50,21 @@
   --color-info: #1888d8;        /* Bright blue (Commodore) */
   --color-info-bg: #c8dce8;     /* Subtle blue tint */
 
+  /* Semantic status TEXT - darker than the hue so status shown as text (Δ
+     numbers, .text-*, .status-message text) reads on the beige backgrounds. The
+     hue --color-* stays bright for backgrounds/fills/icons. */
+  --color-success-text: #1f6b0a;  /* Dark green */
+  --color-warning-text: #b34a00;  /* Dark orange */
+  --color-error-text: #b81e10;    /* Dark red */
+
+  /* Shared row-hover for data tables/lists (lightens in light mode so dark
+     status text stays legible; see also the broader --bg-hover follow-up). */
+  --bg-row-hover: #e8d8b0;
+  /* Selected/active data-row background: a faint accent tint (paired with a left
+     accent bar via .row-selected). A solid fill reads too sharp and drowns
+     colored row text; the tint keeps text legible. */
+  --bg-row-active: var(--accent-primary-alpha-20);
+
   /* Canvas Highlights */
   --face-active-highlight: #e85820;  /* Orange - visible on light bg */
   --face-confirmed-color: #38a818;   /* Green for confirmed names */
@@ -122,6 +137,18 @@
   --color-error-bg: #2a1515;    /* Dark red */
   --color-info: #87ceeb;        /* Sky blue */
   --color-info-bg: #15202a;     /* Dark blue */
+
+  /* Semantic status TEXT - bright on near-black, mirroring the hue (dark theme
+     has plenty of contrast, so status text needs no darkening here). */
+  --color-success-text: #9acd32;  /* Yellow-green */
+  --color-warning-text: #ffa500;  /* Orange */
+  --color-error-text: #ff6347;    /* Tomato red */
+
+  /* Shared row-hover for data tables/lists (lighter than the row background). */
+  --bg-row-hover: #252525;
+  /* Selected/active data-row background: a faint accent tint (paired with a left
+     accent bar via .row-selected). */
+  --bg-row-active: var(--accent-primary-alpha-20);
 
   /* Canvas Highlights */
   --face-active-highlight: #00bcd4;  /* Cyan - visible on dark bg */
@@ -678,11 +705,23 @@
 .status-error { background: var(--color-error-bg); }
 .status-info { background: var(--color-info-bg); }
 
-/* Status text colors */
-.text-success { color: var(--color-success); }
-.text-warning { color: var(--color-warning); }
-.text-error { color: var(--color-error); }
+/* Status text colors - use the theme-legible text variants (dark on beige,
+   bright on near-black). */
+.text-success { color: var(--color-success-text); }
+.text-warning { color: var(--color-warning-text); }
+.text-error { color: var(--color-error-text); }
 .text-info { color: var(--color-info); }
+
+/* Canonical selected/active data-row highlight — reuse for every list/table
+   "current row". A faint accent tint + a left accent bar + bold, NOT a solid
+   fill (a solid fill reads too sharp and drowns colored row text). Pair with
+   `:hover:not(.row-selected)` on the row's hover rule so hover doesn't override
+   the selection. */
+.row-selected {
+  background: var(--bg-row-active);
+  box-shadow: inset 3px 0 0 var(--accent-primary);
+  font-weight: 600;
+}
 
 /* Status message box */
 .status-message {
@@ -693,19 +732,19 @@
 
 .status-message.success {
   background: var(--color-success-bg);
-  color: var(--color-success);
+  color: var(--color-success-text);
   border: 1px solid var(--color-success);
 }
 
 .status-message.warning {
   background: var(--color-warning-bg);
-  color: var(--color-warning);
+  color: var(--color-warning-text);
   border: 1px solid var(--color-warning);
 }
 
 .status-message.error {
   background: var(--color-error-bg);
-  color: var(--color-error);
+  color: var(--color-error-text);
   border: 1px solid var(--color-error);
 }
 

@@ -601,6 +601,10 @@ export function CullingModule({ node }) {
   const [confirmNav, setConfirmNav] = useState(null);
   const confirmNavRef = useRef(null);
   confirmNavRef.current = confirmNav;
+  // Mirror the context-menu state so the capture-phase key handler can bail
+  // while the menu is open (its own Esc handler closes it).
+  const menuRef = useRef(null);
+  menuRef.current = menu;
 
   // Run a navigation, but defer it behind the confirm dialog when the current
   // file has unsaved name toggles.
@@ -643,7 +647,9 @@ export function CullingModule({ node }) {
 
       // Single-key nav/cull is swallowed only by real text entry — NOT by a
       // name-overlay checkbox, so arrows still navigate when focus lingers on a
-      // chip (e.g. right after a ⌘↵ rename).
+      // chip (e.g. right after a ⌘↵ rename). (Esc-discard is handled in the
+      // capture-phase handler below, so it can win over Review and gate on the
+      // active tabset.)
       if (isTextField) return;
 
       // Next: →/↓/j, Previous: ←/↑/k. Alt+direction pages by PAGE_STEP.
@@ -713,36 +719,52 @@ export function CullingModule({ node }) {
     return () => document.removeEventListener('keydown', onKey, true);
   }, [confirmNav]);
 
-  // Enter handling for culling, on document in the CAPTURE phase so it preempts
-  // other modules' document-level Enter handlers (e.g. ReviewModule confirming a
-  // face) — a window/bubble listener would fire too late. Plain Enter starts an
+  // Enter/Esc handling for culling, on document in the CAPTURE phase so it
+  // preempts other modules' document-level handlers (e.g. ReviewModule confirming
+  // a face) — a window/bubble listener would fire too late. Plain Enter starts an
   // inline rename; Cmd/Ctrl+Enter commits the previewed name removal. BOTH must
   // be claimed here (stopImmediatePropagation) when culling is the active
   // tabset, so a modified Enter can't also reach Review and silently confirm a
   // face. Only acts when culling is the active tabset, so an inactive culling
   // panel never steals Enter.
+  // Esc discards the current file's pending name toggles (row un-oranges) — the
+  // "undo pending edit" affordance — and shares this handler so it, too, wins
+  // over Review's Esc and only fires when culling is the active tabset (an Esc
+  // meant for another visible pane must not silently drop culling's edits). It
+  // bails while the context menu is open, so Esc there just closes the menu.
   useEffect(() => {
-    const onEnterCapture = (e) => {
-      if (e.key !== 'Enter') return;
+    const onKeyCapture = (e) => {
+      if (e.key !== 'Enter' && e.key !== 'Escape') return;
       if (node && !node.isVisible?.()) return;
-      if (confirmNavRef.current) return; // the confirm dialog owns Enter/⌘↵
+      if (confirmNavRef.current) return; // the confirm dialog owns Enter/⌘↵/Esc
       const tag = e.target?.tagName;
-      // Text fields (rename input, glob, dropdown) handle Enter themselves and
-      // already stop their own propagation; don't intercept them. A checkbox in
-      // the name overlay is fine to intercept.
+      // Text fields (rename input, glob, dropdown) handle these keys themselves
+      // and already stop their own propagation; don't intercept them. A checkbox
+      // in the name overlay is fine to intercept.
       if ((tag === 'INPUT' && e.target.type !== 'checkbox') || tag === 'TEXTAREA' || tag === 'SELECT') return;
       if (showTrash || currentIndex < 0) return;
       const activeTabsetId = node?.getModel?.().getActiveTabset?.()?.getId?.();
       const myTabsetId = node?.getParent?.()?.getId?.();
       if (activeTabsetId && myTabsetId && activeTabsetId !== myTabsetId) return;
+
+      if (e.key === 'Escape') {
+        if (menuRef.current) return; // the context menu owns Esc while it's open
+        if (removedNamesRef.current.size === 0) return; // nothing to discard
+        e.preventDefault();
+        e.stopPropagation();
+        e.stopImmediatePropagation?.();
+        setRemovedNames(new Set());
+        return;
+      }
+
       e.preventDefault();
       e.stopPropagation();
       e.stopImmediatePropagation?.();
       if (e.metaKey || e.ctrlKey) commitNameToggleRef.current?.();
       else beginEdit(currentIndex);
     };
-    document.addEventListener('keydown', onEnterCapture, true);
-    return () => document.removeEventListener('keydown', onEnterCapture, true);
+    document.addEventListener('keydown', onKeyCapture, true);
+    return () => document.removeEventListener('keydown', onKeyCapture, true);
   }, [node, showTrash, currentIndex, beginEdit]);
 
   // Dismiss the context menu on any click, a fresh right-click elsewhere,
@@ -750,7 +772,15 @@ export function CullingModule({ node }) {
   useEffect(() => {
     if (!menu) return;
     const close = () => setMenu(null);
-    const onKey = (e) => { if (e.key === 'Escape') setMenu(null); };
+    // Esc closes the menu authoritatively: swallow it so it can't also reach
+    // other document handlers (e.g. Review's Esc) while the menu is open.
+    const onKey = (e) => {
+      if (e.key !== 'Escape') return;
+      e.preventDefault();
+      e.stopPropagation();
+      e.stopImmediatePropagation?.();
+      setMenu(null);
+    };
     window.addEventListener('click', close);
     window.addEventListener('contextmenu', close);
     window.addEventListener('scroll', close, true);
@@ -1128,7 +1158,7 @@ export function CullingModule({ node }) {
               {files.map((f, i) => (
                 <li
                   key={f.path}
-                  className={`${i === currentIndex ? 'active' : ''}${i === currentIndex && namePreviewPending ? ' pending' : ''}`}
+                  className={`${i === currentIndex ? 'active row-selected' : ''}${i === currentIndex && namePreviewPending ? ' pending' : ''}`}
                   onClick={() => guardedNavigate(() => setCurrentIndex(i))}
                   onDoubleClick={() => beginEdit(i)}
                   onContextMenu={(e) => {
@@ -1425,7 +1455,7 @@ function CullingStats({ stats, selected, onSelect, width }) {
               {players.map((p) => (
                 <tr
                   key={p.name}
-                  className={`culling-stat-row${onSelect ? ' clickable' : ''}${p.name === selected ? ' active' : ''}`}
+                  className={`culling-stat-row${onSelect ? ' clickable' : ''}${p.name === selected ? ' active row-selected' : ''}`}
                   onClick={onSelect ? () => onSelect(p.name === selected ? '' : p.name) : undefined}
                   title={onSelect ? `Filtrera på ${p.name}` : `${p.name}: ${p.count}`}
                 >
