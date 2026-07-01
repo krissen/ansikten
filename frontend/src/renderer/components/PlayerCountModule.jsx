@@ -230,10 +230,19 @@ export function PlayerCountModule() {
   const addExcluded = useCallback(
     (kind, name) => {
       const clean = name.trim();
-      if (!clean || exclusions[kind].includes(clean)) return;
+      // Skip empties, existing entries, and names already locked as
+      // always-markers (e.g. "Klacken") — else we'd render a duplicate chip and
+      // send a redundant override value.
+      if (
+        !clean ||
+        exclusions[kind].includes(clean) ||
+        (alwaysMarkers[kind] || []).includes(clean)
+      ) {
+        return;
+      }
       applyExclusions({ ...exclusions, [kind]: [...exclusions[kind], clean] });
     },
-    [exclusions, applyExclusions]
+    [exclusions, alwaysMarkers, applyExclusions]
   );
 
   const removeExcluded = useCallback(
@@ -259,12 +268,16 @@ export function PlayerCountModule() {
         publik: strip(data.publik, always.publik),
       });
       setExclusionsDirty(false); // the saved lists are now the default
+      // Re-run with the resolved defaults so lastParamsRef no longer holds the
+      // per-request override (which would otherwise linger on auto-refresh —
+      // notably when RAKNA_* env vars make the save a no-op).
+      if (lastParamsRef.current) submitWith(input, perMatch, options, null);
     } catch (err) {
       setError(err.message || String(err));
     } finally {
       setSavingDefaults(false);
     }
-  }, [api, exclusions]);
+  }, [api, exclusions, submitWith, input, perMatch, options]);
 
   // Discard edits and re-run with the saved defaults.
   const resetExclusions = useCallback(async () => {

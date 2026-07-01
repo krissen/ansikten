@@ -26,7 +26,7 @@ ALWAYS_PUBLIK = {"Klacken"}        # crowd / supporters → "Publik"
 def load_exclusion_config() -> dict[str, list[str]]:
     if CONFIG_FILE.exists():
         try:
-            with open(CONFIG_FILE, "r") as f:
+            with open(CONFIG_FILE, "r", encoding="utf-8") as f:
                 return json.load(f)
         except (json.JSONDecodeError, IOError):
             pass
@@ -70,7 +70,7 @@ def save_exclusion_config(
     # half-written config that zeroes the exclusion lists on the next load.
     CONFIG_DIR.mkdir(parents=True, exist_ok=True)
     tmp = CONFIG_FILE.with_suffix(".json.tmp")
-    with open(tmp, "w") as f:
+    with open(tmp, "w", encoding="utf-8") as f:
         json.dump(config, f, ensure_ascii=False, indent=2)
     tmp.replace(CONFIG_FILE)
     return config
