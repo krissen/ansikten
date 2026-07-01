@@ -111,6 +111,7 @@ CLI-paritet — launch-kommandot mot fler arbetsflöden:
 ### Frontend
 
 - [x] ~~Bundle-storlek (~450kb) kan minskas med tree-shaking~~ (2026-01-11, analyzed: 504KB is optimal - React 173KB + FlexLayout 116KB + app code. Removed unused dockview dep)
+- [ ] "Öppna i Lightroom" (`open-raw-in-lightroom`) läser hela RAW-roten rekursivt i minnet per tangenttryck och sorterar för deterministisk första-träff. Räcker för dagens per-match-mappar; för en stor RAW-rot, byt till en strömmande DFS-walk med tidig utgång (behåll deterministisk traverseringsordning) eller cachea filindexet.
 
 ### Arkitektur
 
