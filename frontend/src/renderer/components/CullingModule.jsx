@@ -772,7 +772,15 @@ export function CullingModule({ node }) {
   useEffect(() => {
     if (!menu) return;
     const close = () => setMenu(null);
-    const onKey = (e) => { if (e.key === 'Escape') setMenu(null); };
+    // Esc closes the menu authoritatively: swallow it so it can't also reach
+    // other document handlers (e.g. Review's Esc) while the menu is open.
+    const onKey = (e) => {
+      if (e.key !== 'Escape') return;
+      e.preventDefault();
+      e.stopPropagation();
+      e.stopImmediatePropagation?.();
+      setMenu(null);
+    };
     window.addEventListener('click', close);
     window.addEventListener('contextmenu', close);
     window.addEventListener('scroll', close, true);
