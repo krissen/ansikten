@@ -75,9 +75,12 @@ class CullingService:
         folder(s) — it narrows the working set, it does not scan the filesystem.
 
         Returns {files: [{path, basename, names, datetime}], players: [name,...]}.
-        ``players`` is the sorted set of names present across the resolved files
-        (for the filter dropdown, computed before name_glob so the dropdown stays
-        complete). Raises ValueError when no folder/glob input is given.
+        ``players`` is the sorted filter-dropdown list: names counted across all
+        resolved files (before the player/name_glob narrowing so it stays
+        complete) then filtered through the shared exclusions + threshold, so it
+        lists the same players as rakna_spelare / the stats column (group/crowd
+        markers, coaches, and below-threshold names are dropped). Raises
+        ValueError when no folder/glob input is given.
         """
         roots = roots or []
         globs = globs or []
@@ -112,7 +115,7 @@ class CullingService:
 
         # Count every name across the resolved files (before player/name_glob
         # narrowing) so the dropdown stays complete.
-        name_counts: Counter = Counter()
+        name_counts: Counter[str] = Counter()
         out: list[dict] = []
         for dt, names, path in entries:
             name_counts.update(names)

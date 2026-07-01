@@ -16,11 +16,16 @@ def service():
 
 
 @pytest.fixture(autouse=True)
-def _clean_exclusion_env(monkeypatch):
-    # Isolate from any RAKNA_* overrides in the runner's shell so the built-in
-    # ALWAYS markers (FBK/Laget/Klacken) drive the assertions.
+def _isolate_exclusion_config(monkeypatch):
+    # Isolate from the runner's real environment: clear RAKNA_* overrides AND
+    # neutralize the on-disk config file, so only the built-in ALWAYS markers
+    # (FBK/Laget/Klacken) drive the assertions.
     for var in ("RAKNA_TRANARE", "RAKNA_PUBLIK", "RAKNA_GRUPP"):
         monkeypatch.delenv(var, raising=False)
+    monkeypatch.setattr(
+        "rakna_spelare.load_exclusion_config",
+        lambda: {"tranare": [], "publik": [], "grupp": []},
+    )
 
 
 def _make(tmp_path, name, n, start=1):
