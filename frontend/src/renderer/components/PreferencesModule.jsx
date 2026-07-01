@@ -9,18 +9,19 @@ import React, { useState, useEffect, useCallback } from 'react';
 import { preferences } from '../workspace/preferences.js';
 import { themeManager } from '../theme-manager.js';
 import { getCategories, setCategories, resetCategories, debug, debugError } from '../shared/debug.js';
+import { t } from '../../i18n/index.js';
 import './PreferencesModule.css';
 
 // Define preference sections
 const SECTIONS = [
-  { id: 'general', label: 'General' },
-  { id: 'layout', label: 'Layout' },
-  { id: 'image-viewer', label: 'Image Viewer' },
-  { id: 'review', label: 'Review' },
-  { id: 'files', label: 'Files' },
-  { id: 'preprocessing', label: 'Preprocessing' },
-  { id: 'dashboard', label: 'Dashboard' },
-  { id: 'advanced', label: 'Advanced' }
+  { id: 'general', label: t('preferences.sections.general') },
+  { id: 'layout', label: t('preferences.sections.layout') },
+  { id: 'image-viewer', label: t('preferences.sections.image-viewer') },
+  { id: 'review', label: t('preferences.sections.review') },
+  { id: 'files', label: t('preferences.sections.files') },
+  { id: 'preprocessing', label: t('preferences.sections.preprocessing') },
+  { id: 'dashboard', label: t('preferences.sections.dashboard') },
+  { id: 'advanced', label: t('preferences.sections.advanced') }
 ];
 
 /**
@@ -195,7 +196,7 @@ export function PreferencesModule({ api }) {
 
   // Reset to defaults
   const handleReset = useCallback(() => {
-    if (confirm('Reset all preferences to defaults?')) {
+    if (confirm(t('preferences.dialogs.resetConfirm'))) {
       const defaults = preferences.getDefaults();
       setPrefs(defaults);
       setHasChanges(true);
@@ -250,7 +251,7 @@ export function PreferencesModule({ api }) {
 
   // Clear cache
   const handleClearCache = useCallback(async () => {
-    if (confirm('Clear all cached preprocessing data?')) {
+    if (confirm(t('preferences.dialogs.clearCacheConfirm'))) {
       try {
         const { apiClient } = await import('../shared/api-client.js');
         await apiClient.clearCache();
@@ -288,54 +289,54 @@ export function PreferencesModule({ api }) {
 
   const renderGeneralSection = () => (
     <>
-      <SectionHeader title="Backend Settings" />
+      <SectionHeader title={t('preferences.general.backendHeader')} />
       <CheckboxField
-        label="Auto-start backend server"
+        label={t('preferences.general.autoStart')}
         checked={prefs.backend?.autoStart ?? true}
         onChange={(v) => updatePref('backend.autoStart', v)}
       />
       <NumberField
-        label="Server Port"
-        hint="Default: 5001. Requires app restart."
+        label={t('preferences.general.port.label')}
+        hint={t('preferences.general.port.hint')}
         value={prefs.backend?.port ?? 5001}
         onChange={(v) => updatePref('backend.port', v)}
         min={1024}
         max={65535}
       />
       <TextField
-        label="Python Path"
-        hint="Path to Python interpreter. Requires app restart."
+        label={t('preferences.general.pythonPath.label')}
+        hint={t('preferences.general.pythonPath.hint')}
         value={prefs.backend?.pythonPath ?? ''}
         onChange={(v) => updatePref('backend.pythonPath', v)}
       />
 
-      <SectionHeader title="User Interface" />
+      <SectionHeader title={t('preferences.general.uiHeader')} />
       <SelectField
-        label="Theme"
-        hint="Application color theme."
+        label={t('preferences.general.theme.label')}
+        hint={t('preferences.general.theme.hint')}
         value={prefs.ui?.theme ?? 'system'}
         onChange={(v) => {
           updatePref('ui.theme', v);
           themeManager.previewPreference(v);
         }}
         options={[
-          { value: 'dark', label: 'Dark (CRT Phosphor)' },
-          { value: 'light', label: 'Light (Terminal Beige)' },
-          { value: 'system', label: 'Follow System' }
+          { value: 'dark', label: t('preferences.general.theme.dark') },
+          { value: 'light', label: t('preferences.general.theme.light') },
+          { value: 'system', label: t('preferences.general.theme.system') }
         ]}
       />
       <SelectField
-        label="Default Layout"
+        label={t('preferences.general.defaultLayout.label')}
         value={prefs.ui?.defaultLayout ?? 'standard'}
         onChange={(v) => updatePref('ui.defaultLayout', v)}
         options={[
-          { value: 'standard', label: 'Standard' },
-          { value: 'compact', label: 'Compact (future)' },
-          { value: 'review-focused', label: 'Review-Focused (future)' }
+          { value: 'standard', label: t('preferences.general.defaultLayout.standard') },
+          { value: 'compact', label: t('preferences.general.defaultLayout.compact') },
+          { value: 'review-focused', label: t('preferences.general.defaultLayout.reviewFocused') }
         ]}
       />
       <CheckboxField
-        label="Show welcome message on startup"
+        label={t('preferences.general.showWelcome')}
         checked={prefs.ui?.showWelcome ?? true}
         onChange={(v) => updatePref('ui.showWelcome', v)}
       />
@@ -344,22 +345,22 @@ export function PreferencesModule({ api }) {
 
   const renderLayoutSection = () => (
     <>
-      <SectionHeader title="Default Layout Settings" />
+      <SectionHeader title={t('preferences.layout.header')} />
       <SelectField
-        label="Default Layout Template"
-        hint="Layout to use when resetting or first launch."
+        label={t('preferences.layout.template.label')}
+        hint={t('preferences.layout.template.hint')}
         value={prefs.layout?.defaultTemplate ?? 'review'}
         onChange={(v) => updatePref('layout.defaultTemplate', v)}
         options={[
-          { value: 'review', label: 'Review Mode' },
-          { value: 'comparison', label: 'Comparison Mode' },
-          { value: 'full-image', label: 'Full Image' },
-          { value: 'stats', label: 'Statistics Mode' }
+          { value: 'review', label: t('preferences.layout.template.review') },
+          { value: 'comparison', label: t('preferences.layout.template.comparison') },
+          { value: 'full-image', label: t('preferences.layout.template.fullImage') },
+          { value: 'stats', label: t('preferences.layout.template.stats') }
         ]}
       />
       <SelectField
-        label="Default Grid Preset"
-        hint="Default panel size ratio for new layouts."
+        label={t('preferences.layout.gridPreset.label')}
+        hint={t('preferences.layout.gridPreset.hint')}
         value={prefs.layout?.defaultGridPreset ?? '50-50'}
         onChange={(v) => updatePref('layout.defaultGridPreset', v)}
         options={[
@@ -371,14 +372,14 @@ export function PreferencesModule({ api }) {
         ]}
       />
       <CheckboxField
-        label="Auto-save layout on changes"
-        hint="Automatically save panel positions and sizes when changed."
+        label={t('preferences.layout.autoSave.label')}
+        hint={t('preferences.layout.autoSave.hint')}
         checked={prefs.layout?.autoSaveLayout ?? true}
         onChange={(v) => updatePref('layout.autoSaveLayout', v)}
       />
       <CheckboxField
-        label="Remember panel sizes across sessions"
-        hint="Restore exact panel dimensions when reopening."
+        label={t('preferences.layout.rememberSizes.label')}
+        hint={t('preferences.layout.rememberSizes.hint')}
         checked={prefs.layout?.rememberPanelSizes ?? true}
         onChange={(v) => updatePref('layout.rememberPanelSizes', v)}
       />
@@ -387,10 +388,10 @@ export function PreferencesModule({ api }) {
 
   const renderImageViewerSection = () => (
     <>
-      <SectionHeader title="Image Viewer" />
+      <SectionHeader title={t('preferences.imageViewer.header')} />
       <SliderField
-        label="Zoom Speed"
-        hint="Zoom multiplier per step (1.07 = 7% per step)"
+        label={t('preferences.imageViewer.zoomSpeed.label')}
+        hint={t('preferences.imageViewer.zoomSpeed.hint')}
         value={prefs.imageViewer?.zoomSpeed ?? 1.07}
         onChange={(v) => updatePref('imageViewer.zoomSpeed', v)}
         min={1.01}
@@ -398,14 +399,14 @@ export function PreferencesModule({ api }) {
         step={0.01}
       />
       <SliderField
-        label="Maximum Zoom"
+        label={t('preferences.imageViewer.maxZoom')}
         value={prefs.imageViewer?.maxZoom ?? 20}
         onChange={(v) => updatePref('imageViewer.maxZoom', v)}
         min={1}
         max={50}
       />
       <SliderField
-        label="Minimum Zoom"
+        label={t('preferences.imageViewer.minZoom')}
         value={prefs.imageViewer?.minZoom ?? 0.1}
         onChange={(v) => updatePref('imageViewer.minZoom', v)}
         min={0.01}
@@ -413,16 +414,16 @@ export function PreferencesModule({ api }) {
         step={0.01}
       />
       <SelectField
-        label="Default Zoom Mode"
+        label={t('preferences.imageViewer.zoomMode.label')}
         value={prefs.imageViewer?.defaultZoomMode ?? 'auto-fit'}
         onChange={(v) => updatePref('imageViewer.defaultZoomMode', v)}
         options={[
-          { value: 'auto-fit', label: 'Auto-fit (fit to window)' },
-          { value: '1:1', label: '1:1 (actual size)' }
+          { value: 'auto-fit', label: t('preferences.imageViewer.zoomMode.autoFit') },
+          { value: '1:1', label: t('preferences.imageViewer.zoomMode.oneToOne') }
         ]}
       />
       <CheckboxField
-        label="Smooth panning animation"
+        label={t('preferences.imageViewer.smoothPan')}
         checked={prefs.imageViewer?.smoothPan ?? true}
         onChange={(v) => updatePref('imageViewer.smoothPan', v)}
       />
@@ -431,44 +432,44 @@ export function PreferencesModule({ api }) {
 
   const renderReviewSection = () => (
     <>
-      <SectionHeader title="Review Module" />
+      <SectionHeader title={t('preferences.review.header')} />
       <CheckboxField
-        label="Auto-save when all faces reviewed"
+        label={t('preferences.review.autoSave')}
         checked={prefs.reviewModule?.autoSaveOnComplete ?? false}
         onChange={(v) => updatePref('reviewModule.autoSaveOnComplete', v)}
       />
       <CheckboxField
-        label="Ask confirmation before saving"
+        label={t('preferences.review.confirmBeforeSave')}
         checked={prefs.reviewModule?.confirmBeforeSave ?? true}
         onChange={(v) => updatePref('reviewModule.confirmBeforeSave', v)}
       />
       <SelectField
-        label="Action after confirming face"
+        label={t('preferences.review.action.label')}
         value={prefs.reviewModule?.defaultAction ?? 'next'}
         onChange={(v) => updatePref('reviewModule.defaultAction', v)}
         options={[
-          { value: 'next', label: 'Move to next face' },
-          { value: 'stay', label: 'Stay on current face' }
+          { value: 'next', label: t('preferences.review.action.next') },
+          { value: 'stay', label: t('preferences.review.action.stay') }
         ]}
       />
       <CheckboxField
-        label="Show confidence scores"
+        label={t('preferences.review.showConfidence')}
         checked={prefs.reviewModule?.showConfidenceScores ?? true}
         onChange={(v) => updatePref('reviewModule.showConfidenceScores', v)}
       />
       <SelectField
-        label="Save Mode"
-        hint="How review results are written to database"
+        label={t('preferences.review.saveMode.label')}
+        hint={t('preferences.review.saveMode.hint')}
         value={prefs.reviewModule?.saveMode ?? 'per-image'}
         onChange={(v) => updatePref('reviewModule.saveMode', v)}
         options={[
-          { value: 'per-image', label: 'Per image (save all faces for each image)' },
-          { value: 'per-face', label: 'Per face (save each face immediately)' }
+          { value: 'per-image', label: t('preferences.review.saveMode.perImage') },
+          { value: 'per-face', label: t('preferences.review.saveMode.perFace') }
         ]}
       />
       <NumberField
-        label="Match Alternatives"
-        hint="Number of match suggestions to show (1-9). Press number keys to select."
+        label={t('preferences.review.matchAlternatives.label')}
+        hint={t('preferences.review.matchAlternatives.hint')}
         value={prefs.reviewModule?.maxAlternatives ?? 5}
         onChange={(v) => updatePref('reviewModule.maxAlternatives', Math.max(1, Math.min(9, v)))}
         min={1}
@@ -479,55 +480,55 @@ export function PreferencesModule({ api }) {
 
   const renderFilesSection = () => (
     <>
-      <SectionHeader title="Culling / Lightroom" />
+      <SectionHeader title={t('preferences.files.cullingHeader')} />
       <TextField
-        label="RAW-mapp (NEF)"
-        hint="Rot som söks rekursivt för original-NEF vid 'Öppna i Lightroom' (tangent L) i Gallra spelare. ~/ tillåtet."
+        label={t('preferences.files.rawRoot.label')}
+        hint={t('preferences.files.rawRoot.hint')}
         value={prefs.paths?.rawRoot || '~/Pictures/nerladdat'}
         onChange={(v) => updatePref('paths.rawRoot', v)}
         placeholder="~/Pictures/nerladdat"
       />
 
-      <SectionHeader title="File Queue" />
+      <SectionHeader title={t('preferences.files.queueHeader')} />
       <CheckboxField
-        label="Auto-load from queue on startup"
-        hint="Automatically load first pending file when app starts"
+        label={t('preferences.files.autoLoad.label')}
+        hint={t('preferences.files.autoLoad.hint')}
         checked={prefs.fileQueue?.autoLoadOnStartup ?? true}
         onChange={(v) => updatePref('fileQueue.autoLoadOnStartup', v)}
       />
       <CheckboxField
-        label="Auto-remove missing files"
-        hint="Automatically remove files from queue if they no longer exist"
+        label={t('preferences.files.autoRemove.label')}
+        hint={t('preferences.files.autoRemove.hint')}
         checked={prefs.fileQueue?.autoRemoveMissing ?? true}
         onChange={(v) => updatePref('fileQueue.autoRemoveMissing', v)}
       />
       <SelectField
-        label="Insert mode"
-        hint="How new files are added to the queue"
+        label={t('preferences.files.insertMode.label')}
+        hint={t('preferences.files.insertMode.hint')}
         value={prefs.fileQueue?.insertMode ?? 'alphabetical'}
         onChange={(v) => updatePref('fileQueue.insertMode', v)}
         options={[
-          { value: 'alphabetical', label: 'Alphabetical (sorted)' },
-          { value: 'bottom', label: 'Bottom of queue' }
+          { value: 'alphabetical', label: t('preferences.files.insertMode.alphabetical') },
+          { value: 'bottom', label: t('preferences.files.insertMode.bottom') }
         ]}
       />
 
-      <SectionHeader title="Notifications" />
+      <SectionHeader title={t('preferences.files.notificationsHeader')} />
       <SelectField
-        label="Toast duration"
-        hint="How long toast notifications stay visible"
+        label={t('preferences.files.toastDuration.label')}
+        hint={t('preferences.files.toastDuration.hint')}
         value={String(prefs.notifications?.toastDuration ?? 1.0)}
         onChange={(v) => updatePref('notifications.toastDuration', parseFloat(v))}
         options={[
-          { value: '0.5', label: 'Short (2s)' },
-          { value: '1.0', label: 'Normal (4s)' },
-          { value: '1.5', label: 'Long (6s)' },
-          { value: '2.0', label: 'Very long (8s)' }
+          { value: '0.5', label: t('preferences.files.toastDuration.short') },
+          { value: '1.0', label: t('preferences.files.toastDuration.normal') },
+          { value: '1.5', label: t('preferences.files.toastDuration.long') },
+          { value: '2.0', label: t('preferences.files.toastDuration.veryLong') }
         ]}
       />
       <SliderField
-        label="Toast opacity"
-        hint="Opacity of toast notifications (0.5 = 50%, 1.0 = 100%)"
+        label={t('preferences.files.toastOpacity.label')}
+        hint={t('preferences.files.toastOpacity.hint')}
         value={prefs.notifications?.toastOpacity ?? 0.94}
         onChange={(v) => {
           updatePref('notifications.toastOpacity', v);
@@ -538,63 +539,63 @@ export function PreferencesModule({ api }) {
         step={0.01}
       />
 
-      <SectionHeader title="File Rename" />
+      <SectionHeader title={t('preferences.files.renameHeader')} />
       <CheckboxField
-        label="Require confirmation before rename"
+        label={t('preferences.files.requireConfirm')}
         checked={prefs.rename?.requireConfirmation ?? true}
         onChange={(v) => updatePref('rename.requireConfirmation', v)}
       />
       <CheckboxField
-        label="Allow renaming already-renamed files"
+        label={t('preferences.files.allowAlreadyRenamed')}
         checked={prefs.rename?.allowAlreadyRenamed ?? false}
         onChange={(v) => updatePref('rename.allowAlreadyRenamed', v)}
       />
       <SelectField
-        label="Prefix Source"
-        hint="Where to get the date/time for the filename prefix"
+        label={t('preferences.files.prefixSource.label')}
+        hint={t('preferences.files.prefixSource.hint')}
         value={prefs.rename?.prefixSource ?? 'filename'}
         onChange={(v) => updatePref('rename.prefixSource', v)}
         options={[
-          { value: 'filename', label: 'From filename (YYMMDD_HHMMSS pattern)' },
-          { value: 'exif', label: 'From EXIF metadata' },
-          { value: 'filedate', label: 'From file modification date' },
-          { value: 'none', label: 'No prefix (names only)' }
+          { value: 'filename', label: t('preferences.files.prefixSource.filename') },
+          { value: 'exif', label: t('preferences.files.prefixSource.exif') },
+          { value: 'filedate', label: t('preferences.files.prefixSource.filedate') },
+          { value: 'none', label: t('preferences.files.prefixSource.none') }
         ]}
       />
       <SelectField
-        label="Name Separator"
+        label={t('preferences.files.nameSeparator.label')}
         value={prefs.rename?.nameSeparator ?? ',_'}
         onChange={(v) => updatePref('rename.nameSeparator', v)}
         options={[
-          { value: ',_', label: ',_ (Anna,_Bert)' },
-          { value: '_', label: '_ (Anna_Bert)' },
-          { value: '-', label: '- (Anna-Bert)' },
-          { value: '_och_', label: '_och_ (Anna_och_Bert)' }
+          { value: ',_', label: t('preferences.files.nameSeparator.commaUnderscore') },
+          { value: '_', label: t('preferences.files.nameSeparator.underscore') },
+          { value: '-', label: t('preferences.files.nameSeparator.dash') },
+          { value: '_och_', label: t('preferences.files.nameSeparator.och') }
         ]}
       />
       <CheckboxField
-        label="Use first name only"
-        hint="Use only first name instead of full name"
+        label={t('preferences.files.useFirstName.label')}
+        hint={t('preferences.files.useFirstName.hint')}
         checked={prefs.rename?.useFirstNameOnly ?? true}
         onChange={(v) => updatePref('rename.useFirstNameOnly', v)}
       />
       <CheckboxField
-        label="Remove diacritics"
-        hint="Convert special characters (e.g. e, o) for safer filenames"
+        label={t('preferences.files.removeDiacritics.label')}
+        hint={t('preferences.files.removeDiacritics.hint')}
         checked={prefs.rename?.removeDiacritics ?? true}
         onChange={(v) => updatePref('rename.removeDiacritics', v)}
       />
 
-      <SectionHeader title="Sidecar Files" />
+      <SectionHeader title={t('preferences.files.sidecarHeader')} />
       <CheckboxField
-        label="Rename sidecar files"
-        hint="Also rename associated files (XMP, etc) when renaming images"
+        label={t('preferences.files.renameSidecars.label')}
+        hint={t('preferences.files.renameSidecars.hint')}
         checked={prefs.rename?.renameSidecars ?? true}
         onChange={(v) => updatePref('rename.renameSidecars', v)}
       />
       <TextField
-        label="Sidecar extensions"
-        hint="Comma-separated list (case insensitive matching)"
+        label={t('preferences.files.sidecarExtensions.label')}
+        hint={t('preferences.files.sidecarExtensions.hint')}
         value={(prefs.rename?.sidecarExtensions ?? ['xmp']).join(', ')}
         onChange={(v) => {
           const exts = v.split(',').map(e => e.trim().toLowerCase()).filter(e => e);
@@ -604,10 +605,10 @@ export function PreferencesModule({ api }) {
         disabled={!(prefs.rename?.renameSidecars ?? true)}
       />
 
-      <SectionHeader title="Trash (Gallra)" />
+      <SectionHeader title={t('preferences.files.trashHeader')} />
       <NumberField
-        label="Auto-empty trash after (days)"
-        hint="Permanently delete culled files older than this. 0 = keep forever."
+        label={t('preferences.files.autoEmpty.label')}
+        hint={t('preferences.files.autoEmpty.hint')}
         value={trashRetention ?? 30}
         onChange={handleTrashRetentionChange}
         min={0}
@@ -615,10 +616,10 @@ export function PreferencesModule({ api }) {
         step={1}
       />
 
-      <SectionHeader title="Gallra spelare" />
+      <SectionHeader title={t('preferences.files.cullingPlayerHeader')} />
       <CheckboxField
-        label="Auto-advance after rename"
-        hint="Move to the next file after renaming in culling (inline rename or ⌘↵ name removal)"
+        label={t('preferences.files.autoAdvance.label')}
+        hint={t('preferences.files.autoAdvance.hint')}
         checked={prefs.culling?.autoAdvanceAfterRename ?? true}
         onChange={(v) => updatePref('culling.autoAdvanceAfterRename', v)}
       />
@@ -627,50 +628,49 @@ export function PreferencesModule({ api }) {
 
   const renderPreprocessingSection = () => (
     <>
-      <SectionHeader title="Background Preprocessing" />
+      <SectionHeader title={t('preferences.preprocessing.backgroundHeader')} />
       <p className="section-hint">
-        Preprocess queued files in the background to speed up loading.
-        Note: Name matching is NOT preprocessed - it requires the current database.
+        {t('preferences.preprocessing.intro')}
       </p>
       <CheckboxField
-        label="Enable background preprocessing"
-        hint="Start preprocessing when files are added to queue"
+        label={t('preferences.preprocessing.enable.label')}
+        hint={t('preferences.preprocessing.enable.hint')}
         checked={prefs.preprocessing?.enabled ?? true}
         onChange={(v) => updatePref('preprocessing.enabled', v)}
       />
       <SliderField
-        label="Parallel Workers"
-        hint="Number of files to preprocess simultaneously (1-8)"
+        label={t('preferences.preprocessing.workers.label')}
+        hint={t('preferences.preprocessing.workers.hint')}
         value={prefs.preprocessing?.parallelWorkers ?? 2}
         onChange={(v) => updatePref('preprocessing.parallelWorkers', v)}
         min={1}
         max={8}
       />
 
-      <SectionHeader title="Preprocessing Steps" />
+      <SectionHeader title={t('preferences.preprocessing.stepsHeader')} />
       <CheckboxField
-        label="NEF Conversion"
-        hint="Convert RAW files (NEF, CR2, ARW) to JPG"
+        label={t('preferences.preprocessing.nefConversion.label')}
+        hint={t('preferences.preprocessing.nefConversion.hint')}
         checked={prefs.preprocessing?.steps?.nefConversion ?? true}
         onChange={(v) => updatePref('preprocessing.steps.nefConversion', v)}
       />
       <CheckboxField
-        label="Face Detection"
-        hint="Detect faces and bounding boxes"
+        label={t('preferences.preprocessing.faceDetection.label')}
+        hint={t('preferences.preprocessing.faceDetection.hint')}
         checked={prefs.preprocessing?.steps?.faceDetection ?? true}
         onChange={(v) => updatePref('preprocessing.steps.faceDetection', v)}
       />
       <CheckboxField
-        label="Face Thumbnails"
-        hint="Generate thumbnail images for detected faces"
+        label={t('preferences.preprocessing.thumbnails.label')}
+        hint={t('preferences.preprocessing.thumbnails.hint')}
         checked={prefs.preprocessing?.steps?.thumbnails ?? true}
         onChange={(v) => updatePref('preprocessing.steps.thumbnails', v)}
       />
 
-      <SectionHeader title="Cache Settings" />
+      <SectionHeader title={t('preferences.preprocessing.cacheHeader')} />
       <SliderField
-        label="Maximum Cache Size (MB)"
-        hint="Cache uses LRU eviction when this limit is exceeded"
+        label={t('preferences.preprocessing.maxSize.label')}
+        hint={t('preferences.preprocessing.maxSize.hint')}
         value={prefs.preprocessing?.cache?.maxSizeMB ?? 1024}
         onChange={(v) => updatePref('preprocessing.cache.maxSizeMB', v)}
         min={256}
@@ -679,22 +679,23 @@ export function PreferencesModule({ api }) {
       />
       {cacheStatus && (
         <div className="cache-status">
-          <strong>Cache Status:</strong> {cacheStatus.total_entries} entries,
+          <strong>{t('preferences.preprocessing.cache.statusLabel')}</strong>{' '}
+          {t('preferences.preprocessing.cache.entries', { count: cacheStatus.total_entries })},
           {' '}{cacheStatus.total_size_mb} MB / {cacheStatus.max_size_mb} MB
           {' '}({cacheStatus.usage_percent}%)
         </div>
       )}
       <button className="btn-secondary" onClick={handleClearCache}>
-        Clear Preprocessing Cache
+        {t('preferences.buttons.clearCache')}
       </button>
 
-      <SectionHeader title="Rolling Window" />
+      <SectionHeader title={t('preferences.preprocessing.rollingHeader')} />
       <p className="section-hint">
-        Controls how many files are preprocessed ahead. Prevents memory issues with large queues.
+        {t('preferences.preprocessing.rollingIntro')}
       </p>
       <NumberField
-        label="Max Ready Items"
-        hint="Maximum preprocessed files to keep ready (5-50)"
+        label={t('preferences.preprocessing.maxReady.label')}
+        hint={t('preferences.preprocessing.maxReady.hint')}
         value={prefs.preprocessing?.rollingWindow?.maxReadyItems ?? 15}
         onChange={(v) => {
           const maxReady = Math.max(5, Math.min(50, v));
@@ -708,8 +709,8 @@ export function PreferencesModule({ api }) {
         max={50}
       />
       <NumberField
-        label="Pause Buffer"
-        hint="Pause when this many items are ready (should be noticeably less than Max Ready Items)"
+        label={t('preferences.preprocessing.pauseBuffer.label')}
+        hint={t('preferences.preprocessing.pauseBuffer.hint')}
         value={prefs.preprocessing?.rollingWindow?.minQueueBuffer ?? 10}
         onChange={(v) => {
           const maxReady = prefs.preprocessing?.rollingWindow?.maxReadyItems ?? 15;
@@ -720,30 +721,30 @@ export function PreferencesModule({ api }) {
         max={(prefs.preprocessing?.rollingWindow?.maxReadyItems ?? 15) - 1}
       />
       <NumberField
-        label="Resume After"
-        hint="Resume preprocessing after this many reviews complete (1-15)"
+        label={t('preferences.preprocessing.resumeAfter.label')}
+        hint={t('preferences.preprocessing.resumeAfter.hint')}
         value={prefs.preprocessing?.rollingWindow?.resumeThreshold ?? 5}
         onChange={(v) => updatePref('preprocessing.rollingWindow.resumeThreshold', Math.max(1, Math.min(15, v)))}
         min={1}
         max={15}
       />
 
-      <SectionHeader title="Notifications" />
+      <SectionHeader title={t('preferences.preprocessing.notificationsHeader')} />
       <CheckboxField
-        label="Show status indicator"
-        hint="Show preprocessing status in File Queue footer"
+        label={t('preferences.preprocessing.statusIndicator.label')}
+        hint={t('preferences.preprocessing.statusIndicator.hint')}
         checked={prefs.preprocessing?.notifications?.showStatusIndicator ?? true}
         onChange={(v) => updatePref('preprocessing.notifications.showStatusIndicator', v)}
       />
       <CheckboxField
-        label="Toast on pause"
-        hint="Show toast notification when preprocessing pauses"
+        label={t('preferences.preprocessing.toastOnPause.label')}
+        hint={t('preferences.preprocessing.toastOnPause.hint')}
         checked={prefs.preprocessing?.notifications?.showToastOnPause ?? true}
         onChange={(v) => updatePref('preprocessing.notifications.showToastOnPause', v)}
       />
       <CheckboxField
-        label="Toast on resume"
-        hint="Show toast notification when preprocessing resumes"
+        label={t('preferences.preprocessing.toastOnResume.label')}
+        hint={t('preferences.preprocessing.toastOnResume.hint')}
         checked={prefs.preprocessing?.notifications?.showToastOnResume ?? false}
         onChange={(v) => updatePref('preprocessing.notifications.showToastOnResume', v)}
       />
@@ -752,60 +753,60 @@ export function PreferencesModule({ api }) {
 
   const renderDashboardSection = () => (
     <>
-      <SectionHeader title="Dashboard Sections" />
+      <SectionHeader title={t('preferences.dashboard.sectionsHeader')} />
       <p className="section-hint">
-        Choose which sections to display in the Statistics Dashboard.
+        {t('preferences.dashboard.intro')}
       </p>
       <CheckboxField
-        label="Show detection statistics"
-        hint="Detection backend performance table"
+        label={t('preferences.dashboard.detectionStats.label')}
+        hint={t('preferences.dashboard.detectionStats.hint')}
         checked={prefs.dashboard?.showAttemptStats ?? true}
         onChange={(v) => updatePref('dashboard.showAttemptStats', v)}
       />
       <CheckboxField
-        label="Show top faces grid"
-        hint="Most frequently detected persons"
+        label={t('preferences.dashboard.topFaces.label')}
+        hint={t('preferences.dashboard.topFaces.hint')}
         checked={prefs.dashboard?.showTopFaces ?? true}
         onChange={(v) => updatePref('dashboard.showTopFaces', v)}
       />
       <CheckboxField
-        label="Show recent images"
-        hint="Recently processed images with detected names"
+        label={t('preferences.dashboard.recentImages.label')}
+        hint={t('preferences.dashboard.recentImages.hint')}
         checked={prefs.dashboard?.showRecentImages ?? true}
         onChange={(v) => updatePref('dashboard.showRecentImages', v)}
       />
       <CheckboxField
-        label="Show recent log lines"
-        hint="Latest log entries"
+        label={t('preferences.dashboard.recentLogs.label')}
+        hint={t('preferences.dashboard.recentLogs.hint')}
         checked={prefs.dashboard?.showRecentLogs ?? false}
         onChange={(v) => updatePref('dashboard.showRecentLogs', v)}
       />
       <NumberField
-        label="Number of log lines"
-        hint="How many log lines to show (3-10)"
+        label={t('preferences.dashboard.logLineCount.label')}
+        hint={t('preferences.dashboard.logLineCount.hint')}
         value={prefs.dashboard?.logLineCount ?? 5}
         onChange={(v) => updatePref('dashboard.logLineCount', v)}
         min={3}
         max={10}
       />
 
-      <SectionHeader title="Auto-Refresh" />
+      <SectionHeader title={t('preferences.dashboard.autoRefreshHeader')} />
       <CheckboxField
-        label="Auto-refresh on startup"
-        hint="Automatically refresh statistics when dashboard opens"
+        label={t('preferences.dashboard.autoRefresh.label')}
+        hint={t('preferences.dashboard.autoRefresh.hint')}
         checked={prefs.dashboard?.autoRefresh ?? true}
         onChange={(v) => updatePref('dashboard.autoRefresh', v)}
       />
       <SelectField
-        label="Refresh interval"
-        hint="How often to refresh statistics"
+        label={t('preferences.dashboard.refreshInterval.label')}
+        hint={t('preferences.dashboard.refreshInterval.hint')}
         value={String(prefs.dashboard?.refreshInterval ?? 5000)}
         onChange={(v) => updatePref('dashboard.refreshInterval', parseInt(v, 10))}
         options={[
-          { value: '2000', label: '2 seconds' },
-          { value: '5000', label: '5 seconds' },
-          { value: '10000', label: '10 seconds' },
-          { value: '30000', label: '30 seconds' }
+          { value: '2000', label: t('preferences.dashboard.refreshInterval.s2') },
+          { value: '5000', label: t('preferences.dashboard.refreshInterval.s5') },
+          { value: '10000', label: t('preferences.dashboard.refreshInterval.s10') },
+          { value: '30000', label: t('preferences.dashboard.refreshInterval.s30') }
         ]}
       />
     </>
@@ -814,23 +815,23 @@ export function PreferencesModule({ api }) {
   const renderAdvancedSection = () => {
     return (
       <>
-        <SectionHeader title="Logging" />
+        <SectionHeader title={t('preferences.advanced.loggingHeader')} />
         <SelectField
-          label="Log Level"
-          hint="Minimum severity level for console output"
+          label={t('preferences.advanced.logLevel.label')}
+          hint={t('preferences.advanced.logLevel.hint')}
           value={prefs.ui?.logLevel ?? 'info'}
           onChange={(v) => updatePref('ui.logLevel', v)}
           options={[
-            { value: 'debug', label: 'Debug (verbose)' },
-            { value: 'info', label: 'Info' },
-            { value: 'warn', label: 'Warning' },
-            { value: 'error', label: 'Error' }
+            { value: 'debug', label: t('preferences.advanced.logLevel.debug') },
+            { value: 'info', label: t('preferences.advanced.logLevel.info') },
+            { value: 'warn', label: t('preferences.advanced.logLevel.warn') },
+            { value: 'error', label: t('preferences.advanced.logLevel.error') }
           ]}
         />
 
-        <SectionHeader title="Debug Categories" />
+        <SectionHeader title={t('preferences.advanced.debugHeader')} />
         <p className="section-hint">
-          Enable/disable debug output per category. Warnings and errors always show.
+          {t('preferences.advanced.debugIntro')}
         </p>
         <div className="debug-grid">
           {Object.entries(debugCategories).map(([name, enabled]) => (
@@ -855,7 +856,7 @@ export function PreferencesModule({ api }) {
             setDebugCategories(getCategories());
           }}
         >
-          Reset Debug Categories to Defaults
+          {t('preferences.buttons.resetDebugCategories')}
         </button>
       </>
     );
@@ -864,7 +865,7 @@ export function PreferencesModule({ api }) {
   return (
     <div className="module-container has-sidebar preferences-module">
       <div className="module-sidebar">
-        <h3 className="sidebar-title">Settings</h3>
+        <h3 className="sidebar-title">{t('preferences.sidebarTitle')}</h3>
         <ul className="item-list">
           {SECTIONS.map(section => (
             <li
@@ -883,10 +884,10 @@ export function PreferencesModule({ api }) {
             onClick={handleSave}
             disabled={!hasChanges}
           >
-            Save
+            {t('common.save')}
           </button>
           <button className="btn-secondary" onClick={handleReset}>
-            Reset
+            {t('common.reset')}
           </button>
         </div>
       </div>
