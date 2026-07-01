@@ -2,6 +2,7 @@
 module.exports = {
   "title": "Statistik",
   "ignored": "Ignorerade",
+  "errorPrefix": "Fel:",
 
   "autoRefresh": "Automatisk uppdatering",
   "refreshNow": "Uppdatera nu",

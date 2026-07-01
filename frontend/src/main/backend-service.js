@@ -15,6 +15,7 @@ const { app } = require('electron');
 const http = require('http');
 const path = require('path');
 const fs = require('fs');
+const { t } = require('../i18n');
 
 const DEBUG = true;
 
@@ -218,7 +219,7 @@ class BackendService {
    */
   async waitForReady() {
     console.log(`[BackendService] [${this._timestamp()}] Starting health check polling...`);
-    this._updateStatus('Initializing Python...', 10);
+    this._updateStatus(t('dialogs.splash.initializingPython'), 10);
 
     await new Promise(resolve => setTimeout(resolve, 2000));
 
@@ -231,19 +232,19 @@ class BackendService {
       const isHealthy = await this.checkHealth();
       if (isHealthy) {
         console.log(`[BackendService] [${this._timestamp()}] Backend ready after ${i + 1} attempts`);
-        this._updateStatus('Backend redo!', 80);
+        this._updateStatus(t('dialogs.splash.serverReady'), 80);
         return;
       }
 
       const progress = Math.min(10 + (i / this.maxRetries) * 60, 70);
       if (i === 0) {
-        this._updateStatus('Loading Python modules...', progress);
+        this._updateStatus(t('dialogs.splash.loadingModules'), progress);
       } else if (i === 3) {
-        this._updateStatus('Starting FastAPI...', progress);
+        this._updateStatus(t('dialogs.splash.startingApi'), progress);
       } else if (i === 6) {
-        this._updateStatus('Starting web server...', progress);
+        this._updateStatus(t('dialogs.splash.startingWebServer'), progress);
       } else if (i > 10) {
-        this._updateStatus(`Waiting for backend... (${i}/${this.maxRetries})`, progress);
+        this._updateStatus(t('dialogs.splash.waitingForBackend', { current: i, total: this.maxRetries }), progress);
       }
 
       if (DEBUG && i > 0 && i % 5 === 0) {
