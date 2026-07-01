@@ -89,7 +89,7 @@ change so the legacy CLI rename behaves identically.
 
 Run: `cd backend && pytest` (23 passed) and `cd frontend && npm test` (18 passed).
 
-## Follow-up (logged in TODO.md)
+## Follow-up (logged in ROADMAP.md)
 
 The structural fix is durable, but the underlying *ordering* trigger (a rename reading the
 DB before a just-added manual face is persisted) is a frontend sequencing concern; the
