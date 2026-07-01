@@ -28,6 +28,15 @@ describe('i18n t()', () => {
     expect(t('common')).toBe('common');
   });
 
+  it('has the Swedish application-menu labels', () => {
+    expect(t('menu.file.title')).toBe('Arkiv');
+    expect(t('menu.view.title')).toBe('Visa');
+    expect(t('menu.window.title')).toBe('Fönster');
+    expect(t('menu.help.title')).toBe('Hjälp');
+    expect(t('menu.file.openInLightroom')).toBe('Öppna i Lightroom');
+    expect(t('menu.app.aboutDetail', { version: 'dev' })).toContain('Version: dev');
+  });
+
   it('selects the plural form by count', () => {
     expect(t('common.selectedCount', { count: 1 })).toBe('1 vald');
     expect(t('common.selectedCount', { count: 0 })).toBe('0 valda');
