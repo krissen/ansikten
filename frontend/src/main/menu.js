@@ -108,8 +108,8 @@ function createApplicationMenu(mainWindow) {
     {
       label: t('menu.edit.title'),
       submenu: [
-        { role: 'undo' },
-        { role: 'redo' },
+        { role: 'undo', label: t('menu.edit.undo') },
+        { role: 'redo', label: t('menu.edit.redo') },
         { type: 'separator' },
         {
           label: t('menu.edit.undoFaceAction'),
@@ -119,12 +119,12 @@ function createApplicationMenu(mainWindow) {
           }
         },
         { type: 'separator' },
-        { role: 'cut' },
-        { role: 'copy' },
-        { role: 'paste' },
-        { role: 'delete' },
+        { role: 'cut', label: t('menu.edit.cut') },
+        { role: 'copy', label: t('menu.edit.copy') },
+        { role: 'paste', label: t('menu.edit.paste') },
+        { role: 'delete', label: t('menu.edit.delete') },
         { type: 'separator' },
-        { role: 'selectAll' }
+        { role: 'selectAll', label: t('menu.edit.selectAll') }
       ]
     },
 

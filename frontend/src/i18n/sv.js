@@ -27,7 +27,7 @@ module.exports = {
   // module. Add a module's real UI strings under its own namespace as it's
   // migrated.
   // Application menu (frontend/src/main/menu.js). Module-open items reuse the
-  // `modules.*` names above; only menu-specific labels live here.
+  // `modules.*` names (defined further down); only menu-specific labels live here.
   menu: {
     app: {
       about: 'Om Ansikten',
@@ -39,7 +39,19 @@ module.exports = {
       showAll: 'Visa alla',
       quit: 'Avsluta Ansikten',
     },
-    edit: { title: 'Redigera', undoFaceAction: 'Ångra ansiktsåtgärd' },
+    edit: {
+      title: 'Redigera',
+      undoFaceAction: 'Ångra ansiktsåtgärd',
+      // Explicit labels for the Electron role items so they're Swedish
+      // regardless of the OS locale (roles otherwise render OS-localized).
+      undo: 'Ångra',
+      redo: 'Gör om',
+      cut: 'Klipp ut',
+      copy: 'Kopiera',
+      paste: 'Klistra in',
+      delete: 'Radera',
+      selectAll: 'Markera allt',
+    },
     file: {
       title: 'Arkiv',
       openImage: 'Öppna bild…',
