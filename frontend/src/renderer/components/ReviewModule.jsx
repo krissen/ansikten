@@ -20,6 +20,7 @@ import { NetworkError } from '../shared/api-client.js';
 import { preferences } from '../workspace/preferences.js';
 import { useThumbnail } from '../shared/thumbnail-cache.js';
 import { Icon } from './Icon.jsx';
+import { t } from '../../i18n/index.js';
 import './ReviewModule.css';
 
 /**
@@ -98,7 +99,7 @@ export function ReviewModule({ node }) {
   const [currentFaceIndex, setCurrentFaceIndex] = useState(0);
   const [pendingConfirmations, setPendingConfirmations] = useState([]);
   const [pendingIgnores, setPendingIgnores] = useState([]);
-  const [status, setStatus] = useState('Waiting for image...');
+  const [status, setStatus] = useState(t('review.status.waitingForImage'));
   const [isLoading, setIsLoading] = useState(false);
   const [clearInputTrigger, setClearInputTrigger] = useState(0);
   const [confirmDialog, setConfirmDialog] = useState(null);
@@ -143,7 +144,7 @@ export function ReviewModule({ node }) {
     setCurrentImagePath(imagePath);
     setCurrentFileHash(null);
     setIsLoading(true);
-    setStatus('Detecting faces...');
+    setStatus(t('review.status.detecting'));
     setDetectedFaces([]);
     setCurrentFaceIndex(0);
     setPendingConfirmations([]);
@@ -162,7 +163,7 @@ export function ReviewModule({ node }) {
       const faces = result.faces || [];
       setDetectedFaces(faces);
       setCurrentFileHash(result.file_hash || null);
-      setStatus(`Found ${faces.length} faces (${result.processing_time_ms?.toFixed(0) || 0}ms)`);
+      setStatus(t('review.status.found', { count: faces.length, ms: result.processing_time_ms?.toFixed(0) || 0 }));
 
       emit('faces-detected', { faces, imagePath });
 
@@ -172,20 +173,20 @@ export function ReviewModule({ node }) {
         }, 100);
       } else {
         const fileName = imagePath.split('/').pop();
-        showToast(`No faces found in ${fileName}`, 'info');
+        showToast(t('review.toasts.noFacesFound', { fileName }), 'info');
       }
     } catch (err) {
       if (abortController.signal.aborted) {
-        setStatus('Detection cancelled');
+        setStatus(t('review.status.detectionCancelled'));
         return;
       }
       debugError('ReviewModule', 'Face detection failed:', err);
       if (err instanceof NetworkError) {
-        const msg = err.isOffline ? 'Backend unreachable' : err.message;
+        const msg = err.isOffline ? t('review.toasts.backendUnreachable') : err.message;
         showToast(msg, 'error');
-        setStatus('Connection error');
+        setStatus(t('review.status.connectionError'));
       } else {
-        setStatus('Detection failed');
+        setStatus(t('review.status.detectionFailed'));
       }
     } finally {
       if (detectAbortRef.current === abortController) {
@@ -491,7 +492,10 @@ export function ReviewModule({ node }) {
       });
     }
 
-    setStatus(`Accepted ${accepted}, ignored ${ignored}${skipped > 0 ? `, skipped ${skipped}` : ''}`);
+    setStatus(
+      t('review.status.accepted', { accepted, ignored }) +
+      (skipped > 0 ? t('review.status.acceptedSkippedSuffix', { skipped }) : '')
+    );
   }, [detectedFaces, currentImagePath, emit]);
 
   /**
@@ -538,7 +542,7 @@ export function ReviewModule({ node }) {
     if (pendingConfirmations.length === 0 && pendingIgnores.length === 0) return true;
 
     const totalChanges = pendingConfirmations.length + pendingIgnores.length;
-    setStatus(`Saving ${totalChanges} changes...`);
+    setStatus(t('review.status.saving', { count: totalChanges }));
 
     try {
       // Batch save: single request instead of N individual calls
@@ -550,11 +554,11 @@ export function ReviewModule({ node }) {
       setPendingConfirmations([]);
       setPendingIgnores([]);
       await loadPeopleNames();
-      setStatus(`Saved ${totalChanges} changes!`);
+      setStatus(t('review.status.saved', { count: totalChanges }));
       return true;
     } catch (err) {
       debugError('ReviewModule', 'Failed to save:', err);
-      setStatus('Error saving changes - review NOT marked complete');
+      setStatus(t('review.status.saveError'));
       return false;
     }
   }, [pendingConfirmations, pendingIgnores, api, loadPeopleNames]);
@@ -565,7 +569,7 @@ export function ReviewModule({ node }) {
   const discardChanges = useCallback(() => {
     if (pendingConfirmations.length === 0 && pendingIgnores.length === 0) return;
 
-    if (!confirm(`Discard ${pendingConfirmations.length + pendingIgnores.length} unsaved changes?`)) return;
+    if (!confirm(t('review.dialog.discardConfirm', { count: pendingConfirmations.length + pendingIgnores.length }))) return;
 
     // Reset face states
     setDetectedFaces(prev => prev.map(face => {
@@ -577,7 +581,7 @@ export function ReviewModule({ node }) {
 
     setPendingConfirmations([]);
     setPendingIgnores([]);
-    setStatus('Changes discarded');
+    setStatus(t('review.status.changesDiscarded'));
   }, [pendingConfirmations.length, pendingIgnores.length]);
 
   /**
@@ -612,7 +616,7 @@ export function ReviewModule({ node }) {
       reviewedFaces
     });
 
-    setStatus('Image skipped');
+    setStatus(t('review.status.imageSkipped'));
   }, [currentImagePath, pendingConfirmations.length, pendingIgnores.length, saveAllChanges, buildReviewedFaces, markReviewComplete, emit, detectedFaces, currentFileHash]);
 
   /**
@@ -653,7 +657,7 @@ export function ReviewModule({ node }) {
       inputRefs.current[insertIndex]?.focus();
     }, 100);
 
-    setStatus('Manual face added - enter name');
+    setStatus(t('review.status.manualFaceAdded'));
   }, [currentImagePath, currentFaceIndex, detectedFaces.length, emit]);
 
   /**
@@ -730,7 +734,7 @@ export function ReviewModule({ node }) {
     const pendingCount = pendingConfirmations.length + pendingIgnores.length;
 
     if (pendingCount > 0) {
-      setStatus(`${reviewedCount}/${detectedFaces.length} reviewed | ${pendingCount} pending`);
+      setStatus(t('review.status.reviewProgress', { reviewed: reviewedCount, total: detectedFaces.length, pending: pendingCount }));
     }
   }, [detectedFaces, pendingConfirmations.length, pendingIgnores.length]);
 
@@ -887,8 +891,8 @@ export function ReviewModule({ node }) {
         const undone = undoLastAction();
         if (undone) {
           const msg = undone.type === 'confirm'
-            ? `Undo: ${undone.face.person_name || 'confirm'}`
-            : 'Undo: ignore';
+            ? t('review.toasts.undo', { label: undone.face.person_name || t('review.toasts.undoConfirmFallback') })
+            : t('review.toasts.undoIgnore');
           showToast(msg, 'info', 1500);
         }
         return;
@@ -899,7 +903,7 @@ export function ReviewModule({ node }) {
         e.preventDefault();
         if (isLoading) {
           cancelDetection();
-          showToast('Detection cancelled', 'info', 1500);
+          showToast(t('review.status.detectionCancelled'), 'info', 1500);
           return;
         }
         if (isInput) {
@@ -920,7 +924,7 @@ export function ReviewModule({ node }) {
       debug('ReviewModule', 'Skipping auto-detect for already-processed file:', imagePath);
       setCurrentImagePath(imagePath);
       setDetectedFaces([]);
-      setStatus('Already processed - click 🔄 to reprocess');
+      setStatus(t('review.status.alreadyProcessed'));
       return;
     }
     if (imagePath === currentImagePath && detectedFaces.length > 0) {
@@ -938,7 +942,7 @@ export function ReviewModule({ node }) {
     setCurrentImagePath(null);
     setDetectedFaces([]);
     setCurrentFaceIndex(-1);
-    setStatus('Waiting for image...');
+    setStatus(t('review.status.waitingForImage'));
   }, []));
 
   /**
@@ -956,8 +960,8 @@ export function ReviewModule({ node }) {
     const undone = undoLastAction();
     if (undone) {
       const msg = undone.type === 'confirm'
-        ? `Undo: ${undone.face.person_name || 'confirm'}`
-        : 'Undo: ignore';
+        ? t('review.toasts.undo', { label: undone.face.person_name || t('review.toasts.undoConfirmFallback') })
+        : t('review.toasts.undoIgnore');
       showToast(msg, 'info', 1500);
     }
   }, [undoLastAction, showToast]));
@@ -977,9 +981,9 @@ export function ReviewModule({ node }) {
 
       <div ref={gridRef} className="module-body face-grid">
         {isLoading ? (
-          <div className="loading">Detecting faces...</div>
+          <div className="loading">{t('review.status.detecting')}</div>
         ) : detectedFaces.length === 0 ? (
-          <div className="loading">No faces detected</div>
+          <div className="loading">{t('review.noFacesDetected')}</div>
         ) : (
           detectedFaces.map((face, index) => (
             <FaceCard
@@ -1075,25 +1079,25 @@ function ConfirmDialog({ type, topMatch, chosenName, onConfirm, onCancel }) {
         tabIndex={-1}
         onClick={(e) => e.stopPropagation()}
       >
-        <h3>{isNameMismatch ? 'Confirm name change' : 'Confirm ignore'}</h3>
+        <h3>{isNameMismatch ? t('review.dialog.confirmNameChange') : t('review.dialog.confirmIgnore')}</h3>
         <div className="match-info">
-          Best match: <strong>{topMatch.name}</strong> ({topMatch.confidence}%)
+          {t('review.dialog.bestMatch')} <strong>{topMatch.name}</strong> ({topMatch.confidence}%)
         </div>
         <p>
           {isNameMismatch
-            ? `You chose "${chosenName}" instead. Are you sure?`
-            : 'You chose to ignore this face. Are you sure?'}
+            ? t('review.dialog.nameMismatch', { name: chosenName })
+            : t('review.dialog.ignoreConfirm')}
         </p>
         <div className="confirm-buttons">
           <button className="btn-cancel" onClick={onCancel}>
-            Cancel
+            {t('common.cancel')}
           </button>
           <button className="btn-confirm" onClick={onConfirm}>
-            Confirm
+            {t('common.confirm')}
           </button>
         </div>
         <div className="confirm-hint">
-          <kbd>Enter</kbd> confirms · <kbd>Esc</kbd> cancels
+          <kbd>Enter</kbd> {t('review.dialog.hintConfirms')} · <kbd>Esc</kbd> {t('review.dialog.hintCancels')}
         </div>
       </div>
     </div>
@@ -1185,7 +1189,7 @@ function FaceCard({ face, index, isActive, imagePath, people, cardRef, inputRef,
         ) : thumbnailUrl && !thumbnailError ? (
           <img
             src={thumbnailUrl}
-            alt={face.person_name || 'Unknown'}
+            alt={face.person_name || t('review.unknown')}
           />
         ) : (
           <Icon name="user" size={32} />
@@ -1247,7 +1251,7 @@ function FaceCard({ face, index, isActive, imagePath, people, cardRef, inputRef,
               ref={setInputRef}
               type="text"
               className={people.includes(inputValue) ? 'name-match' : ''}
-              placeholder="Person name..."
+              placeholder={t('review.placeholder')}
               value={inputValue}
               onChange={(e) => {
                 const val = e.target.value;
@@ -1315,10 +1319,10 @@ function FaceCard({ face, index, isActive, imagePath, people, cardRef, inputRef,
         ) : (
           <div
             className={`status-text ${face.is_rejected ? 'rejected' : 'confirmed'}`}
-            title="Double-click to undo"
+            title={t('review.undoTitle')}
           >
             {face.is_rejected ? (
-              <><Icon name="block" size={12} /> Ignored</>
+              <><Icon name="block" size={12} /> {t('review.ignoredBadge')}</>
             ) : (
               <><Icon name="check" size={12} /> {face.person_name}</>
             )}
