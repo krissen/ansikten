@@ -46,6 +46,9 @@ const PREVIEW_DEBOUNCE_MS = 150;
 // already-settled file resolves faster than this, so stepping through old
 // photos never flashes a placeholder; only a fresh, still-writing file waits.
 const PREVIEW_LOADING_DELAY_MS = 150;
+// If a file is still being written when the stat settle-wait times out, wait
+// this long before re-checking rather than swapping in a possibly-partial decode.
+const PREVIEW_RECHECK_MS = 800;
 
 // The live stats panel counts every player in the folder, so it uses the
 // scan scope only — not the player/name_glob filter that narrows the file list.
@@ -1049,31 +1052,47 @@ export function CullingModule({ node }) {
     // still-writing file). Already-settled files resolve first, so stepping
     // through old photos swaps without a flash.
     let loadingTimer = null;
+    let recheckTimer = null;
     if (isNewPath) {
       loadingTimer = setTimeout(() => {
         if (!cancelled) { setPreviewUrl(null); setPreviewLoading(true); }
       }, PREVIEW_LOADING_DELAY_MS);
     }
-    const done = () => { if (loadingTimer) clearTimeout(loadingTimer); if (!cancelled) setPreviewLoading(false); };
     window.ansiktenAPI.invoke('stat-file-stable', { filePath: currentPath })
       .then((res) => {
         if (cancelled) return;
-        done();
+        if (loadingTimer) clearTimeout(loadingTimer);
         if (!res?.ok) {
+          setPreviewLoading(false);
           setPreviewUrl(null);
           setPreviewError(res?.reason === 'not-found' ? 'Filen hittades inte.' : 'Filen kunde inte läsas.');
           return;
         }
+        if (res.settled === false) {
+          // The settle-wait timed out while the file was still being written.
+          // Don't swap in a possibly-truncated decode — keep the loading
+          // indicator and re-check shortly (the ongoing write also bumps
+          // folderNonce via the watcher, so this is a fallback either way).
+          setPreviewLoading(true);
+          recheckTimer = setTimeout(() => { if (!cancelled) setFolderNonce((n) => n + 1); }, PREVIEW_RECHECK_MS);
+          return;
+        }
+        setPreviewLoading(false);
         setPreviewUrl(bustedFileUrl(currentPath, `${res.mtimeMs}-${res.size}`));
       })
       .catch((err) => {
         if (cancelled) return;
-        done();
+        if (loadingTimer) clearTimeout(loadingTimer);
         console.error('[Culling] preview stat failed:', err);
+        setPreviewLoading(false);
         setPreviewUrl(null);
         setPreviewError('Kunde inte läsa in bilden.');
       });
-    return () => { cancelled = true; if (loadingTimer) clearTimeout(loadingTimer); };
+    return () => {
+      cancelled = true;
+      if (loadingTimer) clearTimeout(loadingTimer);
+      if (recheckTimer) clearTimeout(recheckTimer);
+    };
   }, [currentPath, folderNonce]);
 
   // Resolve the preview for a RAW file via the NEF conversion pipeline. The
