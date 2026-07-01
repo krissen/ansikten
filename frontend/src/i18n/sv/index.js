@@ -17,4 +17,5 @@ module.exports = {
   originalView: require('./originalView'),
   startupStatus: require('./startupStatus'),
   playerCount: require('./playerCount'),
+  shortcuts: require('./shortcuts'),
 };
