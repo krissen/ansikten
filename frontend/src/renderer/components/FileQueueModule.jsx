@@ -828,7 +828,7 @@ export function FileQueueModule({ node }) {
             t('fileQueue.toasts.cacheFull', {
               percent: Math.round(cacheStatus.usage_percent),
               used: Math.round(cacheStatus.total_size_mb),
-              max: cacheStatus.max_size_mb
+              max: Math.round(cacheStatus.max_size_mb)
             }),
             'warning',
             5000

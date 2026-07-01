@@ -84,7 +84,7 @@ module.exports = {
     "preprocessingFailed": "Förbehandling misslyckades",
     "preprocessing": "Förbehandlar: {status}",
     "confirmedList": "Bekräftade: {names}",
-    "detectedCount": "{count} identifierade",
+    "detectedCount": { "one": "{count} ansikte identifierat", "other": "{count} ansikten identifierade" },
     "notLoaded": "Ej inläst",
     "reprocessFile": "Behandla om den här filen",
     "removeFromQueue": "Ta bort från kön"
@@ -97,10 +97,10 @@ module.exports = {
       "one": "Tog bort {count} saknad fil ur kön",
       "other": "Tog bort {count} saknade filer ur kön"
     },
-    "preprocessingPaused": "Förbehandling pausad ({count} filer redo)",
+    "preprocessingPaused": { "one": "Förbehandling pausad ({count} fil redo)", "other": "Förbehandling pausad ({count} filer redo)" },
     "preprocessingResumed": "Förbehandling återupptagen",
     "removedDeletedFile": "Tog bort raderad fil: {fileName}",
-    "preprocessingComplete": "Förbehandling klar ({count} filer cachade)",
+    "preprocessingComplete": { "one": "Förbehandling klar ({count} fil cachad)", "other": "Förbehandling klar ({count} filer cachade)" },
     "backendReconnected": "🟢 Servern återansluten",
     "backendDisconnected": "🔴 Servern frånkopplad",
     "filesInQueue": "{total} filer i kön ({pending} väntar)",
