@@ -970,7 +970,9 @@ export function CullingModule({ node }) {
   // root and opens it in Lightroom (macOS). Failure surfaces on the error line.
   const openRawInLightroom = useCallback(async (imagePath) => {
     if (!imagePath) return;
-    const rawRoot = preferences.get('paths.rawRoot');
+    // Default here too so the scanned root, the IPC payload, and any error
+    // message all agree even if the preference is unset or cleared.
+    const rawRoot = preferences.get('paths.rawRoot') || '~/Pictures/nerladdat';
     try {
       const res = await window.ansiktenAPI?.invoke('open-raw-in-lightroom', { imagePath, rawRoot });
       if (res?.ok) return;
@@ -979,6 +981,8 @@ export function CullingModule({ node }) {
         setError(`Ingen NEF hittad för ${res.token} i ${rawRoot}`);
       } else if (reason === 'no-timestamp') {
         setError('Kunde inte härleda tidsstämpel ur filnamnet');
+      } else if (reason === 'scan-error') {
+        setError(`Kunde inte söka i RAW-mappen ${rawRoot}${res?.error ? `: ${res.error}` : ''}`);
       } else if (reason === 'unsupported-platform') {
         setError('Öppna i Lightroom stöds bara på macOS');
       } else {
