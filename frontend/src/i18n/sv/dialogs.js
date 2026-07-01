@@ -10,7 +10,8 @@ module.exports = {
     "loadingModules": "Laddar Python-moduler…",
     "startingApi": "Startar FastAPI…",
     "startingWebServer": "Startar webbserver…",
-    "waitingForBackend": "Väntar på servern… ({current}/{total})"
+    "waitingForBackend": "Väntar på servern… ({current}/{total})",
+    "serverReady": "Servern redo!"
   },
   "backendStartFailedSuggestion": "Kontrollera att Python är installerat och att ANSIKTEN_PYTHON pekar på rätt interpreter.",
   "selectFolders": "Välj mapp(ar) för att lägga till alla bilder",

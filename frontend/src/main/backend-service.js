@@ -232,7 +232,7 @@ class BackendService {
       const isHealthy = await this.checkHealth();
       if (isHealthy) {
         console.log(`[BackendService] [${this._timestamp()}] Backend ready after ${i + 1} attempts`);
-        this._updateStatus('Backend redo!', 80);
+        this._updateStatus(t('dialogs.splash.serverReady'), 80);
         return;
       }
 
