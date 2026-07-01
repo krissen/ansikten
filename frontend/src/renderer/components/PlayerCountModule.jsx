@@ -266,7 +266,7 @@ function ResultSummary({ result }) {
     <div className="player-count-summary">
       <span><strong>{result.total_images}</strong> bilder</span>
       <span><strong>{result.players.length}</strong> spelare</span>
-      <span>Baseline ({result.baseline_method}): <strong>{result.baseline}</strong></span>
+      <span>Baslinje ({result.baseline_method}): <strong>{result.baseline}</strong></span>
       {result.files_resolved != null && (
         <span className="player-count-dim">{result.files_resolved} filer</span>
       )}
