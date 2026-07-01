@@ -12,6 +12,7 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { useWebSocket } from '../hooks/useWebSocket.js';
 import { getLogBuffer, clearLogBuffer, debug } from '../shared/debug.js';
+import { t } from '../../i18n/index.js';
 import './LogViewer.css';
 
 /**
@@ -170,33 +171,33 @@ export function LogViewer() {
   return (
     <div className="module-container log-viewer">
       <div className="module-header">
-        <h3 className="module-title">Logs</h3>
+        <h3 className="module-title">{t('logs.title')}</h3>
         <div className="button-group">
           <select
             className="form-select"
             value={filterSource}
             onChange={(e) => setFilterSource(e.target.value)}
           >
-            <option value="all">All Sources</option>
-            <option value="backend">Backend</option>
-            <option value="frontend">Frontend</option>
+            <option value="all">{t('logs.source.all')}</option>
+            <option value="backend">{t('logs.source.backend')}</option>
+            <option value="frontend">{t('logs.source.frontend')}</option>
           </select>
           <select
             className="form-select"
             value={filterLevel}
             onChange={(e) => setFilterLevel(e.target.value)}
           >
-            <option value="all">All Levels</option>
-            <option value="debug">Debug</option>
-            <option value="info">Info</option>
-            <option value="warn">Warning</option>
-            <option value="error">Error</option>
+            <option value="all">{t('logs.level.all')}</option>
+            <option value="debug">{t('logs.level.debug')}</option>
+            <option value="info">{t('logs.level.info')}</option>
+            <option value="warn">{t('logs.level.warning')}</option>
+            <option value="error">{t('logs.level.error')}</option>
           </select>
           <button type="button" className="btn-secondary" onClick={copyLogs}>
-            {copyFeedback ? 'Copied!' : 'Copy'}
+            {copyFeedback ? t('logs.copied') : t('logs.copy')}
           </button>
           <button type="button" className="btn-secondary" onClick={clearLogs}>
-            Clear
+            {t('logs.clear')}
           </button>
         </div>
       </div>
@@ -209,8 +210,8 @@ export function LogViewer() {
         {filteredLogs.length === 0 ? (
           <div className="empty-state">
             {logs.length === 0
-              ? 'Waiting for log entries...'
-              : 'No log entries match the current filter'}
+              ? t('logs.empty.waiting')
+              : t('logs.empty.noMatch')}
           </div>
         ) : (
           filteredLogs.map(entry => (
