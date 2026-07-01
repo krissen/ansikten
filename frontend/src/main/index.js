@@ -12,6 +12,7 @@ const fs = require("fs");
 const os = require("os");
 const { BackendService } = require("./backend-service");
 const { createApplicationMenu } = require("./menu");
+const { t } = require("../i18n");
 const { parseCliArgs } = require("./cli-args");
 const { deriveRawToken, basenameMatchesToken } = require("./raw-match");
 
@@ -316,7 +317,7 @@ app.whenReady().then(async () => {
 
   // Show splash immediately
   createSplashWindow();
-  updateSplashStatus("Starting backend...");
+  updateSplashStatus(t("dialogs.splash.startingBackend"));
 
   // Start backend service
   try {
@@ -326,7 +327,7 @@ app.whenReady().then(async () => {
     };
     await backendService.start();
     console.log(`[Main] Backend ready at ${backendService.getUrl()}`);
-    updateSplashStatus("Loading interface...", 90);
+    updateSplashStatus(t("dialogs.splash.loadingInterface"), 90);
   } catch (err) {
     console.error("[Main] Failed to start backend:", err);
     
@@ -337,7 +338,7 @@ app.whenReady().then(async () => {
     const isPackaged = app.isPackaged;
     const suggestion = isPackaged
       ? "Försök installera om appen. Om problemet kvarstår, kontakta support."
-      : "Check that Python is installed and that ANSIKTEN_PYTHON points to the correct interpreter.";
+      : t("dialogs.backendStartFailedSuggestion");
     
     await dialog.showMessageBox({
       type: "error",
@@ -352,7 +353,7 @@ app.whenReady().then(async () => {
   }
 
   // Create workspace window
-  updateSplashStatus("Ready!", 100);
+  updateSplashStatus(t("dialogs.splash.ready"), 100);
   createWorkspaceWindow();
 
   // Close splash when main window is ready
@@ -493,10 +494,10 @@ ipcMain.handle("open-file-dialog", async () => {
     properties: ["openFile"],
     filters: [
       {
-        name: "Images",
+        name: t("dialogs.filters.images"),
         extensions: ["jpg", "jpeg", "png", "tiff", "nef", "cr2", "arw"],
       },
-      { name: "All Files", extensions: ["*"] },
+      { name: t("dialogs.filters.allFiles"), extensions: ["*"] },
     ],
   });
 
@@ -621,14 +622,14 @@ ipcMain.handle("open-multi-file-dialog", async () => {
     properties: ["openFile", "multiSelections"],
     filters: [
       {
-        name: "RAW Images",
+        name: t("dialogs.filters.rawImages"),
         extensions: ["nef", "NEF", "cr2", "CR2", "arw", "ARW"],
       },
       {
-        name: "All Images",
+        name: t("dialogs.filters.allImages"),
         extensions: ["jpg", "jpeg", "png", "tiff", "nef", "cr2", "arw"],
       },
-      { name: "All Files", extensions: ["*"] },
+      { name: t("dialogs.filters.allFiles"), extensions: ["*"] },
     ],
   });
 
@@ -646,7 +647,7 @@ ipcMain.handle("open-folder-dialog", async () => {
 
   const result = await dialog.showOpenDialog(mainWindow, {
     properties: ["openDirectory", "multiSelections"],
-    message: "Select folder(s) to add all images",
+    message: t("dialogs.selectFolders"),
   });
 
   if (result.canceled || !result.filePaths || result.filePaths.length === 0) {

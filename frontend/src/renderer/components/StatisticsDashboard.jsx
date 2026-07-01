@@ -138,7 +138,7 @@ export function StatisticsDashboard() {
       </div>
 
       <div className="module-body stats-body">
-        {error && <div className="status-message error">Error: {error}</div>}
+        {error && <div className="status-message error">{t('statistics.errorPrefix')} {error}</div>}
 
         {/* Attempt Statistics Table */}
         {showAttemptStats && (

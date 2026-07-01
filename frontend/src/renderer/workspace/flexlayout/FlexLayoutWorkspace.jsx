@@ -608,7 +608,7 @@ export function FlexLayoutWorkspace() {
     if (!ModuleComponent) {
       return (
         <div style={{ padding: 20, color: '#666' }}>
-          Unknown module: {component}
+          {t('workspace.unknownModule', { component })}
         </div>
       );
     }
@@ -728,7 +728,7 @@ export function FlexLayoutWorkspace() {
     // Create a placeholder tab in the new tabset
     const placeholderTab = {
       type: 'tab',
-      name: 'Image Viewer',
+      name: t('modules.image-viewer'),
       component: 'image-viewer',
       config: { moduleId: 'image-viewer' }
     };
@@ -1359,7 +1359,7 @@ export function FlexLayoutWorkspace() {
         height: '100%',
         color: '#666'
       }}>
-        Loading workspace...
+        {t('workspace.loading')}
       </div>
     );
   }

@@ -6,6 +6,7 @@
  */
 
 import { debug, debugWarn, debugError } from './debug.js';
+import { t } from '../../i18n/index.js';
 
 export class NetworkError extends Error {
   constructor(message, { isOffline = false, isTimeout = false, statusCode = null, retryable = true } = {}) {
@@ -65,16 +66,16 @@ export class APIClient {
   _classifyError(err, response = null) {
     if (!navigator.onLine) {
       this._setOffline(true);
-      return new NetworkError('No network connection', { isOffline: true, retryable: true });
+      return new NetworkError(t('errors.noConnection'), { isOffline: true, retryable: true });
     }
 
     if (err.name === 'AbortError') {
-      return new NetworkError('Request timed out', { isTimeout: true, retryable: true });
+      return new NetworkError(t('errors.timeout'), { isTimeout: true, retryable: true });
     }
 
     if (err.name === 'TypeError' && err.message.includes('fetch')) {
       this._setOffline(true);
-      return new NetworkError('Backend unreachable', { isOffline: true, retryable: true });
+      return new NetworkError(t('errors.unreachable'), { isOffline: true, retryable: true });
     }
 
     if (response) {
@@ -83,7 +84,7 @@ export class APIClient {
       return new NetworkError(`HTTP ${statusCode}: ${response.statusText}`, { statusCode, retryable });
     }
 
-    return new NetworkError(err.message || 'Unknown network error', { retryable: false });
+    return new NetworkError(err.message || t('errors.unknown'), { retryable: false });
   }
 
   addConnectionListener(callback) {

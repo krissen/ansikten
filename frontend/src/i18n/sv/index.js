@@ -17,4 +17,7 @@ module.exports = {
   originalView: require('./originalView'),
   startupStatus: require('./startupStatus'),
   playerCount: require('./playerCount'),
+  errors: require('./errors'),
+  workspace: require('./workspace'),
+  dialogs: require('./dialogs'),
 };
