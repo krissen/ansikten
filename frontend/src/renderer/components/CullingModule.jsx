@@ -665,6 +665,10 @@ export function CullingModule({ node }) {
         // holds the previous filter, so culling now would trash the wrong file.
         e.preventDefault();
         if (!isLoadingRef.current) trashCurrent();
+      } else if (!e.altKey && e.key.toLowerCase() === 'l') {
+        // Open the current photo's original NEF in Lightroom.
+        e.preventDefault();
+        openRawRef.current?.();
       }
     };
     window.addEventListener('keydown', handler);
@@ -959,6 +963,37 @@ export function CullingModule({ node }) {
   // toggle/selection change.
   const commitNameToggleRef = useRef(null);
   commitNameToggleRef.current = commitNameToggle;
+
+  // ----- open original NEF in Lightroom ------------------------------
+  // The developed JPEG and its source NEF share only the leading timestamp
+  // token; the main process resolves it recursively under the configured RAW
+  // root and opens it in Lightroom (macOS). Failure surfaces on the error line.
+  const openRawInLightroom = useCallback(async (imagePath) => {
+    if (!imagePath) return;
+    const rawRoot = preferences.get('paths.rawRoot');
+    try {
+      const res = await window.ansiktenAPI?.invoke('open-raw-in-lightroom', { imagePath, rawRoot });
+      if (res?.ok) return;
+      const reason = res?.reason;
+      if (reason === 'not-found') {
+        setError(`Ingen NEF hittad för ${res.token} i ${rawRoot}`);
+      } else if (reason === 'no-timestamp') {
+        setError('Kunde inte härleda tidsstämpel ur filnamnet');
+      } else if (reason === 'unsupported-platform') {
+        setError('Öppna i Lightroom stöds bara på macOS');
+      } else {
+        setError(`Kunde inte öppna i Lightroom${res?.error ? `: ${res.error}` : ''}`);
+      }
+    } catch (err) {
+      setError(err.message || String(err));
+    }
+  }, []);
+  // Latest "open current" fn for the keydown handler (captures the current
+  // selection each render without re-subscribing the key listener).
+  const openRawRef = useRef(null);
+  openRawRef.current = () => openRawInLightroom(current?.path);
+  // Menu command (View menu / ⌘⇧L) → same action as the `l` key.
+  useModuleEvent('open-raw-in-lightroom', () => openRawRef.current?.());
 
   // Resolve the preview for the current file. RAW is converted via the NEF
   // pipeline; the cancelled guard prevents a slow conversion from painting over
@@ -1278,6 +1313,10 @@ export function CullingModule({ node }) {
           </li>
           <li onClick={() => { setMenu(null); undoTrash(); }}>
             <span>Ångra senaste</span><span className="culling-menu-keys"><kbd>⌘</kbd><kbd>Z</kbd></span>
+          </li>
+          <li className="culling-menu-sep" role="separator" />
+          <li onClick={() => { const p = menu.path; setMenu(null); openRawInLightroom(p); }}>
+            <span>Öppna i Lightroom</span><span className="culling-menu-keys"><kbd>L</kbd></span>
           </li>
         </ul>
       )}

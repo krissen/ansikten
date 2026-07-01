@@ -69,6 +69,11 @@ export class PreferencesManager {
       culling: {
         autoAdvanceAfterRename: true // Move to the next file after a rename in Gallra spelare
       },
+      paths: {
+        // Root searched recursively to resolve the original NEF for a developed
+        // JPEG in culling ("Öppna i Lightroom"). ~/ is expanded in the main process.
+        rawRoot: '~/Pictures/nerladdat'
+      },
       preprocessing: {
         enabled: true,              // Master switch for background preprocessing
         steps: {

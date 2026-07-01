@@ -479,6 +479,15 @@ export function PreferencesModule({ api }) {
 
   const renderFilesSection = () => (
     <>
+      <SectionHeader title="Culling / Lightroom" />
+      <TextField
+        label="RAW-mapp (NEF)"
+        hint="Rot som söks rekursivt för original-NEF vid 'Öppna i Lightroom' (tangent L) i Gallra spelare. ~/ tillåtet."
+        value={prefs.paths?.rawRoot ?? '~/Pictures/nerladdat'}
+        onChange={(v) => updatePref('paths.rawRoot', v)}
+        placeholder="~/Pictures/nerladdat"
+      />
+
       <SectionHeader title="File Queue" />
       <CheckboxField
         label="Auto-load from queue on startup"
