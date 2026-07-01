@@ -20,4 +20,5 @@ module.exports = {
   errors: require('./errors'),
   workspace: require('./workspace'),
   dialogs: require('./dialogs'),
+  shortcuts: require('./shortcuts'),
 };
