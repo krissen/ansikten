@@ -97,7 +97,7 @@ CLI-paritet — launch-kommandot mot fler arbetsflöden:
   - [x] **Grund + workspace-flik-etiketter** (i18n-infra `t()` + `sv.js`; `MODULE_TITLES` + `layouts.js`-fliknamn härleds nu ur katalogen; delade `common`-strängar). Enhetstestad; main-proc CJS-require verifierad.
   - [x] **Menyn** (`frontend/src/main/menu.js`) — hela app-menyn (File/Edit/View/Window/Help/Tema + mac-appmenyn) migrerad till `t()` via `menu.*`-namnrymden; modul-öppna-poster återanvänder `modules.*`. **"Öppna i Lightroom" flyttad från View → Arkiv.** Verifierat att main-processens CJS-`require('../i18n')` funkar och packas (`src/**/*`).
   - [x] **Preferences** (~180 str) — hela PreferencesModule migrerad till `t()` via `preferences.*`-namnrymden (sektioner/fält/hintar/options/dialoger); Spara/Återställ återanvänder `common.*`.
-  - [ ] **ThemeEditor** (~80).
+  - [x] **ThemeEditor** (~65 str) — kategorier, variabel-etiketter, temaläges-options, förval-labels, export/import migrerade via `themeEditor.*`.
   - [ ] **Database Management** (~75), **Refine Faces** (~55), **Statistics** (~35), **Log Viewer** (~25), **ConnectionStatus** (2).
   - [ ] **FileQueue** (~74, kritisk), **ReviewModule** (~21: `Confirm name change`/`Best match`/`You chose…` + status-toaster), **OriginalView** (~7), **ImageViewer** (~4).
   - [ ] **PlayerCount** (2: `Per match`, `Matchgap`), **StartupStatus** (~11), genvägshjälpen (~50), api-client-toaster.
