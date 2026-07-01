@@ -15,7 +15,7 @@
  *   t('common.selectedCount', { count: 2 })        // interpolation + plural → "2 valda"
  */
 
-const sv = require('./sv.js');
+const sv = require('./sv/index.js');
 
 const catalogs = { sv };
 let locale = 'sv';

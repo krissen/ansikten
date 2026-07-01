@@ -1,0 +1,20 @@
+// Swedish string catalog — assembled from per-namespace files so each module
+// can be migrated in its own file without touching a shared catalog.
+module.exports = {
+  common: require('./common'),
+  menu: require('./menu'),
+  modules: require('./modules'),
+  preferences: require('./preferences'),
+  themeEditor: require('./themeEditor'),
+  database: require('./database'),
+  refineFaces: require('./refineFaces'),
+  statistics: require('./statistics'),
+  logs: require('./logs'),
+  connection: require('./connection'),
+  fileQueue: require('./fileQueue'),
+  review: require('./review'),
+  imageViewer: require('./imageViewer'),
+  originalView: require('./originalView'),
+  startupStatus: require('./startupStatus'),
+  playerCount: require('./playerCount'),
+};
