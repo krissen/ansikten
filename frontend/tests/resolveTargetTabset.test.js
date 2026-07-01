@@ -40,6 +40,7 @@ describe('resolveTargetTabset', () => {
     model.visitNodes((n) => {
       if (n.getType() === 'tabset' && n.getWeight() === 15) narrow = n;
     });
+    expect(narrow).toBeTruthy(); // guard: fail clearly if the layout shape changes
     // Make the narrow tabset active; resolveTargetTabset must honor it.
     model.doAction(Actions.setActiveTabset(narrow.getId()));
     expect(resolveTargetTabset(model).getId()).toBe(narrow.getId());
