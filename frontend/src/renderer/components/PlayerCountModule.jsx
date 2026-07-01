@@ -435,7 +435,10 @@ export function CountOptions({
   };
 
   const total =
-    exclusions.tranare.length + exclusions.publik.length + (alwaysMarkers.publik?.length || 0);
+    exclusions.tranare.length +
+    exclusions.publik.length +
+    (alwaysMarkers.publik?.length || 0) +
+    (alwaysMarkers.grupp?.length || 0);
 
   return (
     <div className="player-count-options">
@@ -507,6 +510,15 @@ export function CountOptions({
             onRemove={onRemoveExcluded}
             busy={busy}
           />
+          {(alwaysMarkers.grupp || []).length > 0 && (
+            <ExclusionList
+              title="Gruppbilder"
+              kind="grupp"
+              names={[]}
+              locked={alwaysMarkers.grupp || []}
+              readOnly
+            />
+          )}
           <div className="pc-actions">
             <button
               type="button"
@@ -534,9 +546,10 @@ export function CountOptions({
   );
 }
 
-// One editable exclusion list (Tränare or Publik): locked always-markers first,
-// then removable chips, then an add-name field. `onAdd`/`onRemove` take (kind, name).
-function ExclusionList({ title, kind, names, locked, onAdd, onRemove, busy }) {
+// One exclusion list: locked always-markers first, then removable chips, then an
+// add-name field. `readOnly` (e.g. the always-only Gruppbilder row) drops the
+// remove buttons and add field. `onAdd`/`onRemove` take (kind, name).
+function ExclusionList({ title, kind, names, locked, onAdd, onRemove, busy, readOnly = false }) {
   const [draft, setDraft] = useState('');
   const commit = () => {
     onAdd(kind, draft);
@@ -551,7 +564,7 @@ function ExclusionList({ title, kind, names, locked, onAdd, onRemove, busy }) {
             {name}
           </span>
         ))}
-        {names.map((name) => (
+        {!readOnly && names.map((name) => (
           <span className="pc-chip" key={name}>
             <span className="pc-chip-label">{name}</span>
             <button
@@ -569,20 +582,22 @@ function ExclusionList({ title, kind, names, locked, onAdd, onRemove, busy }) {
           <span className="player-count-dim pc-empty">inga</span>
         )}
       </div>
-      <input
-        className="form-input pc-add"
-        type="text"
-        placeholder={`Lägg till ${title.toLowerCase()}…`}
-        value={draft}
-        onChange={(e) => setDraft(e.target.value)}
-        onKeyDown={(e) => {
-          if (e.key === 'Enter') {
-            e.preventDefault();
-            commit();
-          }
-        }}
-        disabled={busy}
-      />
+      {!readOnly && (
+        <input
+          className="form-input pc-add"
+          type="text"
+          placeholder={`Lägg till ${title.toLowerCase()}…`}
+          value={draft}
+          onChange={(e) => setDraft(e.target.value)}
+          onKeyDown={(e) => {
+            if (e.key === 'Enter') {
+              e.preventDefault();
+              commit();
+            }
+          }}
+          disabled={busy}
+        />
+      )}
     </div>
   );
 }

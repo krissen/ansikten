@@ -92,8 +92,11 @@ describe('CountOptions', () => {
     fireEvent.click(screen.getByText(/Uteslutna/));
     expect(screen.getByText('Tränare')).toBeTruthy();
     expect(screen.getByText('Publik')).toBeTruthy();
-    // Klacken is an always-marker → rendered as a locked chip.
-    expect(screen.getByTitle('Alltid utesluten').textContent).toBe('Klacken');
+    // The Gruppbilder row renders for the group always-markers.
+    expect(screen.getByText('Gruppbilder')).toBeTruthy();
+    // All always-markers (publik + grupp) are rendered as locked chips.
+    const locked = screen.getAllByTitle('Alltid utesluten').map((el) => el.textContent);
+    expect(locked).toEqual(expect.arrayContaining(['Klacken', 'Laget', 'FBK']));
   });
 
   it('disables "Spara som standard" until there are unsaved edits', () => {

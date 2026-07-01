@@ -66,9 +66,13 @@ def save_exclusion_config(
         "grupp": _clean(grupp, ALWAYS_GRUPP) if grupp is not None else list(existing.get("grupp", [])),
     }
 
+    # Atomic write (tmp + replace) so a crash mid-write can't leave a
+    # half-written config that zeroes the exclusion lists on the next load.
     CONFIG_DIR.mkdir(parents=True, exist_ok=True)
-    with open(CONFIG_FILE, "w") as f:
+    tmp = CONFIG_FILE.with_suffix(".json.tmp")
+    with open(tmp, "w") as f:
         json.dump(config, f, ensure_ascii=False, indent=2)
+    tmp.replace(CONFIG_FILE)
     return config
 
 
