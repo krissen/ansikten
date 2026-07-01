@@ -407,15 +407,14 @@ function ExcludedSections({ excluded }) {
 }
 
 // Total distinct names + excluded count for a match, mirroring the CLI's
-// `total_in_list` / `excluded_count` in print_section (players + all four
-// excluded buckets).
+// `total_in_list` / `excluded_count` in print_section (players + all excluded
+// buckets). Sums over the same bucket keys `ExcludedSections` renders, so the
+// two never drift.
 function excludedCount(excluded) {
   if (!excluded) return 0;
-  return (
-    (excluded.tranare?.length || 0) +
-    (excluded.publik?.length || 0) +
-    (excluded.grupp?.length || 0) +
-    (excluded.below_threshold?.length || 0)
+  return Object.keys(EXCLUDED_LABELS).reduce(
+    (sum, key) => sum + (excluded[key]?.length || 0),
+    0
   );
 }
 
