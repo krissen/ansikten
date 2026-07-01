@@ -446,4 +446,130 @@ module.exports = {
         'Aktivera/inaktivera felsökningsutdata per kategori. Varningar och fel visas alltid.',
     },
   },
+
+  // ThemeEditor (frontend/src/renderer/components/ThemeEditor.jsx). Sub-objects
+  // mirror the UI: sidebar titles, category names, per-variable labels, the
+  // theme-mode selector, preset bindings and action buttons. Save/Reset reuse
+  // common.save/common.reset; brand preset names (Terminal Beige, CRT Phosphor)
+  // stay untranslated in code. Shared size labels (Small/Medium/…) live in
+  // `themeEditor.sizes` and are reused by both Spacing and Border Radius.
+  themeEditor: {
+    sidebar: {
+      categories: 'Kategorier',
+      presets: 'Förval',
+    },
+
+    // Category names (the VARIABLE_GROUPS keys stay English identifiers; these
+    // are the displayed titles).
+    categories: {
+      themeMode: 'Temaläge',
+      tabAppearance: 'Flikutseende',
+      backgrounds: 'Bakgrunder',
+      textColors: 'Textfärger',
+      borders: 'Ramar',
+      accentColors: 'Accentfärger',
+      semanticColors: 'Semantiska färger',
+      overlayColors: 'Överläggsfärger',
+      spacing: 'Mellanrum',
+      borderRadius: 'Hörnradie',
+      opacity: 'Opacitet',
+    },
+
+    // Shared size labels, reused by Spacing and Border Radius.
+    sizes: {
+      extraSmall: 'Extra litet',
+      small: 'Litet',
+      medium: 'Mellan',
+      large: 'Stort',
+      extraLarge: 'Extra stort',
+      xxLarge: '2× stort',
+    },
+
+    // Per-variable labels, grouped to mirror the categories.
+    vars: {
+      tabs: {
+        height: 'Flikhöjd',
+        fontSize: 'Teckenstorlek',
+        paddingLeft: 'Vänsterutfyllnad',
+        paddingRight: 'Högerutfyllnad',
+        minGap: 'Minsta mellanrum',
+        minWidth: 'Minsta bredd (0=auto)',
+      },
+      bg: {
+        primary: 'Primär bakgrund',
+        secondary: 'Sekundär bakgrund',
+        tertiary: 'Tertiär bakgrund',
+        elevated: 'Upphöjd (kort)',
+        hover: 'Vid hovring',
+        active: 'Aktivt läge',
+      },
+      text: {
+        primary: 'Primär text',
+        secondary: 'Sekundär text',
+        tertiary: 'Tertiär text',
+        inverse: 'Inverterad text',
+        onAccent: 'Text på accent',
+      },
+      border: {
+        subtle: 'Diskret ram',
+        medium: 'Medelkraftig ram',
+        strong: 'Kraftig ram',
+      },
+      accent: {
+        primary: 'Primär accent',
+        primaryHover: 'Primär hovring',
+        secondary: 'Sekundär accent',
+        secondaryHover: 'Sekundär hovring',
+      },
+      semantic: {
+        success: 'Framgång',
+        successBg: 'Framgångsbakgrund',
+        warning: 'Varning',
+        warningBg: 'Varningsbakgrund',
+        error: 'Fel',
+        errorBg: 'Felbakgrund',
+        info: 'Info',
+        infoBg: 'Infobakgrund',
+        successText: 'Framgång (text)',
+        warningText: 'Varning (text)',
+        errorText: 'Fel (text)',
+      },
+      overlay: {
+        bg: 'Överläggsbakgrund',
+        text: 'Överläggstext',
+      },
+      opacity: {
+        toast: 'Aviseringsopacitet',
+        overlay: 'Överläggsopacitet',
+      },
+    },
+
+    // Theme-mode selector option labels (the option VALUES stay light/dark/system).
+    themeModeOptions: {
+      light: 'Ljust',
+      dark: 'Mörkt',
+      system: 'Följ system',
+    },
+
+    labels: {
+      currentTheme: 'Aktuellt tema:',
+      presetBindings: 'Förvalsbindningar',
+      lightModePreset: 'Förval för ljust läge:',
+      darkModePreset: 'Förval för mörkt läge:',
+    },
+
+    hints: {
+      followingSystem: 'Följer systemet (för närvarande {theme})',
+      usingTheme: 'Använder {theme}-tema',
+      presetBindings: 'Välj vilket förval som ska användas för varje temaläge',
+    },
+
+    presetNamePlaceholder: 'Förvalsnamn…',
+    deleteTitle: 'Ta bort',
+
+    buttons: {
+      export: 'Exportera',
+      import: 'Importera',
+    },
+  },
 };
