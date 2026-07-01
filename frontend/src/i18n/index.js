@@ -9,10 +9,10 @@
  * leaves the door open to adding locales later without touching call sites.
  *
  * Usage:
- *   const { t } = require('../i18n');   // main process
- *   import { t } from '../../i18n';     // renderer (esbuild resolves CJS)
- *   t('modules.faceReview')                       // → "Granska ansikten"
- *   t('queue.saved', { name: 'a.nef', count: 2 }) // interpolation + plural
+ *   const { t } = require('./i18n');    // main process (relative to menu.js: ../i18n)
+ *   import { t } from '../../../i18n/index.js';    // renderer (esbuild resolves CJS)
+ *   t('modules.review-module')                     // → "Granska ansikten"
+ *   t('common.selectedCount', { count: 2 })        // interpolation + plural → "2 valda"
  */
 
 const sv = require('./sv.js');
@@ -46,8 +46,17 @@ function interpolate(str, vars) {
 function t(key, vars = {}) {
   let entry = resolve(catalogs[locale], key);
   if (entry == null) return key;
-  if (typeof entry === 'object' && ('one' in entry || 'other' in entry)) {
-    entry = vars.count === 1 ? (entry.one != null ? entry.one : entry.other) : entry.other;
+  if (typeof entry === 'object') {
+    if ('one' in entry || 'other' in entry) {
+      // Pick by count, but fall back to whichever plural form exists so a
+      // half-defined entry can't render as the literal "undefined".
+      const picked = vars.count === 1 ? entry.one : entry.other;
+      entry = picked != null ? picked : entry.other != null ? entry.other : entry.one;
+    } else {
+      // A namespace object, not a leaf string — treat as a missing key.
+      return key;
+    }
+    if (entry == null) return key;
   }
   return interpolate(entry, vars);
 }

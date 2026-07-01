@@ -19,6 +19,13 @@ describe('i18n t()', () => {
 
   it('interpolates {vars} and leaves unknown placeholders intact', () => {
     expect(t('common.selectedCount', { count: 3 })).toBe('3 valda');
+    // Missing variable → the placeholder stays visible rather than blanking.
+    expect(t('common.selectedCount')).toBe('{count} valda');
+  });
+
+  it('returns the key for a namespace object (not a leaf string)', () => {
+    expect(t('modules')).toBe('modules');
+    expect(t('common')).toBe('common');
   });
 
   it('selects the plural form by count', () => {
