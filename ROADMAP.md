@@ -1,6 +1,9 @@
-# TODO - Ansikten
+# ROADMAP - Ansikten
 
-Konsoliderad lista över planerade förbättringar, kända brister och teknisk skuld.
+Framåtblickande lista över planerade förbättringar, kända brister och teknisk
+skuld. Den är *inte* en logg över vad som gjorts — avklarade poster tas bort
+efter merge (om de inte hänger ihop med pågående arbete); `CHANGELOG.md` är den
+varaktiga posten över vad som skeppats.
 
 **Senast uppdaterad:** 2026-07-01
 
@@ -64,8 +67,8 @@ CLI-paritet — launch-kommandot mot fler arbetsflöden:
 - [ ] **Modulgenvägar bör villkoras på aktiv tabset, inte bara synlighet** — globala tangentlyssnare (t.ex. ReviewModule som bekräftar ansikte på `Enter`) gatar idag på `node.isVisible()`. I en delad layout med flera synliga paneler fångar då en *synlig men inaktiv* panel tangenter som hör till den aktiva. CullingModule försvarar sig redan (Enter-genväg på document i capture-fas + aktiv-tabset-gate + `stopImmediatePropagation`), men det generella mönstret kvarstår för övriga moduler. ReviewModule m.fl. bör gatas på aktiv tabset. **Varning:** måste inte bryta Reviews normala flöde där man klickar i bildvisaren och sedan trycker tangent (då blir bildvisarens tabset aktiv) — kräver genomtänkt fokus-/aktiv-modell, egen PR.
 - [ ] **Arbetsflödes-layoutpresets** — spara flerfönsterkonfigurationer per uppgift (t.ex. NEF-culling = fillista vänster + maximal preview höger). De flesta vyer är single-instance: öppna inte flera, skifta fokus till befintlig.
 - [ ] **Positions-/progressindikator i culling** — visa var i listan användaren står (fil X/N; granskade gröna, resten grå) i fillistan eller filterraden.
-- [ ] **Omfattande docs-uppdatering** — TODO.md/övriga docs är inaktuella; genomgång + uppdatering (stort jobb, egen PR).
-- [ ] **Tydliggör TODO.md vs `docs/dev/roadmap.md`** — definiera rollerna (TODO.md = löpande backlog/known issues/teknisk skuld per horisont; roadmap.md = release-scopad plan med sprintar/deliverables/DoD), korslänka dem, och uppdatera `docs/dev/roadmap.md` (inaktuell: scopar `v1.2.0` fast vi passerat 1.3.0) eller arkivera den som historik. **När rollfördelningen fastställts: dokumentera den i CLAUDE.md (kanonisk) så den inte glöms.**
+- [ ] **Omfattande docs-uppdatering** — ROADMAP.md/övriga docs är inaktuella; genomgång + uppdatering (stort jobb, egen PR).
+- [ ] **Lös namnkrock + tydliggör `ROADMAP.md` vs `docs/dev/roadmap.md`** — sedan `TODO.md` döpts om till `ROADMAP.md` finns två "roadmap"-filer. Definiera rollerna (`ROADMAP.md` = löpande, framåtblickande backlog/known issues/teknisk skuld per horisont; `docs/dev/roadmap.md` = release-scopad plan med sprintar/deliverables/DoD), korslänka dem, och uppdatera `docs/dev/roadmap.md` (inaktuell: scopar `v1.2.0` fast vi passerat 1.3.0) eller arkivera den som historik (ev. döp om den för att undvika förväxling). **När rollfördelningen fastställts: dokumentera den i CLAUDE.md (kanonisk) så den inte glöms.**
 
 ### Lång sikt
 

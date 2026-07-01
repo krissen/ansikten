@@ -32,9 +32,9 @@ shared guidance, update CLAUDE.md (canonical) and mirror anything essential here
 | UI / keyboard shortcut | `docs/user/workspace-guide.md` |
 | Config | `docs/dev/database.md` |
 
-Minimum: note gaps in `TODO.md` under "Kända brister > Dokumentation". Ideal: update docs alongside code.
+Minimum: note gaps in `ROADMAP.md` under "Kända brister > Dokumentation". Ideal: update docs alongside code.
 
 ## Working process
 - **One PR per thing**; don't fold unrelated work together.
-- **Log TODOs immediately** in `TODO.md` so they aren't lost between sessions.
-- **Keep `TODO.md` (roadmap) and `CHANGELOG.md` `[Unreleased]` current** with every change.
+- **Log TODOs immediately** in `ROADMAP.md` so they aren't lost between sessions.
+- **Keep `ROADMAP.md` (roadmap) and `CHANGELOG.md` `[Unreleased]` current** with every change.

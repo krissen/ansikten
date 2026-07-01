@@ -249,7 +249,7 @@ The suite is small, so also test manually:
 | Config change | Update [Database](docs/dev/database.md) |
 | UI change / keyboard shortcut | Update [Workspace Guide](docs/user/workspace-guide.md) |
 
-- **MINIMUM**: Note gaps in [TODO.md](TODO.md) under "Kända brister > Dokumentation"
+- **MINIMUM**: Note gaps in [ROADMAP.md](ROADMAP.md) under "Kända brister > Dokumentation"
 - **IDEAL**: Update the actual docs alongside the code
 
 ---
@@ -273,8 +273,8 @@ The suite is small, so also test manually:
 ## Working Process
 
 - **One PR per thing** — one focused PR per discrete change; don't fold unrelated work together.
-- **Log TODOs immediately** — when the user adds work, or a gap is found, add it to [TODO.md](TODO.md) right away so it isn't lost with the session.
-- **Keep roadmap + changelog current** — every change updates [TODO.md](TODO.md) (the roadmap) and [CHANGELOG.md](CHANGELOG.md) `[Unreleased]` as part of the work, so any new session can resume from the docs alone.
+- **Log TODOs immediately** — when the user adds work, or a gap is found, add it to [ROADMAP.md](ROADMAP.md) right away so it isn't lost with the session.
+- **Keep roadmap + changelog current** — every change updates [ROADMAP.md](ROADMAP.md) (the roadmap) and [CHANGELOG.md](CHANGELOG.md) `[Unreleased]` as part of the work, so any new session can resume from the docs alone.
 
 ---
 
