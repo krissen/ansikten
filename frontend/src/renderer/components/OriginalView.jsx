@@ -13,6 +13,7 @@ import { useKeyboardShortcuts } from '../hooks/useKeyboardShortcuts.js';
 import { useCanvasDimensions } from '../hooks/useCanvas.js';
 import { useBackend } from '../context/BackendContext.jsx';
 import { debug, debugWarn, debugError } from '../shared/debug.js';
+import { t } from '../../i18n/index.js';
 import './OriginalView.css';
 
 // Constants
@@ -47,7 +48,7 @@ export function OriginalView() {
 
   // Loading state
   const [isLoading, setIsLoading] = useState(false);
-  const [placeholder, setPlaceholder] = useState('Waiting for NEF file...');
+  const [placeholder, setPlaceholder] = useState(t('originalView.waiting'));
 
   // Canvas dimensions
   const dimensions = useCanvasDimensions(containerRef);
@@ -67,7 +68,7 @@ export function OriginalView() {
     if (!isNef) {
       debug('OriginalView', 'Not a NEF file, skipping');
       setImage(null);
-      setPlaceholder('Not a NEF file');
+      setPlaceholder(t('originalView.notNef'));
       return;
     }
 
@@ -75,13 +76,13 @@ export function OriginalView() {
     let nefPath = imagePath;
     if (imagePath.includes('_converted.jpg')) {
       debug('OriginalView', 'Converted JPG detected, original path unknown');
-      setPlaceholder('Original NEF path unknown');
+      setPlaceholder(t('originalView.unknownPath'));
       return;
     }
 
     setCurrentNefPath(nefPath);
     setIsLoading(true);
-    setPlaceholder('Loading original...');
+    setPlaceholder(t('originalView.loading'));
 
     try {
       debug('OriginalView', `Loading original: ${nefPath}`);
@@ -90,7 +91,7 @@ export function OriginalView() {
       const result = await api.post('/api/v1/preprocessing/nef', { file_path: nefPath });
 
       if (result.status === 'error') {
-        throw new Error(result.error || 'NEF conversion failed');
+        throw new Error(result.error || t('originalView.conversionFailed'));
       }
 
       const jpgPath = result.nef_jpg_path;
@@ -100,7 +101,7 @@ export function OriginalView() {
       const img = new Image();
       await new Promise((resolve, reject) => {
         img.onload = () => resolve();
-        img.onerror = (err) => reject(new Error('Failed to load image'));
+        img.onerror = (err) => reject(new Error(t('originalView.loadImageFailed')));
         const imageSrc = jpgPath.startsWith('file://') ? jpgPath : 'file://' + jpgPath;
         img.src = imageSrc;
       });
@@ -116,7 +117,7 @@ export function OriginalView() {
     } catch (err) {
       debugError('OriginalView', 'Failed to load original:', err);
       setIsLoading(false);
-      setPlaceholder(`Error: ${err.message}`);
+      setPlaceholder(t('originalView.error', { message: err.message }));
     }
   }, [api]);
 
@@ -346,14 +347,14 @@ export function OriginalView() {
 
       {/* Sync indicator */}
       <div className={`sync-indicator ${isSynced ? 'synced' : 'detached'}`}>
-        {isSynced ? '🔗 Synced' : '🔓 Detached'}
+        {isSynced ? t('originalView.synced') : t('originalView.detached')}
       </div>
 
       {/* Loading/placeholder */}
       {(isLoading || placeholder) && !image && (
         <div className="original-view-placeholder">
           <div className="placeholder-icon">📷</div>
-          <div>{isLoading ? 'Loading original...' : placeholder}</div>
+          <div>{isLoading ? t('originalView.loading') : placeholder}</div>
         </div>
       )}
     </div>

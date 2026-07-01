@@ -3,6 +3,7 @@ import { useBackend } from '../context/BackendContext.jsx';
 import { apiClient } from '../shared/api-client.js';
 import { debugError } from '../shared/debug.js';
 import { Icon } from './Icon.jsx';
+import { t } from '../../i18n/index.js';
 import './StartupStatus.css';
 
 const STATUS_ICONS = {
@@ -20,16 +21,16 @@ const STATE_CLASS = {
 };
 
 const COMPONENT_LABELS = {
-  backend: 'Backend',
-  database: 'Database',
-  mlModels: 'ML Models'
+  backend: t('startupStatus.labels.backend'),
+  database: t('startupStatus.labels.database'),
+  mlModels: t('startupStatus.labels.mlModels')
 };
 
 const INITIAL_STATUS = {
   items: {
-    backend: { state: 'loading', message: 'Connecting...' },
-    database: { state: 'pending', message: 'Waiting...' },
-    mlModels: { state: 'pending', message: 'Waiting...' }
+    backend: { state: 'loading', message: t('startupStatus.status.connecting') },
+    database: { state: 'pending', message: t('startupStatus.status.waiting') },
+    mlModels: { state: 'pending', message: t('startupStatus.status.waiting') }
   },
   allReady: false,
   hasError: false
@@ -79,7 +80,7 @@ export function StartupStatus() {
       ...prev,
       items: {
         ...prev.items,
-        backend: { state: 'ready', message: 'Connected' }
+        backend: { state: 'ready', message: t('startupStatus.status.connected') }
       }
     }));
 
@@ -98,15 +99,15 @@ export function StartupStatus() {
   );
   const startupDone = allReady || (!anyLoading && hasError);
   
-  let headerText = 'Starting...';
-  if (allReady) headerText = 'Ready';
-  else if (startupDone && hasError) headerText = 'Startup Error';
+  let headerText = t('startupStatus.status.starting');
+  if (allReady) headerText = t('startupStatus.status.ready');
+  else if (startupDone && hasError) headerText = t('startupStatus.status.error');
 
   return (
     <div 
       className={`startup-status ${fadeOut ? 'fade-out' : ''} ${allReady ? 'all-ready' : ''} ${startupDone && hasError ? 'has-error' : ''}`}
       onClick={handleDismiss}
-      title="Click to dismiss"
+      title={t('startupStatus.dismiss')}
     >
       <div className="startup-status-header">
         {headerText}

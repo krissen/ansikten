@@ -12,6 +12,7 @@ import { useBackend } from '../context/BackendContext.jsx';
 import { useModuleAPI } from '../hooks/useModuleEvent.js';
 import { InputBar, EMPTY_INPUT } from './InputBar.jsx';
 import { getScanScope, setScanScope, scanScopeHasSelection, signalExternalLoad } from '../shared/scanScope.js';
+import { t } from '../../i18n/index.js';
 import './PlayerCountModule.css';
 
 const REFRESH_DEBOUNCE_MS = 400;
@@ -345,7 +346,7 @@ export function PlayerCountModule() {
                 if (lastParamsRef.current) submitWith(input, v);
               }}
             />
-            Per match
+            {t('playerCount.perMatch')}
           </label>
           {isRefreshing && <span className="player-count-refreshing">uppdaterar…</span>}
         </div>
@@ -463,7 +464,7 @@ export function CountOptions({
     <div className="player-count-options">
       <div className="player-count-options-row">
         <label className="pc-option">
-          Matchgap (min)
+          {t('playerCount.matchGap')}
           <input
             className="form-input pc-num"
             type="number"

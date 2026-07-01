@@ -16,6 +16,7 @@ import { debug, debugWarn, debugError } from '../shared/debug.js';
 import { apiClient } from '../shared/api-client.js';
 import { preferences } from '../workspace/preferences.js';
 import { LoadingOverlay } from './ProgressBar.jsx';
+import { t } from '../../i18n/index.js';
 import './ImageViewer.css';
 
 // Constants (will be user-configurable in Phase 4)
@@ -96,10 +97,10 @@ export function ImageViewer() {
 
         if (result.status === 'cached') {
           debug('ImageViewer', 'Using cached JPG:', result.nef_jpg_path);
-          setLoadingMessage('Loading from cache...');
+          setLoadingMessage(t('imageViewer.loadingFromCache'));
         } else if (result.status === 'completed') {
           debug('ImageViewer', 'NEF converted and cached:', result.nef_jpg_path);
-          setLoadingMessage('Converting NEF file...');
+          setLoadingMessage(t('imageViewer.convertingNef'));
         } else if (result.status === 'error') {
           throw new Error(result.error || 'NEF conversion failed');
         }
@@ -271,7 +272,7 @@ export function ImageViewer() {
       const getFirstAlternativeName = () => {
         if (face.person_name) return face.person_name;
         const first = face.match_alternatives?.[0];
-        if (!first) return 'Unknown';
+        if (!first) return t('imageViewer.unknown');
         return first.is_ignored ? 'ign' : first.name;
       };
 
@@ -289,7 +290,7 @@ export function ImageViewer() {
           ? `${faceNumber}. ign? (${best.confidence}%)`
           : `${faceNumber}. ${best.name}? (${best.confidence}%)`;
       } else {
-        labelText = `${faceNumber}. Unknown`;
+        labelText = `${faceNumber}. ${t('imageViewer.unknown')}`;
       }
 
       if (labelText) {
@@ -854,19 +855,19 @@ export function ImageViewer() {
       {!image && !isLoading && (
         <div className="image-viewer-placeholder">
           <div className="placeholder-icon">📷</div>
-          <div>No image loaded</div>
-          <div className="placeholder-hint">Open an image to get started</div>
+          <div>{t('imageViewer.noImage')}</div>
+          <div className="placeholder-hint">{t('imageViewer.openHint')}</div>
         </div>
       )}
       {showFileInfo && image && (
         <div className="file-info-overlay">
           <div className="file-info-filename">
-            {originalImagePath?.split('/').pop() || 'Unknown'}
+            {originalImagePath?.split('/').pop() || t('imageViewer.unknown')}
           </div>
           {queueStatus && (
             <div className="file-info-queue">
               <span className="file-info-progress-text">
-                {queueStatus.done} done · {queueStatus.remaining} left
+                {t('imageViewer.queueProgress', { done: queueStatus.done, remaining: queueStatus.remaining })}
               </span>
               <div className="file-info-progress-bar">
                 <div
