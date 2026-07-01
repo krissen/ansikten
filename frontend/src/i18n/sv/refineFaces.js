@@ -74,16 +74,16 @@ module.exports = {
     "noEncodingsToRemove": "Inga kodningar att ta bort med nuvarande inställningar.",
     "previewFailed": "Förhandsgranskning misslyckades: {error}",
     "runPreviewFirst": "Kör förhandsgranskning först",
-    "simulateConfirm": "Vill du simulera borttagning av {count} kodningar från {people} personer?",
-    "removeConfirm": "Vill du ta bort {count} kodningar från {people} personer?",
-    "dryRunRemoved": "Simulering: {count} kodningar skulle tas bort",
-    "removed": "{count} kodningar borttagna",
+    "simulateConfirm": { "one": "Vill du simulera borttagning av {count} kodning från {people} personer?", "other": "Vill du simulera borttagning av {count} kodningar från {people} personer?" },
+    "removeConfirm": { "one": "Vill du ta bort {count} kodning från {people} personer?", "other": "Vill du ta bort {count} kodningar från {people} personer?" },
+    "dryRunRemoved": { "one": "Simulering: {count} kodning skulle tas bort", "other": "Simulering: {count} kodningar skulle tas bort" },
+    "removed": { "one": "{count} kodning borttagen", "other": "{count} kodningar borttagna" },
     "applyFailed": "Tillämpning misslyckades: {error}",
     "noInconsistentShapes": "Inga inkonsekventa former hittades.",
     "repairDetail": "{person}: {removed} av {total} (behåller {shape})",
-    "repairAlert": "Formreparation skulle ta bort {count} kodningar:\n\n{details}",
-    "dryRunWrongShape": "Simulering: {count} kodningar med fel form",
-    "inconsistentShapeRemoved": "{count} kodningar med inkonsekvent form borttagna",
+    "repairAlert": { "one": "Formreparation skulle ta bort {count} kodning:\n\n{details}", "other": "Formreparation skulle ta bort {count} kodningar:\n\n{details}" },
+    "dryRunWrongShape": { "one": "Simulering: {count} kodning med fel form", "other": "Simulering: {count} kodningar med fel form" },
+    "inconsistentShapeRemoved": { "one": "{count} kodning med inkonsekvent form borttagen", "other": "{count} kodningar med inkonsekvent form borttagna" },
     "repairFailed": "Formreparation misslyckades: {error}"
   }
 };
