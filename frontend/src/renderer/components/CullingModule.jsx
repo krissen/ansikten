@@ -646,6 +646,19 @@ export function CullingModule({ node }) {
       // chip (e.g. right after a ⌘↵ rename).
       if (isTextField) return;
 
+      // Esc discards the current file's pending name toggles (the row un-oranges
+      // when nothing is pending) — the only "undo pending edit" affordance from
+      // the main window, and it does NOT open the navigation dialog. The confirm
+      // dialog owns Esc while it's open (early return above). No-op when there's
+      // nothing pending, so other Esc handlers stay free.
+      if (e.key === 'Escape') {
+        if (removedNamesRef.current.size > 0) {
+          e.preventDefault();
+          setRemovedNames(new Set());
+        }
+        return;
+      }
+
       // Next: →/↓/j, Previous: ←/↑/k. Alt+direction pages by PAGE_STEP.
       const step = e.altKey ? PAGE_STEP : 1;
       if (e.key === 'ArrowDown' || e.key === 'ArrowRight' || e.key === 'j') {
