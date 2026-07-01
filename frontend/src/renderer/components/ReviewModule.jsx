@@ -569,7 +569,7 @@ export function ReviewModule({ node }) {
   const discardChanges = useCallback(() => {
     if (pendingConfirmations.length === 0 && pendingIgnores.length === 0) return;
 
-    if (!confirm(t('review.dialogs.discardConfirm', { count: pendingConfirmations.length + pendingIgnores.length }))) return;
+    if (!confirm(t('review.dialog.discardConfirm', { count: pendingConfirmations.length + pendingIgnores.length }))) return;
 
     // Reset face states
     setDetectedFaces(prev => prev.map(face => {

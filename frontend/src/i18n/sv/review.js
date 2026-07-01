@@ -42,13 +42,6 @@ module.exports = {
     "undoIgnore": "Ångra: ignorera"
   },
 
-  "dialogs": {
-    "discardConfirm": {
-      "one": "Kasta {count} osparad ändring?",
-      "other": "Kasta {count} osparade ändringar?"
-    }
-  },
-
   "dialog": {
     "confirmNameChange": "Bekräfta namnändring",
     "confirmIgnore": "Bekräfta ignorering",
@@ -56,6 +49,10 @@ module.exports = {
     "nameMismatch": "Du valde \"{name}\" istället. Är du säker?",
     "ignoreConfirm": "Du valde att ignorera det här ansiktet. Är du säker?",
     "hintConfirms": "bekräftar",
-    "hintCancels": "avbryter"
+    "hintCancels": "avbryter",
+    "discardConfirm": {
+      "one": "Kasta {count} osparad ändring?",
+      "other": "Kasta {count} osparade ändringar?"
+    }
   }
 };
