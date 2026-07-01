@@ -362,6 +362,7 @@ export function PlayerCountModule() {
       <CountOptions
         options={options}
         onOptionsChange={applyOptions}
+        onOptionsPreview={setOptions}
         exclusions={exclusions}
         alwaysMarkers={alwaysMarkers}
         exclusionsDirty={exclusionsDirty}
@@ -430,6 +431,7 @@ function ResultSummary({ result }) {
 export function CountOptions({
   options,
   onOptionsChange,
+  onOptionsPreview,
   exclusions,
   alwaysMarkers,
   exclusionsDirty,
@@ -442,10 +444,14 @@ export function CountOptions({
 }) {
   const [open, setOpen] = useState(false);
 
-  const setNum = (key, raw, min) => {
+  // Number inputs update the value on each keystroke (preview, no recount) and
+  // only re-run the count on blur / Enter — so typing "300" doesn't fire three
+  // counts on a large folder. The baseline <select> is discrete → applies at once.
+  const previewNum = (key, raw, min) => {
     const n = parseInt(raw, 10);
-    onOptionsChange({ ...options, [key]: Number.isNaN(n) ? min : Math.max(min, n) });
+    onOptionsPreview({ ...options, [key]: Number.isNaN(n) ? min : Math.max(min, n) });
   };
+  const commitOptions = () => onOptionsChange(options);
 
   const total =
     exclusions.tranare.length +
@@ -463,7 +469,9 @@ export function CountOptions({
             type="number"
             min="1"
             value={options.gapMinutes}
-            onChange={(e) => setNum('gapMinutes', e.target.value, 1)}
+            onChange={(e) => previewNum('gapMinutes', e.target.value, 1)}
+            onBlur={commitOptions}
+            onKeyDown={(e) => e.key === 'Enter' && commitOptions()}
             disabled={busy}
             title="Minsta lucka mellan matcher (delar upp bilderna i matcher)"
           />
@@ -488,7 +496,9 @@ export function CountOptions({
             type="number"
             min="1"
             value={options.minImages}
-            onChange={(e) => setNum('minImages', e.target.value, 1)}
+            onChange={(e) => previewNum('minImages', e.target.value, 1)}
+            onBlur={commitOptions}
+            onKeyDown={(e) => e.key === 'Enter' && commitOptions()}
             disabled={busy}
             title="Minsta antal bilder för att räknas som spelare"
           />
@@ -599,6 +609,7 @@ function ExclusionList({ title, kind, names, locked, onAdd, onRemove, busy, read
         <input
           className="form-input pc-add"
           type="text"
+          aria-label={`Lägg till ${title.toLowerCase()}`}
           placeholder={`Lägg till ${title.toLowerCase()}…`}
           value={draft}
           onChange={(e) => setDraft(e.target.value)}

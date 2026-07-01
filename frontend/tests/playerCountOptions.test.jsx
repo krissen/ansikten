@@ -58,6 +58,7 @@ describe('CountOptions', () => {
   const baseProps = {
     options: DEFAULT_OPTIONS,
     onOptionsChange: () => {},
+    onOptionsPreview: () => {},
     exclusions: { tranare: [], publik: [] },
     alwaysMarkers: { publik: ['Klacken'], grupp: ['Laget', 'FBK'] },
     exclusionsDirty: false,
@@ -76,15 +77,24 @@ describe('CountOptions', () => {
     expect(screen.getByText(/Min bilder/)).toBeTruthy();
   });
 
-  it('emits clamped numeric changes', () => {
+  it('previews clamped numeric changes on input, commits on blur', () => {
+    const onOptionsPreview = vi.fn();
     const onOptionsChange = vi.fn();
-    render(<CountOptions {...baseProps} onOptionsChange={onOptionsChange} />);
-    const gap = screen.getByTitle(/Minsta lucka mellan matcher/);
-    fireEvent.change(gap, { target: { value: '0' } });
-    // min clamp is 1
-    expect(onOptionsChange).toHaveBeenCalledWith(
-      expect.objectContaining({ gapMinutes: 1 })
+    render(
+      <CountOptions
+        {...baseProps}
+        onOptionsPreview={onOptionsPreview}
+        onOptionsChange={onOptionsChange}
+      />
     );
+    const gap = screen.getByTitle(/Minsta lucka mellan matcher/);
+    // Typing previews the clamped value (min 1) without re-running the count...
+    fireEvent.change(gap, { target: { value: '0' } });
+    expect(onOptionsPreview).toHaveBeenCalledWith(expect.objectContaining({ gapMinutes: 1 }));
+    expect(onOptionsChange).not.toHaveBeenCalled();
+    // ...and blur commits (triggers the recount).
+    fireEvent.blur(gap);
+    expect(onOptionsChange).toHaveBeenCalled();
   });
 
   it('shows the exclusion editor with locked always-markers when expanded', () => {

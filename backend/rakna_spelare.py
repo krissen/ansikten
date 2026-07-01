@@ -48,7 +48,7 @@ def save_exclusion_config(
     """
     existing = load_exclusion_config()
 
-    def _clean(names: list[str] | None, always: set[str]) -> list[str]:
+    def _clean(names: list[str], always: set[str]) -> list[str]:
         # De-dupe, drop empties and always-markers, keep first-seen order.
         seen: set[str] = set()
         out: list[str] = []
