@@ -2,7 +2,7 @@
 
 Konsoliderad lista över planerade förbättringar, kända brister och teknisk skuld.
 
-**Senast uppdaterad:** 2026-06-29
+**Senast uppdaterad:** 2026-07-01
 
 ---
 
@@ -51,14 +51,15 @@ CLI-paritet — launch-kommandot mot fler arbetsflöden:
   - **Var:** rendera som tomt-läge i FlexLayout-arbetsytan; försvinner när en modul öppnas eller filer laddas. Se befintlig uppstarts-/tomt-logik (StartupStatus, FlexLayoutWorkspace, ev. `get-initial-file`).
   - **Återanvänd:** modulregistret (`MODULE_COMPONENTS`/`MODULE_TITLES`) för steglistan, import-volym-endpointen för aktiv/nedtonad, ikon/knapp-stilarna från befintliga moduler.
   - Egen PR.
-- [ ] **Räkna spelare GUI: full paritet med CLI (`rakna_spelare.py`)** — GUI:t saknar funktionalitet som CLI-skriptet har; **allt CLI gör ska in i GUI:t**. Verifierat mot koden (backend `player_count_service`/route stödjer redan det mesta; frontend exponerar inte):
-  - **Saknade UI-kontroller** (backend stödjer parametern, frontend skickar den aldrig → default): `gap_minutes` (matchdelningens känslighet, default 30), `baseline` (median/mean), `min_images` (default 3), samt per-request `tranare`/`publik` (visa/redigera tränar-/publiklistorna).
-  - **Saknas i hela stacken:** `--add-tranare`/`--add-publik` (append-semantik) — `_exclusion_sets` gör bara replace; route-modellen saknar fälten.
-  - **Per-match ofullständigt:** "Per match" finns och backend returnerar full per-match-statistik, men GUI:t renderar inte per-match exkluderade hinkar (`m.excluded`) och saknar per-match info-rad (baseline/duration/Δ).
-  - **Visualisering saknas:** temporal "spark" (per-spelare-tidslinje; `timestamps[]` returneras men används inte), match-gräns-markeringar, `ΔN` (absolut avvikelse; bara `Δ%` visas), och fördelnings-baren är `count/maxCount` i GUI men `count/baseline` i CLI.
+- [ ] **Räkna spelare GUI: full paritet med CLI (`rakna_spelare.py`)** — **delvis klart.** Visualiseringen är på plats (#73); resten kvarstår. **Allt CLI gör ska in i GUI:t.**
+  - [x] **Visualisering** (#73, 2026-06-30) — per-spelare temporal "spark"/tidslinje (total + per match, från `timestamps[]`), `ΔN`-kolumn (absolut avvikelse) bredvid `Δ%`, och baslinje-relativ fördelnings-bar (baslinje = halva stapeln, med markör) istället för `count/maxCount`. Ren GUI-rendering; `binTimestamps` enhetstestad.
+  - [x] **Alltid-exkluderade markörer `FBK`/`Klacken`** (#70, 2026-06-30) — behandlas alltid som grupp/publik (som `Laget`); `grupp` blev konfigurerbar (config `grupp` + `RAKNA_GRUPP`); delad `resolve_exclusion_sets` så CLI och GUI aldrig divergerar.
+  - [ ] **Saknade UI-kontroller** (backend stödjer parametern, frontend skickar default): `gap_minutes` (matchdelning, default 30), `baseline` (median/mean), `min_images` (default 3), samt per-request `tranare`/`publik` (visa/redigera listorna i GUI).
+  - [ ] **`--add-tranare`/`--add-publik`-paritet i API:t** — CLI har append-semantik; route-modellen/`count` exponerar bara replace via per-request `tranare`/`publik` (grupp har nu `RAKNA_GRUPP`/config men inte per-request add).
+  - [ ] **Per-match ofullständigt:** GUI:t renderar per-match tabell + spark, men inte per-match exkluderade hinkar (`m.excluded`) och saknar per-match info-rad (baseline/duration/Δ).
   - Ej tillämpligt (CLI-only): `--no-color`/`--color`/`--ascii`/`--bar-width`.
   - GUI är redan rikare på input (mappar, extension-preset, recursive, datumspann) — inte en lucka.
-  - Egen PR (separat från culling-arbetet).
+  - Egen PR för de kvarvarande kontrollerna.
 - [x] **Retention på app-papperskorgen (Gallra)** (2026-06-29) — auto-rensar gallrade filer (NEF + JPEG + sidecars) äldre än `trash_retention_days` (default 30, `0` = behåll för alltid). Purge körs lazyt: vid backend-start och när papperskorgen öppnas (`GET /api/v1/culling/trash`). Tröskeln lagras i `config.json` och ställs in i Preferences → Files → Trash (Gallra). Nya endpoints `GET`/`POST /api/v1/culling/retention`.
 - [ ] **Modulgenvägar bör villkoras på aktiv tabset, inte bara synlighet** — globala tangentlyssnare (t.ex. ReviewModule som bekräftar ansikte på `Enter`) gatar idag på `node.isVisible()`. I en delad layout med flera synliga paneler fångar då en *synlig men inaktiv* panel tangenter som hör till den aktiva. CullingModule försvarar sig redan (Enter-genväg på document i capture-fas + aktiv-tabset-gate + `stopImmediatePropagation`), men det generella mönstret kvarstår för övriga moduler. ReviewModule m.fl. bör gatas på aktiv tabset. **Varning:** måste inte bryta Reviews normala flöde där man klickar i bildvisaren och sedan trycker tangent (då blir bildvisarens tabset aktiv) — kräver genomtänkt fokus-/aktiv-modell, egen PR.
 - [ ] **Arbetsflödes-layoutpresets** — spara flerfönsterkonfigurationer per uppgift (t.ex. NEF-culling = fillista vänster + maximal preview höger). De flesta vyer är single-instance: öppna inte flera, skifta fokus till befintlig.
@@ -91,7 +92,7 @@ CLI-paritet — launch-kommandot mot fler arbetsflöden:
 - [x] ~~Saknas undo/redo för ansiktsbekräftelser~~ (2026-01-11, Cmd+Z undo, ESC cancels detection)
 - [x] ~~Lokalisera ReviewModule match-case-etiketter till svenska~~ (2026-06-30) — `Manuellt tillagd`, `Trolig ignorering`, `Okänd`, `Tvilling-särskiljning` (kvar: `ign` som domän-förkortning).
 - [ ] **Resterande engelska strängar i ReviewModule** — bekräftelsedialoger (`Confirm name change`, `Best match`, `You chose…`) och status-toaster är fortfarande på engelska; bör översättas till svenska (egen i18n-PR, bredare svep än match-case-blocket).
-- [ ] **Gallra spelare: piltangenter blockeras när ett namn-chip (checkbox) har fokus** — i namnbortbocknings-overlayen fångar checkboxen fokus, så `←/→/↑/↓` navigerar inte bilder förrän man klickar tillbaka i listan/previewn. Mindre UX-nit (flaggad i PR #68-granskningen). Ev. fix: låt piltangenter passera även när en overlay-checkbox har fokus.
+- [x] ~~**Gallra spelare: piltangenter blockeras när ett namn-chip (checkbox) har fokus**~~ (#71, 2026-06-30) — enkeltangent-navigeringen ignorerar nu bara riktiga textfält (inte checkboxar), och fokus lämnas tillbaka till fillistan efter namnbyte/dropdown-val; markerad rad autoscrollar med ~3 raders marginal.
 - [ ] **CLI launch: landing döljs vid sökväg som expanderar till tomt** — renderaren härleder landningssidans suppression från råa arg-antalet (`hasFiles`), men huvudprocessen skickar bara handoff efter sökvägsexpansion (`expandFolderPaths`/`expandFilePaths` → `length>0 || clear`). En syntaktiskt giltig men icke-matchande sökväg (t.ex. `ansikten culling /typo` eller en glob utan träffar) döljer landningen utan att öppna något → användaren hamnar i default-layouten istället. Ren fix: låt huvudprocessen beräkna post-expansion-villkoret och exponera den boolean:en som launch intent istället för att renderaren gissar från råa argument (kräver async-hantering för faces). Pre-existerande edge (user-error), icke-blockerande; flaggad i PR #67-granskningen.
 
 ---
@@ -113,6 +114,18 @@ CLI-paritet — launch-kommandot mot fler arbetsflöden:
 ---
 
 ## Slutfört (referens)
+
+### 2026-06-30 / 07-01: Culling- & Räkna spelare-svit (PR #67–#75)
+
+- [x] **CLI-launch öppnar culling rent** (#67) — CLI-mål hoppar över landningssidan (ingen flash) och stänger Review-panelen istället för att docka bredvid; culling-tabben docka i den största tabseten. Live spelarräkning i vänsterkolumnen.
+- [x] **Namn-bortbockning + `Cmd+⌫`** (#68) — overlay med namn-chips; `Cmd+Enter` döper om (filnamns-only borttagning via `,_`-split), `Cmd+Backspace` gallrar (Finder).
+- [x] **Auto-advance efter namnbyte** (#69) — konfigurerbart (Preferences → Files → Gallra spelare, default på); advance-by-identity så filter-drop inte hoppar över; Windows-säker; race-säker mot mapp-watch-refresh.
+- [x] **`FBK`/`Klacken` alltid exkluderade** (#70) — se Räkna-paritet ovan.
+- [x] **Kontrast + tangentbordsfokus** (#71) — avvikelsefärger använder rätt tema-vars (`--color-*`); aktiv rad subtil accent istället för guldfyllnad (fixar "gul-på-gul"); fokus tillbaka till listan efter dropdown/namnbyte; enkeltangent-nav blockeras inte av chip-checkbox; autoscroll med 3 raders marginal; gallra-genväg ignoreras under laddning.
+- [x] **Räkna ↔ culling delat fil-urval** (#72) — öppna den ena ärver den andras scan-scope (mappar/globbar/datum/rekursion/preset); in-memory, ingen live-loop; culling-specifikt spelarfilter speglas ej.
+- [x] **Räkna spelare CLI-visualiseringsparitet** (#73) — se Räkna-paritet ovan (spark, ΔN, baslinje-bar).
+- [x] **Culling overlay-cluster** (#74) — filnamnet visas en gång (live i fillistraden, orange medan osparat); dialog vid navigering med osparad ändring (`Cmd+Enter` spara / `Enter` kasta / `Esc` avbryt). Render-smoketest tillagt.
+- [x] **Odefinierade CSS-vars → tema-vars** (#75) — `--border-color`/`--warning`/`--success`/`--error`/`--warning-bg`/`--warning-text` i ImportModule/RenameNefModule/ConnectionStatus/PlayerCountModule/InputBar.
 
 ### 2026-01-10: Moduluppdelning och refaktorering
 
