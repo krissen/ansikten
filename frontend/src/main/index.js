@@ -562,6 +562,59 @@ ipcMain.handle("open-raw-in-lightroom", async (event, { imagePath, rawRoot } = {
   });
 });
 
+// Return a file's identity fingerprint (mtime + size), waiting for the write to
+// settle first — but only when the file was modified recently, so navigating to
+// old files stays instant. Used by culling to (a) avoid decoding a JPEG that
+// Lightroom is still exporting and (b) cache-bust the <img> when it changes.
+ipcMain.handle("stat-file-stable", async (event, opts = {}) => {
+  const {
+    filePath,
+    freshWindowMs = 5000, // only wait for files touched within this window
+    settleMs = 350,       // require size+mtime unchanged this long to call it done
+    timeoutMs = 8000,     // give up waiting after this and return the latest stat
+    pollMs = 120,
+  } = opts;
+  if (!filePath) return { ok: false, reason: "no-path" };
+
+  let st;
+  try {
+    st = await fs.promises.stat(filePath);
+  } catch {
+    return { ok: false, reason: "not-found" };
+  }
+  // Old, already-settled file: return immediately (no navigation latency).
+  if (Date.now() - st.mtimeMs > freshWindowMs) {
+    return { ok: true, mtimeMs: st.mtimeMs, size: st.size, settled: true };
+  }
+
+  // Recently modified: poll until size + mtime hold steady for settleMs.
+  const start = Date.now();
+  let last = { size: st.size, mtimeMs: st.mtimeMs };
+  let stableSince = Date.now();
+  for (;;) {
+    await new Promise((r) => setTimeout(r, pollMs));
+    try {
+      st = await fs.promises.stat(filePath);
+    } catch {
+      return { ok: false, reason: "not-found" };
+    }
+    const now = Date.now();
+    if (st.size === last.size && st.mtimeMs === last.mtimeMs) {
+      if (now - stableSince >= settleMs) {
+        return { ok: true, mtimeMs: st.mtimeMs, size: st.size, settled: true };
+      }
+    } else {
+      last = { size: st.size, mtimeMs: st.mtimeMs };
+      stableSince = now;
+    }
+    if (now - start >= timeoutMs) {
+      // Still churning after the timeout — hand back the latest stat anyway so
+      // the caller can render something rather than hang.
+      return { ok: true, mtimeMs: st.mtimeMs, size: st.size, settled: false };
+    }
+  }
+});
+
 // Multi-file dialog for File Queue (files only - normal navigation)
 ipcMain.handle("open-multi-file-dialog", async () => {
   const result = await dialog.showOpenDialog(mainWindow, {
