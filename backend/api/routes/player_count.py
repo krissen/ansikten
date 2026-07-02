@@ -36,15 +36,20 @@ class PlayerCountRequest(BaseModel):
 
 
 class ExclusionConfigRequest(BaseModel):
-    """Coach/audience lists to persist as the new defaults.
+    """Exclusion lists to persist as the new defaults.
 
-    Both fields are required (no defaults): a partial/empty payload like ``{}``
-    must fail validation rather than silently persist empty lists and wipe the
-    existing config. An explicit ``{"tranare": [], "publik": []}`` still clears.
+    ``tranare``/``publik`` are required (no defaults): a partial/empty payload
+    like ``{}`` must fail validation rather than silently persist empty lists and
+    wipe the config. An explicit ``{"tranare": [], "publik": []}`` still clears.
+    ``grupp`` and the always-marker lists are optional — ``null``/omitted leaves
+    them unchanged.
     """
 
     tranare: List[str]
     publik: List[str]
+    grupp: Optional[List[str]] = None
+    always_grupp: Optional[List[str]] = None
+    always_publik: Optional[List[str]] = None
 
 
 @router.get("/players/exclusions")
@@ -60,6 +65,9 @@ async def save_exclusions(request: ExclusionConfigRequest):
         return player_count_service.save_exclusions(
             tranare=request.tranare,
             publik=request.publik,
+            grupp=request.grupp,
+            always_grupp=request.always_grupp,
+            always_publik=request.always_publik,
         )
     except OSError as e:
         logger.exception("Saving exclusion config failed")

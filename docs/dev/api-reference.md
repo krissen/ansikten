@@ -762,25 +762,44 @@ always-markers), so the GUI can pre-fill its editor.
   "tranare": ["Coach"],
   "publik": ["Klacken"],
   "grupp": ["FBK", "Laget"],
-  "always": { "publik": ["Klacken"], "grupp": ["FBK", "Laget"] }
+  "always": { "publik": ["Klacken"], "grupp": ["FBK", "Laget"] },
+  "env_active": false,
+  "env_keys": []
 }
 ```
 
-`always` lists the built-in markers the GUI renders as locked (non-removable).
+`always` is the **configured** always-excluded set (grupp/publik), defaulting to
+the built-ins `Laget`/`FBK` and `Klacken` when the config doesn't override them —
+it's now editable, not a fixed built-in. `env_active`/`env_keys` report which
+`RAKNA_*` env vars are shadowing the config (so the GUI can warn that "save as
+default" won't take effect).
 
 ### `POST /api/v1/players/exclusions`
 
-Persist coach/audience lists to `rakna_spelare.json` as the new defaults (applies
-to future counts and the CLI). Always-markers are stripped before writing; a
-configured `grupp` is preserved. Returns the same shape as the `GET`.
+Persist exclusion lists to `rakna_spelare.json` as the new defaults (applies to
+future counts and the CLI). Returns the same shape as the `GET`.
 
 **Request:**
 ```json
-{ "tranare": ["Coach"], "publik": ["Uncle"] }
+{
+  "tranare": ["Coach"],
+  "publik": ["Uncle"],
+  "grupp": [],
+  "always_grupp": ["Laget", "FBK", "Forward"],
+  "always_publik": ["Klacken"]
+}
 ```
 
-> Note: the `RAKNA_TRANARE`/`RAKNA_PUBLIK` env vars override the config file, so a
-> saved default has no effect while the matching env var is set.
+`tranare`/`publik` are required (a partial/empty `{}` is rejected so it can't wipe
+the config). `grupp`, `always_grupp`, `always_publik` are optional — `null`/omitted
+leaves each unchanged. The always-markers are stored in their own keys
+(`always_grupp`/`always_publik`) and stripped from the regular grupp/publik lists;
+a present-but-empty `always_*` clears that always-set. Configure your own
+always-excluded markers (e.g. a `Forward` group label) or drop a built-in here.
+
+> Note: `RAKNA_TRANARE`/`PUBLIK`/`GRUPP` and `RAKNA_ALWAYS_GRUPP`/`PUBLIK` env vars
+> override the config file, so a saved default has no effect while the matching
+> env var is set (surfaced via `env_active`/`env_keys`).
 
 ---
 

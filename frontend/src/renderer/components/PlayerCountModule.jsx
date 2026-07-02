@@ -57,9 +57,15 @@ export function PlayerCountModule() {
   const [options, setOptions] = useState(DEFAULT_OPTIONS);
   // Editable coach/audience exclusion lists (always-markers held separately and
   // shown locked). Sent as a per-request override only once the user edits them.
+  // Per-request exclusion overrides (apply live to the current count).
   const [exclusions, setExclusions] = useState({ tranare: [], publik: [] });
-  const [alwaysMarkers, setAlwaysMarkers] = useState({ publik: [], grupp: [] });
-  const [exclusionsDirty, setExclusionsDirty] = useState(false);
+  // Config-level "always excluded" lists (take effect after Spara som standard):
+  // Gruppbilder (group markers) and the always-publik markers.
+  const [grupp, setGrupp] = useState([]);
+  const [alwaysPublik, setAlwaysPublik] = useState([]);
+  const [envKeys, setEnvKeys] = useState([]); // RAKNA_* env vars shadowing config
+  const [exclusionsDirty, setExclusionsDirty] = useState(false); // tranare/publik (per-request)
+  const [configDirty, setConfigDirty] = useState(false); // grupp/always (needs save)
   const [savingDefaults, setSavingDefaults] = useState(false);
 
   // Params of the last submitted query, so auto-refresh re-runs the same thing.
@@ -199,20 +205,24 @@ export function PlayerCountModule() {
   // Fetch the resolved exclusion lists (config/env + always-markers). The
   // always-markers are kept separate and rendered locked; the editable lists
   // exclude them.
+  const applyLoaded = useCallback((data) => {
+    const always = data.always || { publik: [], grupp: [] };
+    const strip = (list, locked) => (list || []).filter((n) => !(locked || []).includes(n));
+    // Per-request publik excludes the always-publik markers (those are edited in
+    // the "Alltid uteslutna" section instead).
+    setExclusions({ tranare: data.tranare || [], publik: strip(data.publik, always.publik) });
+    setGrupp(data.grupp || []); // resolved group markers (editable)
+    setAlwaysPublik(always.publik || []); // always-publik markers (editable)
+    setEnvKeys(data.env_keys || []);
+  }, []);
+
   const loadExclusions = useCallback(async () => {
     try {
-      const data = await api.get('/api/v1/players/exclusions');
-      const always = data.always || { publik: [], grupp: [] };
-      const strip = (list, locked) => (list || []).filter((n) => !(locked || []).includes(n));
-      setAlwaysMarkers(always);
-      setExclusions({
-        tranare: strip(data.tranare, always.tranare),
-        publik: strip(data.publik, always.publik),
-      });
+      applyLoaded(await api.get('/api/v1/players/exclusions'));
     } catch {
       /* Non-fatal: leave the editor empty. */
     }
-  }, [api]);
+  }, [api, applyLoaded]);
 
   useEffect(() => {
     loadExclusions();
@@ -228,62 +238,73 @@ export function PlayerCountModule() {
     [submitWith, input, perMatch, options]
   );
 
+  // Config-level lists (grupp / always-publik): edit state + mark dirty; they
+  // take effect on save (not per-request).
+  const editConfigList = useCallback((kind, next) => {
+    if (kind === 'grupp') setGrupp(next);
+    else if (kind === 'alwaysPublik') setAlwaysPublik(next);
+    setConfigDirty(true);
+  }, []);
+
   const addExcluded = useCallback(
     (kind, name) => {
       const clean = name.trim();
-      // Skip empties, existing entries, and names already locked as
-      // always-markers (e.g. "Klacken") — else we'd render a duplicate chip and
-      // send a redundant override value.
-      if (
-        !clean ||
-        exclusions[kind].includes(clean) ||
-        (alwaysMarkers[kind] || []).includes(clean)
-      ) {
-        return;
+      if (!clean) return;
+      if (kind === 'tranare' || kind === 'publik') {
+        if (exclusions[kind].includes(clean)) return;
+        applyExclusions({ ...exclusions, [kind]: [...exclusions[kind], clean] });
+      } else {
+        const list = kind === 'grupp' ? grupp : alwaysPublik;
+        if (list.includes(clean)) return;
+        editConfigList(kind, [...list, clean]);
       }
-      applyExclusions({ ...exclusions, [kind]: [...exclusions[kind], clean] });
     },
-    [exclusions, alwaysMarkers, applyExclusions]
+    [exclusions, grupp, alwaysPublik, applyExclusions, editConfigList]
   );
 
   const removeExcluded = useCallback(
     (kind, name) => {
-      applyExclusions({ ...exclusions, [kind]: exclusions[kind].filter((n) => n !== name) });
+      if (kind === 'tranare' || kind === 'publik') {
+        applyExclusions({ ...exclusions, [kind]: exclusions[kind].filter((n) => n !== name) });
+      } else {
+        const list = kind === 'grupp' ? grupp : alwaysPublik;
+        editConfigList(kind, list.filter((n) => n !== name));
+      }
     },
-    [exclusions, applyExclusions]
+    [exclusions, grupp, alwaysPublik, applyExclusions, editConfigList]
   );
 
   // Persist the current lists as the new defaults (config.json → future counts + CLI).
   const saveDefaults = useCallback(async () => {
     setSavingDefaults(true);
     try {
+      // Consolidate the edited group markers into always_grupp (and clear the
+      // regular grupp list) so a single Gruppbilder editor is the source of truth.
       const data = await api.post('/api/v1/players/exclusions', {
         tranare: exclusions.tranare,
         publik: exclusions.publik,
+        grupp: [],
+        always_grupp: grupp,
+        always_publik: alwaysPublik,
       });
-      const always = data.always || { publik: [], grupp: [] };
-      const strip = (list, locked) => (list || []).filter((n) => !(locked || []).includes(n));
-      setAlwaysMarkers(always);
-      setExclusions({
-        tranare: strip(data.tranare, always.tranare),
-        publik: strip(data.publik, always.publik),
-      });
+      applyLoaded(data);
       setExclusionsDirty(false); // the saved lists are now the default
+      setConfigDirty(false);
       // Re-run with the resolved defaults so lastParamsRef no longer holds the
-      // per-request override (which would otherwise linger on auto-refresh —
-      // notably when RAKNA_* env vars make the save a no-op).
+      // per-request override (which would otherwise linger on auto-refresh).
       if (lastParamsRef.current) submitWith(input, perMatch, options, null);
     } catch (err) {
       setError(err.message || String(err));
     } finally {
       setSavingDefaults(false);
     }
-  }, [api, exclusions, submitWith, input, perMatch, options]);
+  }, [api, exclusions, grupp, alwaysPublik, applyLoaded, submitWith, input, perMatch, options]);
 
   // Discard edits and re-run with the saved defaults.
   const resetExclusions = useCallback(async () => {
     await loadExclusions();
     setExclusionsDirty(false);
+    setConfigDirty(false);
     if (lastParamsRef.current) submitWith(input, perMatch, options, null);
   }, [loadExclusions, submitWith, input, perMatch, options]);
 
@@ -365,8 +386,10 @@ export function PlayerCountModule() {
         onOptionsChange={applyOptions}
         onOptionsPreview={setOptions}
         exclusions={exclusions}
-        alwaysMarkers={alwaysMarkers}
-        exclusionsDirty={exclusionsDirty}
+        grupp={grupp}
+        alwaysPublik={alwaysPublik}
+        envKeys={envKeys}
+        dirty={exclusionsDirty || configDirty}
         savingDefaults={savingDefaults}
         onAddExcluded={addExcluded}
         onRemoveExcluded={removeExcluded}
@@ -434,8 +457,10 @@ export function CountOptions({
   onOptionsChange,
   onOptionsPreview,
   exclusions,
-  alwaysMarkers,
-  exclusionsDirty,
+  grupp,
+  alwaysPublik,
+  envKeys,
+  dirty,
   savingDefaults,
   onAddExcluded,
   onRemoveExcluded,
@@ -457,8 +482,8 @@ export function CountOptions({
   const total =
     exclusions.tranare.length +
     exclusions.publik.length +
-    (alwaysMarkers.publik?.length || 0) +
-    (alwaysMarkers.grupp?.length || 0);
+    (grupp?.length || 0) +
+    (alwaysPublik?.length || 0);
 
   return (
     <div className="player-count-options">
@@ -520,7 +545,6 @@ export function CountOptions({
             title="Tränare"
             kind="tranare"
             names={exclusions.tranare}
-            locked={[]}
             onAdd={onAddExcluded}
             onRemove={onRemoveExcluded}
             busy={busy}
@@ -529,26 +553,45 @@ export function CountOptions({
             title="Publik"
             kind="publik"
             names={exclusions.publik}
-            locked={alwaysMarkers.publik || []}
             onAdd={onAddExcluded}
             onRemove={onRemoveExcluded}
             busy={busy}
           />
-          {(alwaysMarkers.grupp || []).length > 0 && (
-            <ExclusionList
-              title="Gruppbilder"
-              kind="grupp"
-              names={[]}
-              locked={alwaysMarkers.grupp || []}
-              readOnly
-            />
+
+          {/* Config-level always-excluded markers (take effect after saving). */}
+          <div className="pc-always-heading" title="Alltid uteslutna oavsett tröskel — gäller efter Spara som standard">
+            Alltid uteslutna (sparas)
+          </div>
+          <ExclusionList
+            title="Gruppbilder"
+            kind="grupp"
+            names={grupp}
+            onAdd={onAddExcluded}
+            onRemove={onRemoveExcluded}
+            busy={busy}
+          />
+          <ExclusionList
+            title="Publik (alltid)"
+            kind="alwaysPublik"
+            names={alwaysPublik}
+            onAdd={onAddExcluded}
+            onRemove={onRemoveExcluded}
+            busy={busy}
+          />
+
+          {envKeys && envKeys.length > 0 && (
+            <div className="player-count-dim pc-env-note">
+              Obs: {envKeys.join(', ')} är satt i miljön och överstyr config —
+              &quot;Spara som standard&quot; kanske inte får effekt.
+            </div>
           )}
+
           <div className="pc-actions">
             <button
               type="button"
               className="btn-secondary"
               onClick={onSaveDefaults}
-              disabled={busy || savingDefaults || !exclusionsDirty}
+              disabled={busy || savingDefaults || !dirty}
               title="Spara listorna till config (gäller framtida räkningar och CLI)"
             >
               {savingDefaults ? 'Sparar…' : 'Spara som standard'}
@@ -562,7 +605,7 @@ export function CountOptions({
             >
               Återställ
             </button>
-            {exclusionsDirty && <span className="player-count-dim">osparade ändringar</span>}
+            {dirty && <span className="player-count-dim">osparade ändringar</span>}
           </div>
         </div>
       )}
@@ -570,10 +613,9 @@ export function CountOptions({
   );
 }
 
-// One exclusion list: locked always-markers first, then removable chips, then an
-// add-name field. `readOnly` (e.g. the always-only Gruppbilder row) drops the
-// remove buttons and add field. `onAdd`/`onRemove` take (kind, name).
-function ExclusionList({ title, kind, names, locked, onAdd, onRemove, busy, readOnly = false }) {
+// One editable exclusion list: removable chips + an add-name field.
+// `onAdd`/`onRemove` take (kind, name).
+function ExclusionList({ title, kind, names, onAdd, onRemove, busy }) {
   const [draft, setDraft] = useState('');
   const commit = () => {
     onAdd(kind, draft);
@@ -583,12 +625,7 @@ function ExclusionList({ title, kind, names, locked, onAdd, onRemove, busy, read
     <div className="pc-list">
       <div className="pc-list-title">{title}</div>
       <div className="pc-chips">
-        {locked.map((name) => (
-          <span className="pc-chip pc-chip-locked" key={`lock-${name}`} title="Alltid utesluten">
-            {name}
-          </span>
-        ))}
-        {!readOnly && names.map((name) => (
+        {names.map((name) => (
           <span className="pc-chip" key={name}>
             <span className="pc-chip-label">{name}</span>
             <button
@@ -602,27 +639,23 @@ function ExclusionList({ title, kind, names, locked, onAdd, onRemove, busy, read
             </button>
           </span>
         ))}
-        {names.length === 0 && locked.length === 0 && (
-          <span className="player-count-dim pc-empty">inga</span>
-        )}
+        {names.length === 0 && <span className="player-count-dim pc-empty">inga</span>}
       </div>
-      {!readOnly && (
-        <input
-          className="form-input pc-add"
-          type="text"
-          aria-label={`Lägg till ${title.toLowerCase()}`}
-          placeholder={`Lägg till ${title.toLowerCase()}…`}
-          value={draft}
-          onChange={(e) => setDraft(e.target.value)}
-          onKeyDown={(e) => {
-            if (e.key === 'Enter') {
-              e.preventDefault();
-              commit();
-            }
-          }}
-          disabled={busy}
-        />
-      )}
+      <input
+        className="form-input pc-add"
+        type="text"
+        aria-label={`Lägg till ${title.toLowerCase()}`}
+        placeholder={`Lägg till ${title.toLowerCase()}…`}
+        value={draft}
+        onChange={(e) => setDraft(e.target.value)}
+        onKeyDown={(e) => {
+          if (e.key === 'Enter') {
+            e.preventDefault();
+            commit();
+          }
+        }}
+        disabled={busy}
+      />
     </div>
   );
 }

@@ -9,7 +9,10 @@ import rakna_spelare
 from rakna_spelare import (
     ALWAYS_GRUPP,
     ALWAYS_PUBLIK,
+    compute_player_stats,
     load_exclusion_config,
+    resolve_always_markers,
+    resolve_exclusion_sets,
     save_exclusion_config,
 )
 from api.services.player_count_service import PlayerCountService
@@ -23,7 +26,13 @@ def config(tmp_path, monkeypatch):
     monkeypatch.setattr(rakna_spelare, "CONFIG_FILE", cfg)
     # Env overrides config in resolve_exclusion_sets — clear so tests are
     # deterministic regardless of the host environment.
-    for env in ("RAKNA_TRANARE", "RAKNA_PUBLIK", "RAKNA_GRUPP"):
+    for env in (
+        "RAKNA_TRANARE",
+        "RAKNA_PUBLIK",
+        "RAKNA_GRUPP",
+        "RAKNA_ALWAYS_GRUPP",
+        "RAKNA_ALWAYS_PUBLIK",
+    ):
         monkeypatch.delenv(env, raising=False)
     return cfg
 
@@ -99,3 +108,81 @@ def test_post_partial_payload_rejected_without_wiping(config):
     ok = client.post("/api/v1/players/exclusions", json={"tranare": ["Bo"], "publik": []})
     assert ok.status_code == 200
     assert load_exclusion_config() == {"tranare": ["Bo"], "publik": [], "grupp": []}
+
+
+# --- Config-driven always-markers -----------------------------------------
+
+
+def test_always_markers_default_to_builtins(config):
+    grupp, publik = resolve_always_markers(load_exclusion_config())
+    assert grupp == ALWAYS_GRUPP
+    assert publik == ALWAYS_PUBLIK
+
+
+def test_always_markers_configurable_add_and_remove(config):
+    # Add a custom always-grupp marker and drop FBK; keep Laget.
+    save_exclusion_config(always_grupp=["Laget", "Forward"])
+    grupp, _ = resolve_always_markers(load_exclusion_config())
+    assert grupp == {"Laget", "Forward"}
+    assert "FBK" not in grupp
+
+    # And it flows through the shared resolver used by CLI + GUI.
+    _, _, grupp_set = resolve_exclusion_sets()
+    assert "Forward" in grupp_set
+    assert "FBK" not in grupp_set
+
+
+def test_always_marker_empty_key_clears(config):
+    save_exclusion_config(always_publik=[])
+    _, publik = resolve_always_markers(load_exclusion_config())
+    assert publik == set()
+    # Klacken is no longer force-excluded.
+    _, publik_set, _ = resolve_exclusion_sets()
+    assert "Klacken" not in publik_set
+
+
+def test_custom_always_excludes_a_player(config):
+    save_exclusion_config(always_grupp=["Forward"])
+    files = [
+        "260601_120000_Anna.jpg",
+        "260601_120100_Anna.jpg",
+        "260601_120200_Anna.jpg",
+        "260601_120300_Forward.jpg",
+        "260601_120400_Forward.jpg",
+        "260601_120500_Forward.jpg",
+    ]
+    tranare, publik, grupp = resolve_exclusion_sets()
+    stats = compute_player_stats(
+        files, min_images=3, tranare_set=tranare, publik_set=publik, grupp_set=grupp
+    )
+    player_names = {p["name"] for p in stats["players"]}
+    assert player_names == {"Anna"}
+    assert "Forward" in {e["name"] for e in stats["excluded"]["grupp"]}
+
+
+def test_save_strips_regular_lists_against_custom_always(config):
+    # A custom always-grupp name must be stripped from the regular grupp list.
+    save_exclusion_config(always_grupp=["Forward"], grupp=["Forward", "Reserverna"])
+    written = json.loads(config.read_text())
+    assert written["grupp"] == ["Reserverna"]
+    assert written["always_grupp"] == ["Forward"]
+
+
+def test_save_preserves_always_when_not_passed(config):
+    save_exclusion_config(always_grupp=["Forward"])
+    save_exclusion_config(tranare=["Anna"], publik=["Cecilia"])  # no always_* args
+    assert load_exclusion_config()["always_grupp"] == ["Forward"]
+
+
+def test_get_exclusions_reports_configured_always_and_env(config, monkeypatch):
+    result = PlayerCountService().save_exclusions(
+        tranare=["Anna"], publik=["Cecilia"], always_grupp=["Forward"]
+    )
+    assert result["always"]["grupp"] == ["Forward"]
+    assert result["env_active"] is False
+    assert result["env_keys"] == []
+
+    monkeypatch.setenv("RAKNA_TRANARE", "Coach")
+    result2 = PlayerCountService().get_exclusions()
+    assert result2["env_active"] is True
+    assert "RAKNA_TRANARE" in result2["env_keys"]

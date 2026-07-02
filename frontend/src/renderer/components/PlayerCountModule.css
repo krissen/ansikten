@@ -223,10 +223,18 @@
   color: var(--text-primary);
 }
 
-.pc-chip-locked {
-  padding: 2px 8px;
+/* Heading for the config-level always-excluded lists (grupp / always-publik). */
+.pc-always-heading {
+  margin-top: 4px;
+  font-size: 0.8em;
+  font-weight: 600;
   color: var(--text-secondary);
-  font-style: italic;
+  border-top: 1px solid var(--border-subtle);
+  padding-top: 8px;
+}
+
+.pc-env-note {
+  font-size: 0.8em;
 }
 
 .pc-chip-remove {
