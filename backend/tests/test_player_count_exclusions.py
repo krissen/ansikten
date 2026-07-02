@@ -186,3 +186,13 @@ def test_get_exclusions_reports_configured_always_and_env(config, monkeypatch):
     result2 = PlayerCountService().get_exclusions()
     assert result2["env_active"] is True
     assert "RAKNA_TRANARE" in result2["env_keys"]
+
+
+def test_save_strip_ignores_always_env(config, monkeypatch):
+    # With RAKNA_ALWAYS_PUBLIK set, saving publik must NOT strip against the env
+    # value — persistence depends on the config/defaults, not a transient env.
+    monkeypatch.setenv("RAKNA_ALWAYS_PUBLIK", "EnvOnly")
+    save_exclusion_config(publik=["EnvOnly", "Cecilia"])
+    written = json.loads(config.read_text())
+    assert "EnvOnly" in written["publik"]  # not stripped by the env always-set
+    assert "Cecilia" in written["publik"]

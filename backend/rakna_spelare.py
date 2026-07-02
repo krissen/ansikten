@@ -92,10 +92,22 @@ def save_exclusion_config(
         return out
 
     # The always-set to strip the regular lists against: the new values if being
-    # saved, otherwise the currently-resolved always-markers.
-    cur_always_grupp, cur_always_publik = resolve_always_markers(existing)
-    new_always_grupp = set(_clean(always_grupp, set())) if always_grupp is not None else cur_always_grupp
-    new_always_publik = set(_clean(always_publik, set())) if always_publik is not None else cur_always_publik
+    # saved, otherwise the config file's always-set (or the built-in defaults).
+    # Deliberately ignores RAKNA_ALWAYS_* env — persistence must depend on what's
+    # on disk, not on a transient env override.
+    def _cfg_always(key: str, default: set[str]) -> set[str]:
+        if key in existing:
+            return {n.strip() for n in (existing.get(key) or []) if n.strip()}
+        return set(default)
+
+    new_always_grupp = (
+        set(_clean(always_grupp, set())) if always_grupp is not None
+        else _cfg_always("always_grupp", ALWAYS_GRUPP)
+    )
+    new_always_publik = (
+        set(_clean(always_publik, set())) if always_publik is not None
+        else _cfg_always("always_publik", ALWAYS_PUBLIK)
+    )
 
     config: dict[str, list[str]] = {
         "tranare": _clean(tranare, set()) if tranare is not None else list(existing.get("tranare", [])),

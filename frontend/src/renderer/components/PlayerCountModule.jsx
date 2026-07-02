@@ -55,9 +55,8 @@ export function PlayerCountModule() {
 
   // Counting options (CLI parity: gap_minutes / baseline / min_images).
   const [options, setOptions] = useState(DEFAULT_OPTIONS);
-  // Editable coach/audience exclusion lists (always-markers held separately and
-  // shown locked). Sent as a per-request override only once the user edits them.
-  // Per-request exclusion overrides (apply live to the current count).
+  // Per-request coach/audience exclusion overrides (apply live to the current
+  // count); sent as an override only once the user edits them.
   const [exclusions, setExclusions] = useState({ tranare: [], publik: [] });
   // Config-level "always excluded" lists (take effect after Spara som standard):
   // Gruppbilder (group markers) and the always-publik markers.
@@ -202,9 +201,8 @@ export function PlayerCountModule() {
     [submitWith, input, perMatch]
   );
 
-  // Fetch the resolved exclusion lists (config/env + always-markers). The
-  // always-markers are kept separate and rendered locked; the editable lists
-  // exclude them.
+  // Apply a GET/POST exclusions response to the editor state: per-request
+  // tranare/publik, plus the editable config-level group + always-publik lists.
   const applyLoaded = useCallback((data) => {
     const always = data.always || { publik: [], grupp: [] };
     const strip = (list, locked) => (list || []).filter((n) => !(locked || []).includes(n));
