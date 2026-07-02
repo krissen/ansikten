@@ -453,6 +453,13 @@ export function FlexLayoutWorkspace() {
     } catch (err) {
       debugWarn('FlexLayout', 'Failed to save layout:', err);
     }
+    // When the last module is closed and the workspace is empty, bring the
+    // startup landing back so there's always somewhere to go.
+    let tabCount = 0;
+    newModel.visitNodes((node) => {
+      if (node.getType() === 'tab') tabCount += 1;
+    });
+    if (tabCount === 0) setShowLanding(true);
   }, []);
 
   // Focus tab content when tab is selected (via tab header click)
