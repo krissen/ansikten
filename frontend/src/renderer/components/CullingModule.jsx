@@ -749,8 +749,9 @@ export function CullingModule({ node }) {
   // Esc discards the current file's pending name toggles (row un-oranges) — the
   // "undo pending edit" affordance — and shares this handler so it, too, wins
   // over Review's Esc and only fires when culling is the active tabset (an Esc
-  // meant for another visible pane must not silently drop culling's edits). It
-  // bails while the context menu is open, so Esc there just closes the menu.
+  // meant for another visible pane must not silently drop culling's edits). Both
+  // keys bail while the context menu is open, so Esc there just closes the menu
+  // and Enter doesn't rename/commit underneath it.
   useEffect(() => {
     const onKeyCapture = (e) => {
       if (e.key !== 'Enter' && e.key !== 'Escape') return;
@@ -765,9 +766,12 @@ export function CullingModule({ node }) {
       const activeTabsetId = node?.getModel?.().getActiveTabset?.()?.getId?.();
       const myTabsetId = node?.getParent?.()?.getId?.();
       if (activeTabsetId && myTabsetId && activeTabsetId !== myTabsetId) return;
+      // The context menu owns both keys while open: Esc just closes it (handled
+      // in the menu effect below), and Enter must not rename/commit on the file
+      // underneath a menu that's mouse-driven with no keyboard focus.
+      if (menuRef.current) return;
 
       if (e.key === 'Escape') {
-        if (menuRef.current) return; // the context menu owns Esc while it's open
         if (removedNamesRef.current.size === 0) return; // nothing to discard
         e.preventDefault();
         e.stopPropagation();
