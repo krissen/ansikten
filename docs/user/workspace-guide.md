@@ -12,19 +12,19 @@ Workspace är ett modulärt gränssnitt byggt med FlexLayout. Paneler kan dockas
 
 | Modul | Beskrivning |
 |-------|-------------|
-| **Image Viewer** | Visar bilder med zoom och panorering |
-| **Face Review** | Granska och bekräfta ansikten |
-| **File Queue** | Hantera filkön |
-| **Log Viewer** | Visa loggar |
-| **Original View** | Jämför med originalfil |
-| **Statistics** | Bearbetningsstatistik |
+| **Bildvisare** | Visar bilder med zoom och panorering |
+| **Granska ansikten** | Granska och bekräfta ansikten |
+| **Filkö** | Hantera filkön |
+| **Loggar** | Visa loggar |
+| **Originalvy** | Jämför med originalfil |
+| **Statistik** | Bearbetningsstatistik |
 | **Importera** | Överför NEF från minneskort till målmapp och matar ut kortet |
 | **Byt namn** | Döper om NEF efter EXIF CreateDate (YYMMDD_HHMMSS) med förhandsvisning |
 | **Räkna spelare** | Räknar bilder per spelare (från filnamn) med över-/underrepresentation |
 | **Gallra spelare** | Gallra bilder per spelare med förhandsvisning och papperskorg |
-| **Database** | Databashantering |
-| **Preferences** | Inställningar |
-| **Theme Editor** | Anpassa utseende |
+| **Databashantering** | Databashantering |
+| **Inställningar** | Inställningar |
+| **Temaredigerare** | Anpassa utseende |
 
 ---
 
@@ -50,7 +50,7 @@ Workspace är ett modulärt gränssnitt byggt med FlexLayout. Paneler kan dockas
 | `c` / `C` | Aktivera/avaktivera auto-centrering |
 | `Shift+I` | Visa/dölj "Review Progress" (filnamn + köstatus) |
 
-*Review Progress finns även i menyn: View → Show Review Progress.*
+*Granskningsförloppet finns även i menyn: Visa → Visa granskningsförlopp.*
 
 ### Ansiktsgranskning
 
@@ -70,11 +70,11 @@ Workspace är ett modulärt gränssnitt byggt med FlexLayout. Paneler kan dockas
 
 | Genväg | Funktion |
 |--------|----------|
-| `Cmd+1` | Review Mode |
-| `Cmd+2` | Comparison Mode |
-| `Cmd+3` | Full Image |
-| `Cmd+4` | Statistics Mode |
-| `Cmd+5` | Queue Review Mode |
+| `Cmd+1` | Granskningsläge |
+| `Cmd+2` | Jämförelseläge |
+| `Cmd+3` | Helbild |
+| `Cmd+4` | Statistikläge |
+| `Cmd+5` | Köläge |
 | `Cmd+Shift+]` | Lägg till kolumn |
 | `Cmd+Shift+[` | Ta bort kolumn |
 
@@ -160,11 +160,15 @@ Skriptet kräver att appen är installerad i `/Applications/Ansikten.app` (macOS
 ## Arbetsflöde
 
 > **Startsida:** När appen startar utan filer i kön visas en startsida i
-> arbetsytan med knappar för arbetsflödesstegen i ordning (**Importera · Byt
-> namn · Granska ansikten · Räkna spelare · Gallra spelare**). Varje knapp
-> öppnar (eller fokuserar) respektive modul. **Importera** är aktiv bara när ett
-> minneskort sitter i (uppdateras automatiskt) — övriga är alltid valbara.
-> Startsidan försvinner så fort du öppnar en modul eller laddar en bild.
+> arbetsytan. Överst ligger arbetsflödesstegen i ordning (**Importera · Byt
+> namn · Granska ansikten · Räkna spelare · Gallra spelare**); under en
+> **Verktyg**-avdelare når du resten av vyerna direkt (Databashantering, Förfina
+> ansikten, Filkö, Statistik, Loggar, Inställningar, Temaredigerare). Varje knapp
+> öppnar respektive vy (fyller arbetsytan; Granska ansikten öppnar review-
+> layouten). **Importera** är aktiv bara när ett minneskort sitter i (uppdateras
+> automatiskt) — övriga är alltid valbara. Startsidan försvinner så fort du
+> öppnar en vy eller laddar en bild, och **kommer tillbaka om du stänger alla
+> öppna moduler** så arbetsytan aldrig blir tom utan väg vidare.
 
 ### 0. Importera från minneskort (valfritt)
 
@@ -180,21 +184,21 @@ Skriptet kräver att appen är installerad i `/Applications/Ansikten.app` (macOS
 
 ### 1. Lägg till filer
 
-1. Klicka `+` i File Queue eller `Cmd+O`
+1. Klicka `+` i Filkö eller `Cmd+O`
 2. Välj en eller flera NEF-filer
 3. Filer läggs till i kön
 
 ### 2. Granska ansikten
 
 1. Klicka på en fil i kön för att ladda den
-2. Ansikten visas i Face Review-panelen
+2. Ansikten visas i Granska ansikten-panelen
 3. För varje ansikte:
    - **Acceptera** (`A`/`Enter`) om matchningen är korrekt
    - **Ignorera** (`I`) om ansiktet ska ignoreras
    - **Namnge** (`R` eller skriv i fältet) för nytt namn
    - **Välj alternativ** (`1-9`) för annan matchning
 
-Längst ner i Face Review-panelen visas en **kööversikt** som en
+Längst ner i Granska ansikten-panelen visas en **kööversikt** som en
 färgad stapel över hela kön: grönt = granskade den här sessionen,
 orange = förbearbetade (i cachen, snabba att öppna) men ännu inte
 granskade, grått = återstår. Håll muspekaren över stapeln för exakta
@@ -209,7 +213,7 @@ antal.
 
 ### 4. Byt namn (valfritt)
 
-1. När filer är granskade, klicka **Rename** i File Queue
+1. När filer är granskade, klicka döp-om-knappen i Filkö
 2. Bekräfta namnbytet
 3. Filer får nya namn enligt mönstret `YYMMDD_HHMMSS_Namn1,_Namn2.NEF`
 
@@ -232,9 +236,14 @@ antal.
    > räkningen live. Under **Uteslutna** redigerar du listorna för tränare och
    > publik — ändringarna gäller bara den aktuella räkningen tills du klickar
    > **Spara som standard** (då skrivs de till config och gäller även framtida
-   > räkningar och CLI:t). `Laget`/`FBK`/`Klacken` är alltid uteslutna och visas
-   > låsta. Motsvarar CLI:ns `--gap-minutes`/`--baseline`/`--min-images` och
-   > `--tranare`/`--publik`.
+   > räkningar och CLI:t). Under **Alltid uteslutna (sparas)** redigerar du de
+   > markörer som alltid räknas som gruppbilder/publik oavsett tröskel — som
+   > standard `Laget`/`FBK`/`Klacken`, men du kan lägga till egna (t.ex. en
+   > `Forward`-gruppetikett) eller ta bort en inbyggd; dessa gäller efter **Spara
+   > som standard**. Om en `RAKNA_*`-miljövariabel är satt varnar editorn för att
+   > sparningen kanske inte får effekt. Motsvarar CLI:ns
+   > `--gap-minutes`/`--baseline`/`--min-images` och `--tranare`/`--publik` samt
+   > config-nycklarna `always_grupp`/`always_publik`.
 2. Klicka på en spelare i tabellen för att öppna **Gallra spelare**
    (`Cmd+Shift+G`) filtrerad på den spelaren. Filtret kan finjusteras med
    spelar-menyn eller ett eget glob (t.ex. `*ArvidW*`) i balken. Välj filtyp
@@ -293,7 +302,7 @@ antal.
 
 - **General** - Backend, tema, standardlayout
 - **Layout** - Layoutmallar och rutnät
-- **Image Viewer** - Zoom, panorering
+- **Bildvisare** - Zoom, panorering
 - **Review** - Auto-save, bekräftelser, antal alternativ
 - **Files** - Kö, namnbyte
 - **Preprocessing** - Bakgrundsbearbetning, cache, rolling window
@@ -309,7 +318,7 @@ Förhindrar att cachen fylls vid stora köer (1000+ bilder). Preprocessningen pa
 | **Max Ready Items** | 15 | Max antal preprocessade filer att hålla redo |
 | **Pause Buffer** | 10 | Pausa när så här många är redo (bör vara märkbart mindre än Max Ready Items) |
 | **Resume After** | 5 | Återuppta efter så många granskade |
-| **Status Indicator** | På | Visa status i File Queue-footer |
+| **Status Indicator** | På | Visa status i Filkö-footern |
 | **Toast on Pause** | På | Visa meddelande vid paus |
 | **Toast on Resume** | Av | Visa meddelande vid återstart |
 
@@ -317,13 +326,13 @@ Förhindrar att cachen fylls vid stora köer (1000+ bilder). Preprocessningen pa
 
 ## Tema
 
-Välj tema i General-inställningar eller via Theme Editor (`Cmd+Shift+T`):
+Välj tema i Allmänt-inställningar eller via Temaredigeraren (`Cmd+Shift+T`):
 
 - **Light** (Terminal Beige) - Ljust retro-tema
 - **Dark** (CRT Phosphor) - Mörkt CRT-tema
 - **System** - Följer systemets inställning
 
-Theme Editor ger full kontroll över färger och presets.
+Temaredigeraren ger full kontroll över färger och presets.
 
 ---
 

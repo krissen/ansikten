@@ -124,11 +124,20 @@ Config-fil: `~/.local/share/faceid/rakna_spelare.json`
 {
   "tranare": ["Martin", "Ronnie"],
   "publik": ["Jasenko", "Jelena"],
-  "grupp": ["Reservlaget"]
+  "grupp": ["Reservlaget"],
+  "always_grupp": ["Laget", "FBK"],
+  "always_publik": ["Klacken"]
 }
 ```
 
-Miljövariabler: `RAKNA_TRANARE`, `RAKNA_PUBLIK`, `RAKNA_GRUPP`, `NO_COLOR`
+`always_grupp`/`always_publik` är markörer som alltid räknas som gruppbilder/
+publik oavsett tröskel. De är valfria — utelämnade används de inbyggda
+standardvärdena (`Laget`/`FBK` respektive `Klacken`), så befintliga configar är
+oförändrade. Ange dem för att lägga till egna (t.ex. `Forward`) eller ta bort en
+inbyggd; en tom lista nollställer den alltid-uteslutna uppsättningen.
+
+Miljövariabler: `RAKNA_TRANARE`, `RAKNA_PUBLIK`, `RAKNA_GRUPP`,
+`RAKNA_ALWAYS_GRUPP`, `RAKNA_ALWAYS_PUBLIK`, `NO_COLOR`
 
 **Prioritet:** CLI-flaggor > miljövariabler > config-fil > standardvärden
 
