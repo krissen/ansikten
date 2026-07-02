@@ -1,10 +1,19 @@
-# Roadmap
+# Performance Plan
 
-Planned work for performance-focused release `v1.2.0`.
+Forward-looking, **release-scoped** plan for a performance-focused release
+(sprints, deliverables, Definition of Done). This is deliberately narrower than
+the top-level [ROADMAP.md](../../ROADMAP.md), which is the living
+backlog / known-issues / tech-debt list across all horizons. When any of the
+work below is picked up, track it as a normal roadmap item and check it off in
+[CHANGELOG.md](../../CHANGELOG.md) once shipped.
+
+> **Status:** this plan is not yet executed. It was originally scoped to
+> `v1.2.0`; that tag has shipped without this work, so treat the sprints below
+> as the plan for a *future* performance release rather than a specific version.
 
 ---
 
-## Scope for v1.2.0
+## Scope
 
 This release focuses on end-to-end performance and efficiency improvements:
 
