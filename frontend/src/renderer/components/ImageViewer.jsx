@@ -13,6 +13,7 @@ import { useModuleAPI, useModuleEvent, useEmitEvent } from '../hooks/useModuleEv
 import { useKeyboardShortcuts, useKeyHold } from '../hooks/useKeyboardShortcuts.js';
 import { useCanvasDimensions } from '../hooks/useCanvas.js';
 import { debug, debugWarn, debugError } from '../shared/debug.js';
+import { toFileUrl } from '../shared/fileUrl.js';
 import { apiClient } from '../shared/api-client.js';
 import { preferences } from '../workspace/preferences.js';
 import { LoadingOverlay } from './ProgressBar.jsx';
@@ -136,25 +137,9 @@ export function ImageViewer() {
         reject(new Error(`Failed to load image: ${loadPath}`));
       };
 
-      // Construct file:// URL with proper encoding
-      // encodeURI preserves path separators and colons while encoding spaces
-      // but doesn't encode # and ? which have special meaning in URLs
-      let imageSrc;
-      if (loadPath.startsWith('file://')) {
-        imageSrc = loadPath;
-      } else {
-        const normalizedPath = loadPath.replace(/\\/g, '/');
-        const isWindowsAbsolute = /^[a-zA-Z]:\//.test(normalizedPath);
-        // Windows: file:///C:/path, Unix: file:///path
-        const encoded = encodeURI(normalizedPath)
-          .replace(/#/g, '%23')
-          .replace(/\?/g, '%3F')
-          .replace(/\[/g, '%5B')
-          .replace(/\]/g, '%5D');
-        imageSrc = isWindowsAbsolute
-          ? 'file:///' + encoded
-          : 'file://' + encoded;
-      }
+      // Build the file:// URL via the shared helper (handles encoding of spaces,
+      // #, ?, [], Windows drive paths, and already-file:// input).
+      const imageSrc = toFileUrl(loadPath);
 
       debug('ImageViewer', 'Loading image from:', imageSrc);
       img.src = imageSrc;
