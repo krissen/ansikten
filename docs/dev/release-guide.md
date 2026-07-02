@@ -45,7 +45,7 @@ npx electron .
 
 Arbetsprincip för planering och releaseförberedelse:
 
-1. Planera framtida arbete i `docs/dev/roadmap.md`
+1. Planera framtida arbete i [`ROADMAP.md`](../../ROADMAP.md) (löpande backlog/known issues/teknisk skuld); release-scopade prestandaplaner ligger i [`docs/dev/performance-plan.md`](performance-plan.md)
 2. När arbete är klart inför release, flytta relevanta punkter från roadmap till `CHANGELOG.md`
 3. Finslipa `CHANGELOG.md` så den beskriver ändringarna sedan senaste tag
 
