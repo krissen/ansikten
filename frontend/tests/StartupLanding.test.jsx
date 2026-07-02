@@ -14,17 +14,26 @@ describe('StartupLanding', () => {
     mockGet.mockReset();
   });
 
-  it('renders all five workflow steps in order', async () => {
+  it('renders the workflow steps in order, then the tools', async () => {
     mockGet.mockResolvedValue({ volumes: [] });
     render(<StartupLanding onOpenModule={() => {}} />);
 
     const buttons = await screen.findAllByRole('button');
     expect(buttons.map((b) => b.textContent)).toEqual([
+      // Workflow steps (unchanged order)
       'Importera',
       'Byt namn',
       'Granska ansikten',
       'Räkna spelare',
       'Gallra spelare',
+      // Tools (remaining views), appended
+      'Databashantering',
+      'Förfina ansikten',
+      'Filkö',
+      'Statistik',
+      'Loggar',
+      'Inställningar',
+      'Temaredigerare',
     ]);
   });
 
@@ -51,6 +60,16 @@ describe('StartupLanding', () => {
 
     fireEvent.click(screen.getByRole('button', { name: /Granska ansikten/ }));
     expect(onOpenModule).toHaveBeenCalledWith('review-module');
+  });
+
+  it('opens a tool module (e.g. Databashantering) when clicked', async () => {
+    mockGet.mockResolvedValue({ volumes: [] });
+    const onOpenModule = vi.fn();
+    render(<StartupLanding onOpenModule={onOpenModule} />);
+
+    // Await the async card-volume effect so the click doesn't race a pending act().
+    fireEvent.click(await screen.findByRole('button', { name: /Databashantering/ }));
+    expect(onOpenModule).toHaveBeenCalledWith('database-management');
   });
 
   it('does not let a disabled Import button fire onOpenModule', async () => {

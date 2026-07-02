@@ -208,11 +208,6 @@ const MODULE_TITLES = Object.fromEntries(
   Object.keys(MODULE_COMPONENTS).map((id) => [id, t(`modules.${id}`)])
 );
 
-// Self-contained workflow modules render their own full UI, so a landing-page
-// click gives them the whole workspace (a single-module layout) rather than
-// docking beside the empty Review panel. Review is not here: it needs the
-// Image Viewer beside it, so its landing button loads the review layout.
-const SOLO_WORKFLOW_MODULES = new Set(['import', 'rename-nef', 'player-count', 'culling']);
 
 // Module-specific default layout ratios
 // widthRatio: proportion of row width (horizontal split)
@@ -786,14 +781,15 @@ export function FlexLayoutWorkspace() {
 
   const openLandingStep = useCallback((moduleId) => {
     setShowLanding(false);
+    // Review needs its multi-pane layout (Review + Image Viewer); every other
+    // landing target is a self-contained view opened solo (fills the workspace)
+    // so a direct pick lands you on that view, not docked beside an empty panel.
     if (moduleId === 'review-module') {
       loadLayout('review');
-    } else if (SOLO_WORKFLOW_MODULES.has(moduleId)) {
-      openModuleSolo(moduleId);
     } else {
-      openModule(moduleId);
+      openModuleSolo(moduleId);
     }
-  }, [loadLayout, openModuleSolo, openModule]);
+  }, [loadLayout, openModuleSolo]);
 
   // Helper: Get DockLocation from direction string
   const getDockLocation = useCallback((direction) => {

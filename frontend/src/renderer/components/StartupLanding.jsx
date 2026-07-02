@@ -11,25 +11,38 @@
 import React, { useCallback, useEffect, useState } from 'react';
 import { useBackend } from '../context/BackendContext.jsx';
 import { Icon } from './Icon.jsx';
+import { t } from '../../i18n/index.js';
 import './StartupLanding.css';
 
 // Poll interval for card detection so Import lights up when a card is inserted.
 const VOLUME_POLL_MS = 4000;
 
 // Workflow steps in order. `requiresCard` gates Import on a mounted card volume;
-// the rest are always enabled. `moduleId` strings match MODULE_COMPONENTS.
+// the rest are always enabled. `moduleId` strings match MODULE_COMPONENTS; the
+// label is the module's catalog title (t('modules.<id>')).
 const STEPS = [
   {
     moduleId: 'import',
-    label: 'Importera',
     icon: 'folder-plus',
     requiresCard: true,
     disabledHint: 'Sätt i ett minneskort för att importera',
   },
-  { moduleId: 'rename-nef', label: 'Byt namn', icon: 'file' },
-  { moduleId: 'review-module', label: 'Granska ansikten', icon: 'user' },
-  { moduleId: 'player-count', label: 'Räkna spelare', icon: 'layers' },
-  { moduleId: 'culling', label: 'Gallra spelare', icon: 'check-circle' },
+  { moduleId: 'rename-nef', icon: 'file' },
+  { moduleId: 'review-module', icon: 'user' },
+  { moduleId: 'player-count', icon: 'layers' },
+  { moduleId: 'culling', icon: 'check-circle' },
+];
+
+// The remaining views/tools — always available, opened directly (fill the
+// workspace). Reachable so you can jump straight to e.g. Databashantering.
+const TOOLS = [
+  { moduleId: 'database-management', icon: 'sort' },
+  { moduleId: 'refine-faces', icon: 'bolt' },
+  { moduleId: 'file-queue', icon: 'folder' },
+  { moduleId: 'statistics-dashboard', icon: 'layers' },
+  { moduleId: 'log-viewer', icon: 'file' },
+  { moduleId: 'preferences', icon: 'settings' },
+  { moduleId: 'theme-editor', icon: 'circle' },
 ];
 
 export function StartupLanding({ onOpenModule }) {
@@ -52,29 +65,32 @@ export function StartupLanding({ onOpenModule }) {
     return () => clearInterval(id);
   }, [checkVolumes]);
 
+  const renderStep = (step) => {
+    const disabled = step.requiresCard && !cardPresent;
+    return (
+      <button
+        key={step.moduleId}
+        type="button"
+        className="btn-action startup-landing-step"
+        disabled={disabled}
+        title={disabled ? step.disabledHint : undefined}
+        onClick={() => onOpenModule(step.moduleId)}
+      >
+        <Icon name={step.icon} size={20} />
+        <span>{t(`modules.${step.moduleId}`)}</span>
+      </button>
+    );
+  };
+
   return (
     <div className="startup-landing" role="region" aria-label="Kom igång">
       <div className="startup-landing-card">
         <h1 className="startup-landing-title">Kom igång</h1>
         <p className="startup-landing-subtitle">Välj ett steg i arbetsflödet.</p>
-        <div className="startup-landing-steps">
-          {STEPS.map((step) => {
-            const disabled = step.requiresCard && !cardPresent;
-            return (
-              <button
-                key={step.moduleId}
-                type="button"
-                className="btn-action startup-landing-step"
-                disabled={disabled}
-                title={disabled ? step.disabledHint : undefined}
-                onClick={() => onOpenModule(step.moduleId)}
-              >
-                <Icon name={step.icon} size={20} />
-                <span>{step.label}</span>
-              </button>
-            );
-          })}
-        </div>
+        <div className="startup-landing-steps">{STEPS.map(renderStep)}</div>
+
+        <div className="startup-landing-divider">Verktyg</div>
+        <div className="startup-landing-steps">{TOOLS.map(renderStep)}</div>
       </div>
     </div>
   );
