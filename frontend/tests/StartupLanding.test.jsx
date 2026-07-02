@@ -67,7 +67,8 @@ describe('StartupLanding', () => {
     const onOpenModule = vi.fn();
     render(<StartupLanding onOpenModule={onOpenModule} />);
 
-    fireEvent.click(screen.getByRole('button', { name: /Databashantering/ }));
+    // Await the async card-volume effect so the click doesn't race a pending act().
+    fireEvent.click(await screen.findByRole('button', { name: /Databashantering/ }));
     expect(onOpenModule).toHaveBeenCalledWith('database-management');
   });
 
