@@ -48,7 +48,6 @@ deliverables, DoD) för en prestandarelease.
 
 - [ ] **CLI launch: landing döljs vid sökväg som expanderar till tomt** — renderaren härleder landningssidans suppression från råa arg-antalet (`hasFiles`), men huvudprocessen skickar bara handoff efter sökvägsexpansion (`expandFolderPaths`/`expandFilePaths` → `length>0 || clear`). En syntaktiskt giltig men icke-matchande sökväg (t.ex. `ansikten culling /typo` eller en glob utan träffar) döljer landningen utan att öppna något → användaren hamnar i default-layouten istället. Ren fix: låt huvudprocessen beräkna post-expansion-villkoret och exponera den boolean:en som launch intent istället för att renderaren gissar från råa argument (kräver async-hantering för faces). Pre-existerande edge (user-error), icke-blockerande; flaggad i PR #67-granskningen.
 - [ ] **Gallra spelare: `Cmd+R` (reload) bevarar inte fillistan** — en renderer-reload nollställer culling-modulens React-state (roots/glob/filter + laddad fillista), så arbetsmängden försvinner och användaren måste scanna om. Bör persista scan-scope + ev. laddad lista (t.ex. sessionStorage eller via `scanScope`-delningen) och återställa vid mount, så en omladdning inte tappar var man var. Gäller sannolikt även Räkna spelare.
-- [ ] **Gallra spelare: `Enter` inte meny-medveten som `Esc`** — efter #81 bailar `Esc` när kontextmenyn är öppen, men `Enter` gör det inte: med menyn öppen startar `Enter` fortfarande rename/commit på `currentIndex` (menyn stängs på klick/scroll/`Esc`, inte på `Enter`). Pre-existerande, låg impact (menyn är musdriven, ingen tangentfokus; editerar `currentIndex`, inte menyns `menu.path`). Gate `Enter` på `menuRef` för symmetri om det tas upp. Noterat i Nagelfar-granskningen av #81.
 
 ---
 
@@ -58,6 +57,7 @@ deliverables, DoD) för en prestandarelease.
 
 - [ ] "Öppna i Lightroom" (`open-raw-in-lightroom`) läser hela RAW-roten rekursivt i minnet per tangenttryck och sorterar för deterministisk första-träff. Räcker för dagens per-match-mappar; för en stor RAW-rot, byt till en strömmande DFS-walk med tidig utgång (behåll deterministisk traverseringsordning) eller cachea filindexet.
 - [ ] `ImageViewer.jsx` handrullar samma `file://`-kodning som nu finns i den delade `shared/fileUrl.js` (`toFileUrl`). Peka `ImageViewer` på hjälparen så kodningen bara finns på ett ställe (kräver test av face-review-bildladdningen).
+- [ ] **Tangentbordstest för CullingModules Enter/Esc-gate** — capture-fas-lyssnaren (gate på FlexLayout-node/aktiv-tabset + `menuRef`) saknar enhetstest för "Enter är no-op när kontextmenyn är öppen och läcker inte till andra moduler" och motsvarande för `Esc`. Låg impact (musdriven meny), men regressionsbenägen (jfr #81). Kräver tyngre DOM/FlexLayout-mockning eller att beslutslogiken extraheras till en ren predikat-funktion som kan testas. Noterat i granskningen av #106.
 
 ---
 

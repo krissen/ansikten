@@ -749,8 +749,10 @@ export function CullingModule({ node }) {
   // Esc discards the current file's pending name toggles (row un-oranges) — the
   // "undo pending edit" affordance — and shares this handler so it, too, wins
   // over Review's Esc and only fires when culling is the active tabset (an Esc
-  // meant for another visible pane must not silently drop culling's edits). It
-  // bails while the context menu is open, so Esc there just closes the menu.
+  // meant for another visible pane must not silently drop culling's edits). While
+  // the context menu is open Esc bails (the menu effect closes+swallows it) and
+  // Enter is swallowed to a true no-op — consumed so it neither edits under the
+  // menu nor leaks to other modules' Enter handlers.
   useEffect(() => {
     const onKeyCapture = (e) => {
       if (e.key !== 'Enter' && e.key !== 'Escape') return;
@@ -767,7 +769,10 @@ export function CullingModule({ node }) {
       if (activeTabsetId && myTabsetId && activeTabsetId !== myTabsetId) return;
 
       if (e.key === 'Escape') {
-        if (menuRef.current) return; // the context menu owns Esc while it's open
+        // The context menu owns Esc while open — bail (without swallowing) so
+        // the menu effect below, registered later in the same capture phase,
+        // closes and swallows it.
+        if (menuRef.current) return;
         if (removedNamesRef.current.size === 0) return; // nothing to discard
         e.preventDefault();
         e.stopPropagation();
@@ -776,9 +781,15 @@ export function CullingModule({ node }) {
         return;
       }
 
+      // Enter (plain or ⌘/Ctrl). Swallow first, then decide: while the context
+      // menu is open Enter is a true no-op — we still consume the event here so
+      // it neither renames/commits underneath the (mouse-driven, unfocused) menu
+      // nor leaks to other capture-phase document handlers (e.g. ReviewModule's
+      // Enter-to-confirm) while culling is the active tabset.
       e.preventDefault();
       e.stopPropagation();
       e.stopImmediatePropagation?.();
+      if (menuRef.current) return;
       if (e.metaKey || e.ctrlKey) commitNameToggleRef.current?.();
       else beginEdit(currentIndex);
     };
