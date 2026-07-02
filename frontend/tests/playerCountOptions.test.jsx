@@ -60,8 +60,10 @@ describe('CountOptions', () => {
     onOptionsChange: () => {},
     onOptionsPreview: () => {},
     exclusions: { tranare: [], publik: [] },
-    alwaysMarkers: { publik: ['Klacken'], grupp: ['Laget', 'FBK'] },
-    exclusionsDirty: false,
+    grupp: ['Laget', 'FBK'],
+    alwaysPublik: ['Klacken'],
+    envKeys: [],
+    dirty: false,
     savingDefaults: false,
     onAddExcluded: () => {},
     onRemoveExcluded: () => {},
@@ -97,23 +99,40 @@ describe('CountOptions', () => {
     expect(onOptionsChange).toHaveBeenCalled();
   });
 
-  it('shows the exclusion editor with locked always-markers when expanded', () => {
+  it('shows editable exclusion lists (incl. always-excluded) when expanded', () => {
     render(<CountOptions {...baseProps} />);
     fireEvent.click(screen.getByText(/Uteslutna/));
     expect(screen.getByText('Tränare')).toBeTruthy();
     expect(screen.getByText('Publik')).toBeTruthy();
-    // The Gruppbilder row renders for the group always-markers.
+    // Config-level always lists are editable now, not locked.
     expect(screen.getByText('Gruppbilder')).toBeTruthy();
-    // All always-markers (publik + grupp) are rendered as locked chips.
-    const locked = screen.getAllByTitle('Alltid utesluten').map((el) => el.textContent);
-    expect(locked).toEqual(expect.arrayContaining(['Klacken', 'Laget', 'FBK']));
+    expect(screen.getByText('Publik (alltid)')).toBeTruthy();
+    // The group markers render as removable chips (each has a "Ta bort" button).
+    expect(screen.getByRole('button', { name: 'Ta bort FBK' })).toBeTruthy();
+    expect(screen.getByRole('button', { name: 'Ta bort Klacken' })).toBeTruthy();
+  });
+
+  it('adds a custom always-group marker via the Gruppbilder editor', () => {
+    const onAddExcluded = vi.fn();
+    render(<CountOptions {...baseProps} onAddExcluded={onAddExcluded} />);
+    fireEvent.click(screen.getByText(/Uteslutna/));
+    const input = screen.getByLabelText('Lägg till gruppbilder');
+    fireEvent.change(input, { target: { value: 'Forward' } });
+    fireEvent.keyDown(input, { key: 'Enter' });
+    expect(onAddExcluded).toHaveBeenCalledWith('grupp', 'Forward');
   });
 
   it('disables "Spara som standard" until there are unsaved edits', () => {
     const { rerender } = render(<CountOptions {...baseProps} />);
     fireEvent.click(screen.getByText(/Uteslutna/));
     expect(screen.getByText('Spara som standard').disabled).toBe(true);
-    rerender(<CountOptions {...baseProps} exclusionsDirty />);
+    rerender(<CountOptions {...baseProps} dirty />);
     expect(screen.getByText('Spara som standard').disabled).toBe(false);
+  });
+
+  it('warns when a RAKNA_* env var shadows the config', () => {
+    render(<CountOptions {...baseProps} envKeys={['RAKNA_TRANARE']} />);
+    fireEvent.click(screen.getByText(/Uteslutna/));
+    expect(screen.getByText(/RAKNA_TRANARE/)).toBeTruthy();
   });
 });

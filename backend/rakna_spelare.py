@@ -16,11 +16,40 @@ from statistics import median, mean
 CONFIG_DIR = Path(os.environ.get("XDG_DATA_HOME", Path.home() / ".local" / "share")) / "faceid"
 CONFIG_FILE = CONFIG_DIR / "rakna_spelare.json"
 
-# Built-in markers that are never individual players and are always excluded
-# from the counts (in addition to any configured names): how the photographer
-# labels team photos and crowd shots when naming individuals isn't meaningful.
-ALWAYS_GRUPP = {"Laget", "FBK"}   # team / group photos → "Gruppbilder"
-ALWAYS_PUBLIK = {"Klacken"}        # crowd / supporters → "Publik"
+# Built-in DEFAULT always-excluded markers — names that are never individual
+# players (team/group photos, crowd shots). Used when the config doesn't specify
+# its own always-set. The always-set is configurable (config keys
+# `always_grupp`/`always_publik`, or env RAKNA_ALWAYS_GRUPP/PUBLIK), so the
+# photographer can add their own (e.g. "Forward") or change which markers are
+# always excluded. Kept as the defaults so existing configs behave unchanged.
+ALWAYS_GRUPP = {"Laget", "FBK"}   # default team / group photo markers
+ALWAYS_PUBLIK = {"Klacken"}        # default crowd / supporter markers
+
+
+def resolve_always_markers(
+    config: dict | None = None,
+) -> tuple[set[str], set[str]]:
+    """The configured always-excluded markers ``(grupp, publik)``.
+
+    Precedence per set: env (RAKNA_ALWAYS_GRUPP/PUBLIK) > config key
+    (`always_grupp`/`always_publik`) > built-in default. A present-but-empty
+    config key means "no always-markers" (not the default) — so the user can
+    clear them. Shared by the CLI and GUI/API so they never fork.
+    """
+    if config is None:
+        config = load_exclusion_config()
+
+    def _resolve(key: str, env: str, default: set[str]) -> set[str]:
+        env_val = os.environ.get(env, "")
+        if env_val:
+            return {n.strip() for n in env_val.split(",") if n.strip()}
+        if key in config:
+            return {n.strip() for n in (config.get(key) or []) if n.strip()}
+        return set(default)
+
+    grupp = _resolve("always_grupp", "RAKNA_ALWAYS_GRUPP", ALWAYS_GRUPP)
+    publik = _resolve("always_publik", "RAKNA_ALWAYS_PUBLIK", ALWAYS_PUBLIK)
+    return grupp, publik
 
 
 def load_exclusion_config() -> dict[str, list[str]]:
@@ -37,34 +66,65 @@ def save_exclusion_config(
     tranare: list[str] | None = None,
     publik: list[str] | None = None,
     grupp: list[str] | None = None,
+    always_grupp: list[str] | None = None,
+    always_publik: list[str] | None = None,
 ) -> dict[str, list[str]]:
     """Persist coach/audience/group exclusion lists to the config file.
 
     Only the provided lists are overwritten; ``None`` preserves the existing
-    value (so saving just tranare/publik keeps a configured grupp). The built-in
-    ALWAYS markers (Laget/FBK, Klacken) are stripped before writing — they are
-    always merged by ``resolve_exclusion_sets`` and shouldn't clutter the config.
-    Returns the written config dict.
+    value (so saving just tranare/publik keeps a configured grupp). The
+    always-markers are stored in their own keys (``always_grupp``/
+    ``always_publik``) and stripped from the regular grupp/publik lists so they
+    aren't duplicated. Returns the written config dict.
     """
     existing = load_exclusion_config()
 
-    def _clean(names: list[str], always: set[str]) -> list[str]:
-        # De-dupe, drop empties and always-markers, keep first-seen order.
+    def _clean(names: list[str], drop: set[str]) -> list[str]:
+        # De-dupe, drop empties and any name in `drop`, keep first-seen order.
         seen: set[str] = set()
         out: list[str] = []
         for raw in names:
             name = raw.strip()
-            if not name or name in always or name in seen:
+            if not name or name in drop or name in seen:
                 continue
             seen.add(name)
             out.append(name)
         return out
 
-    config = {
+    # The always-set to strip the regular lists against: the new values if being
+    # saved, otherwise the config file's always-set (or the built-in defaults).
+    # Deliberately ignores RAKNA_ALWAYS_* env — persistence must depend on what's
+    # on disk, not on a transient env override.
+    def _cfg_always(key: str, default: set[str]) -> set[str]:
+        if key in existing:
+            return {n.strip() for n in (existing.get(key) or []) if n.strip()}
+        return set(default)
+
+    new_always_grupp = (
+        set(_clean(always_grupp, set())) if always_grupp is not None
+        else _cfg_always("always_grupp", ALWAYS_GRUPP)
+    )
+    new_always_publik = (
+        set(_clean(always_publik, set())) if always_publik is not None
+        else _cfg_always("always_publik", ALWAYS_PUBLIK)
+    )
+
+    config: dict[str, list[str]] = {
         "tranare": _clean(tranare, set()) if tranare is not None else list(existing.get("tranare", [])),
-        "publik": _clean(publik, ALWAYS_PUBLIK) if publik is not None else list(existing.get("publik", [])),
-        "grupp": _clean(grupp, ALWAYS_GRUPP) if grupp is not None else list(existing.get("grupp", [])),
+        "publik": _clean(publik, new_always_publik) if publik is not None else list(existing.get("publik", [])),
+        "grupp": _clean(grupp, new_always_grupp) if grupp is not None else list(existing.get("grupp", [])),
     }
+
+    # Persist the always-keys when provided, else preserve any existing ones
+    # (absent key = fall back to the built-in defaults at resolve time).
+    if always_grupp is not None:
+        config["always_grupp"] = _clean(always_grupp, set())
+    elif "always_grupp" in existing:
+        config["always_grupp"] = list(existing["always_grupp"])
+    if always_publik is not None:
+        config["always_publik"] = _clean(always_publik, set())
+    elif "always_publik" in existing:
+        config["always_publik"] = list(existing["always_publik"])
 
     # Atomic write (tmp + replace) so a crash mid-write can't leave a
     # half-written config that zeroes the exclusion lists on the next load.
@@ -84,9 +144,10 @@ def resolve_exclusion_sets(
     """Single source of truth for coach/audience/group exclusion sets.
 
     Per-argument overrides win; otherwise env vars (RAKNA_TRANARE/PUBLIK/GRUPP)
-    then the config file. The built-in ALWAYS_GRUPP/ALWAYS_PUBLIK markers are
-    always merged in, so e.g. Laget/FBK and Klacken are excluded regardless of
-    config. Shared by the CLI and the GUI/API so the numbers never fork.
+    then the config file. The configured always-markers (``resolve_always_markers``,
+    defaulting to Laget/FBK and Klacken) are always merged into grupp/publik, so
+    they're excluded regardless of the per-request/config lists. Shared by the
+    CLI and the GUI/API so the numbers never fork.
     """
     config = load_exclusion_config()
 
@@ -98,9 +159,10 @@ def resolve_exclusion_sets(
             return [n.strip() for n in env_val.split(",") if n.strip()]
         return list(config.get(key, []))
 
+    always_grupp, always_publik = resolve_always_markers(config)
     tranare_set = set(_resolve("tranare", tranare, "RAKNA_TRANARE"))
-    publik_set = set(_resolve("publik", publik, "RAKNA_PUBLIK")) | ALWAYS_PUBLIK
-    grupp_set = set(_resolve("grupp", grupp, "RAKNA_GRUPP")) | ALWAYS_GRUPP
+    publik_set = set(_resolve("publik", publik, "RAKNA_PUBLIK")) | always_publik
+    grupp_set = set(_resolve("grupp", grupp, "RAKNA_GRUPP")) | always_grupp
     return tranare_set, publik_set, grupp_set
 
 

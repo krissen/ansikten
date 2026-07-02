@@ -16,12 +16,24 @@ from pathlib import Path
 # the other services).
 sys.path.insert(0, str(Path(__file__).parent.parent.parent))
 
+import os  # noqa: E402
+
 from rakna_spelare import (  # noqa: E402
-    ALWAYS_GRUPP,
-    ALWAYS_PUBLIK,
     compute_player_stats,
+    load_exclusion_config,
+    resolve_always_markers,
     resolve_exclusion_sets,
     save_exclusion_config,
+)
+
+# Env vars that override the config; while any is set, "save as default" is a
+# no-op for that field, so the GUI surfaces a warning.
+_ENV_KEYS = (
+    "RAKNA_TRANARE",
+    "RAKNA_PUBLIK",
+    "RAKNA_GRUPP",
+    "RAKNA_ALWAYS_GRUPP",
+    "RAKNA_ALWAYS_PUBLIK",
 )
 
 from .file_resolver import preset_extensions, resolve_files  # noqa: E402
@@ -47,31 +59,48 @@ class PlayerCountService:
         return resolve_exclusion_sets(tranare=tranare, publik=publik)
 
     def get_exclusions(self) -> dict:
-        """Return the currently resolved coach/audience/group exclusion lists.
+        """Return the currently resolved exclusion lists for the GUI editor.
 
-        Uses the shared resolver with no per-request overrides, so the GUI sees
-        exactly the config/env defaults (with the built-in ALWAYS markers merged
-        in). ``always`` lists the locked markers the GUI renders non-removable.
+        ``tranare``/``publik``/``grupp`` are the fully resolved sets (config/env
+        + always-markers). ``always`` is the configured always-set (grupp/publik)
+        — editable, no longer forced built-ins. ``env_active``/``env_keys`` tell
+        the GUI when a RAKNA_* env var overrides the config (so "save as default"
+        would be a no-op).
         """
+        config = load_exclusion_config()
         tranare_set, publik_set, grupp_set = resolve_exclusion_sets()
+        always_grupp, always_publik = resolve_always_markers(config)
+        env_keys = [k for k in _ENV_KEYS if os.environ.get(k)]
         return {
             "tranare": sorted(tranare_set),
             "publik": sorted(publik_set),
             "grupp": sorted(grupp_set),
             "always": {
-                "publik": sorted(ALWAYS_PUBLIK),
-                "grupp": sorted(ALWAYS_GRUPP),
+                "publik": sorted(always_publik),
+                "grupp": sorted(always_grupp),
             },
+            "env_active": bool(env_keys),
+            "env_keys": env_keys,
         }
 
     def save_exclusions(
         self,
         tranare: list[str] | None = None,
         publik: list[str] | None = None,
+        grupp: list[str] | None = None,
+        always_grupp: list[str] | None = None,
+        always_publik: list[str] | None = None,
     ) -> dict:
-        """Persist coach/audience lists to the config file, then return the
-        newly resolved exclusions (``get_exclusions`` shape)."""
-        save_exclusion_config(tranare=tranare, publik=publik)
+        """Persist the exclusion lists to the config file, then return the newly
+        resolved exclusions (``get_exclusions`` shape). ``None`` fields are left
+        unchanged."""
+        save_exclusion_config(
+            tranare=tranare,
+            publik=publik,
+            grupp=grupp,
+            always_grupp=always_grupp,
+            always_publik=always_publik,
+        )
         return self.get_exclusions()
 
     def count(
