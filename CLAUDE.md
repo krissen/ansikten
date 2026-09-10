@@ -252,26 +252,40 @@ Config in `~/.local/share/faceid/config.json`:
 
 `.pre-commit-config.yaml` (run by [`prek`](https://github.com/j178/prek), not
 `pre-commit`) is the lint/format/secrets grind: ruff, eslint, actionlint,
-shellcheck, gitleaks, and the standard pre-commit-hooks set. Nothing in this
-repo installs a git hook or sets `core.hooksPath` — running it locally at
-commit time depends on a **global** git-hook dispatcher that reads this
-repo-local setting and calls `prek` when it's on:
+shellcheck, gitleaks, and the standard pre-commit-hooks set. Two ways to
+wire it into a clone's `git commit`, depending on the machine:
 
-```bash
-git config prek.enabled true      # once per clone — git config isn't cloned
-```
+- **Ordinary clone:** `make setup` — installs a version-pinned `prek`
+  persistently (see `scripts/setup.sh` for the full rationale) and runs
+  `prek install`, wiring this clone's own `.git/hooks/pre-commit`.
+- **Machine with a global `core.hooksPath` dispatcher** (one hook
+  installation shared across many repos, a maintainer-machine
+  convention): `prek install` refuses by design — the dispatcher owns
+  `.git/hooks`, not this clone. `make setup` detects this and skips
+  hook-wiring, installing only the pinned `prek`/`gitleaks` binaries
+  `make check` needs. Opt this repo into the dispatcher instead:
 
-**Without that global dispatcher already set up on the machine, this line
-is a no-op** — plain `git commit` runs no local hook at all, and nothing in
-the repo detects or warns about that. CI still enforces the same
-`.pre-commit-config.yaml` on every PR regardless (see below), so nothing
-merges unchecked — but a clone without the dispatcher gets zero local,
-pre-push feedback.
+  ```bash
+  git config prek.enabled true      # once per clone — git config isn't cloned
+  ```
 
-- `SKIP_PREK=1 git commit ...` skips prek for one commit without disabling
-  the separate AI-attribution commit-msg check.
-- `git commit --no-verify` skips everything, including that check — last
-  resort only.
+**Skipping `make setup` (or the `git config` line, on a dispatcher
+machine) leaves plain `git commit` running no local hook at all**, and
+nothing in the repo detects or warns about that. CI still enforces the
+same `.pre-commit-config.yaml` on every PR regardless (see below), so
+nothing merges unchecked — but a clone that skipped setup gets zero
+local, pre-commit feedback.
+
+- Emergency bypass is **per path** — they read different variables:
+  - Dispatcher machine (`prek.enabled true`): the dispatcher runs prek and
+    reads `SKIP_PREK=1 git commit ...` to skip it for one commit, without
+    disabling the separate AI-attribution commit-msg check.
+  - Ordinary clone (`make setup`): the generated hook runs prek directly,
+    which never reads `SKIP_PREK` — use prek's own `PREK_SKIP=<hook-id>`
+    (comma-separated for more than one, e.g. `PREK_SKIP=gitleaks`), or
+    `SKIP=<hook-id>` (pre-commit's older, still-accepted spelling).
+- `git commit --no-verify` skips everything on either path, including the
+  attribution check — last resort only.
 - CI runs the same `.pre-commit-config.yaml` (see `lint` job in
   `.github/workflows/ci.yml`), plus a full-tree gitleaks sweep the local
   `--staged` hook can't do, so nothing merges that this file doesn't cover
