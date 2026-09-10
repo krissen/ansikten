@@ -1,8 +1,10 @@
-# `make check` is the one command a session or a PR runs before treating
-# something as done: the same grind `.pre-commit-config.yaml` enforces at
-# commit time, run once more without --fix over the *whole* tree, plus both
-# test suites. Full output goes to .check.log (gitignored); stdout stays a
-# handful of lines on success and the tail of the log on failure.
+# `make setup` / `make check`: one-command contributor bootstrap for the
+# local quality gate, and the one command a session or a PR runs before
+# treating something as done. `check` runs the same grind
+# `.pre-commit-config.yaml` enforces at commit time, once more without
+# --fix over the *whole* tree, plus both test suites. Full output goes to
+# .check.log (gitignored); stdout stays a handful of lines on success and
+# the tail of the log on failure.
 #
 # Deliberately re-runs the linters WITHOUT --fix on the whole tree, in
 # addition to prek: `prek run --files <an untracked file>` with a --fix hook
@@ -17,11 +19,6 @@
 # below sweeps the whole working tree, mirroring the CI lint job's separate
 # secrets step.
 #
-# Uses whatever `prek` is on PATH (brew) rather than CI's pinned `pipx run
-# --spec prek==0.5.2`: this target runs on a developer's own machine, which
-# already has a specific prek install to keep in sync with by hand; the
-# version pin matters for the reproducible CI checkout, not here.
-#
 # Also needs backend/.venv (ruff, pytest) and frontend/node_modules
 # (eslint, vitest) already set up -- see "Backend API" and "Frontend"
 # under Quick Commands above. The preflight check below fails with a
@@ -29,9 +26,27 @@
 # deep inside the target.
 LOG := $(CURDIR)/.check.log
 
-.PHONY: check
+.PHONY: setup check
+
+# See scripts/setup.sh for the full rationale (pinned prek, hooksPath
+# detection, idempotent re-runs).
+setup:
+	@scripts/setup.sh
+
+# PREK_BIN resolves once, at parse time, to the version-scoped binary
+# `make setup` installs under ~/.local/state/ansikten-prek/<version>/bin/
+# (preferred, so a stray global `prek` -- a different version, or none --
+# is never picked up silently, defeating the pinning), falling back to a
+# bare PATH lookup for machines where prek is already installed globally
+# (e.g. via brew) and `make setup` only checked for it rather than
+# installing it (the core.hooksPath case -- see scripts/setup.sh).
+PREK_VERSION := $(shell grep -o "PREK_VERSION: '[0-9][0-9.]*'" .github/workflows/ci.yml | head -n1 | sed "s/.*'\(.*\)'/\1/")
+PREK_PERSIST_BIN := $(HOME)/.local/state/ansikten-prek/$(PREK_VERSION)/bin/prek
+PREK_BIN := $(if $(wildcard $(PREK_PERSIST_BIN)),$(PREK_PERSIST_BIN),prek)
 
 check:
+	@command -v $(PREK_BIN) >/dev/null 2>&1 || { echo "missing: prek -- run make setup"; exit 1; }
+	@command -v gitleaks >/dev/null 2>&1 || { echo "missing: gitleaks -- run make setup"; exit 1; }
 	@test -x backend/.venv/bin/ruff || { \
 	  echo "backend/.venv missing -- run: cd backend && python3 -m venv .venv && .venv/bin/pip install -e '.[dev]'"; \
 	  exit 1; }
@@ -40,7 +55,7 @@ check:
 	  exit 1; }
 	@rm -f $(LOG)
 	@{ echo "== prek --all-files =="; \
-	   prek run --all-files; \
+	   $(PREK_BIN) run --all-files; \
 	} >>$(LOG) 2>&1 || { tail -40 $(LOG); exit 1; }
 	@{ echo "== gitleaks dir (whole tree, including untracked/unstaged) =="; \
 	   gitleaks dir . --no-banner; \
