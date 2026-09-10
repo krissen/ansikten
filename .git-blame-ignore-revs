@@ -1,12 +1,28 @@
-# Commits that are pure mechanical reformatting, excluded from `git blame`
-# (git config blame.ignoreRevsFile .git-blame-ignore-revs; see CLAUDE.md).
+# Commits listed here are skipped by `git blame` when the repo (or the
+# blamer's local config) points `blame.ignoreRevsFile` at this file:
+#   git config blame.ignoreRevsFile .git-blame-ignore-revs
 # One hash per line -- a trailing description on the same line makes git
 # treat "<hash> <message>" as a single (unresolvable) revision spec and
 # `git blame` fails outright: `fatal: invalid object name: <hash> <message>`.
-
-# style(repo): apply ruff format across the Python tree
-c4f76c3143d4979d06407591c3e27137c6c8c80b
-# style(repo): fix trailing whitespace and missing final newlines
-fc740882ad47bca66c64cfc686af0d75a84187fb
-# style(frontend): apply prettier
-4fce06934eb9d6acb3a332550476d9286bfb6590
+# Only large, purely mechanical reformats belong here -- never a commit
+# that changes behavior. dev/master are squash-merged, so a feature-branch
+# SHA never lands there -- only the squash SHA from a PR containing
+# NOTHING but reformatting may be listed; a squash that mixes formatting
+# with anything else can't be, since ignoring it would hide the
+# authorship of everything else in the same commit too.
+#
+# No entries yet.
+#
+# Reviewed 2026-09-10 (quality-gate backfill): this file previously listed
+# c4f76c3143d4979d06407591c3e27137c6c8c80b ("style(repo): apply ruff
+# format across the Python tree"), fc740882ad47bca66c64cfc686af0d75a84187fb
+# ("style(repo): fix trailing whitespace and missing final newlines") and
+# 4fce06934eb9d6acb3a332550476d9286bfb6590 ("style(frontend): apply
+# prettier") as feature-branch commits, but none is an ancestor of dev
+# (verified with `git merge-base --is-ancestor`). The PR that introduced
+# them (#278) was squash-merged as e6bbaa34dee4a3192468173fe2a37ecc293ab269
+# ("build(prek): add quality gates with prek hooks, prettier and a single
+# make check"), which mixes all three reformats with the rest of the
+# quality-gate feature in the same commit. Per the rule above (mixed
+# squash -> no entry) no SHA belongs here until a pure reformat commit is
+# squash-merged on its own.
