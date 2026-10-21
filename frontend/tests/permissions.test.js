@@ -51,7 +51,11 @@ describe('permission policy — deny by default', () => {
 
   it('logs each denied request and names the permission and origin', () => {
     const log = vi.fn();
-    const decide = createPermissionDecider({ label: 'workspace', allowed: [], log });
+    const decide = createPermissionDecider({
+      label: 'workspace',
+      allowed: [],
+      log,
+    });
 
     decide('media', { origin: 'file://', path: 'request' });
     decide('media', { origin: 'file://', path: 'request' });
@@ -64,7 +68,11 @@ describe('permission policy — deny by default', () => {
 
   it('logs a denied check only once per permission (checks can be polled)', () => {
     const log = vi.fn();
-    const decide = createPermissionDecider({ label: 'workspace', allowed: [], log });
+    const decide = createPermissionDecider({
+      label: 'workspace',
+      allowed: [],
+      log,
+    });
 
     expect(decide('geolocation', { path: 'check' })).toBe(false);
     expect(decide('geolocation', { path: 'check' })).toBe(false);
@@ -77,7 +85,11 @@ describe('permission policy — deny by default', () => {
 describe('applyPermissionPolicy — both session handlers', () => {
   it('installs a request handler and a check handler that agree', () => {
     const s = fakeSession();
-    applyPermissionPolicy(s, { label: 'workspace', allowed: ['midi'], log: () => {} });
+    applyPermissionPolicy(s, {
+      label: 'workspace',
+      allowed: ['midi'],
+      log: () => {},
+    });
 
     expect(typeof s.requestHandler).toBe('function');
     expect(typeof s.checkHandler).toBe('function');
@@ -95,7 +107,11 @@ describe('applyPermissionPolicy — both session handlers', () => {
 
   it('survives a request without details and a webContents without getURL', () => {
     const s = fakeSession();
-    applyPermissionPolicy(s, { label: 'workspace', allowed: [], log: () => {} });
+    applyPermissionPolicy(s, {
+      label: 'workspace',
+      allowed: [],
+      log: () => {},
+    });
 
     const callback = vi.fn();
     expect(() => s.requestHandler({}, 'media', callback)).not.toThrow();
@@ -128,7 +144,9 @@ describe('installSessionPermissionDefaults — sessions born closed', () => {
     const callback = vi.fn();
     s.requestHandler({}, 'midi', callback, {});
     expect(callback).toHaveBeenCalledWith(false);
-    expect(s.checkHandler({}, 'clipboard-sanitized-write', 'file://')).toBe(false);
+    expect(s.checkHandler({}, 'clipboard-sanitized-write', 'file://')).toBe(
+      false,
+    );
   });
 
   it('leaves a deliberately configured session alone (event after policy)', () => {
@@ -136,10 +154,16 @@ describe('installSessionPermissionDefaults — sessions born closed', () => {
     installSessionPermissionDefaults(app, () => {});
 
     const s = fakeSession();
-    applyPermissionPolicy(s, { label: 'workspace', allowed: ['clipboard-sanitized-write'], log: () => {} });
+    applyPermissionPolicy(s, {
+      label: 'workspace',
+      allowed: ['clipboard-sanitized-write'],
+      log: () => {},
+    });
     app.emitSessionCreated(s);
 
-    expect(s.checkHandler({}, 'clipboard-sanitized-write', 'file://')).toBe(true);
+    expect(s.checkHandler({}, 'clipboard-sanitized-write', 'file://')).toBe(
+      true,
+    );
   });
 
   it('lets a deliberate policy override the catch-all (event before policy)', () => {
@@ -150,10 +174,18 @@ describe('installSessionPermissionDefaults — sessions born closed', () => {
     // firing the event — and only then does the caller install its allowlist.
     const s = fakeSession();
     app.emitSessionCreated(s);
-    expect(s.checkHandler({}, 'clipboard-sanitized-write', 'file://')).toBe(false);
+    expect(s.checkHandler({}, 'clipboard-sanitized-write', 'file://')).toBe(
+      false,
+    );
 
-    applyPermissionPolicy(s, { label: 'workspace', allowed: ['clipboard-sanitized-write'], log: () => {} });
-    expect(s.checkHandler({}, 'clipboard-sanitized-write', 'file://')).toBe(true);
+    applyPermissionPolicy(s, {
+      label: 'workspace',
+      allowed: ['clipboard-sanitized-write'],
+      log: () => {},
+    });
+    expect(s.checkHandler({}, 'clipboard-sanitized-write', 'file://')).toBe(
+      true,
+    );
   });
 
   it('tracks which sessions carry a policy', () => {

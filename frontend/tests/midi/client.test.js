@@ -53,7 +53,10 @@ describe('midi client', () => {
 
     expect(client.connected).toBe(true);
     expect(xtouchIn.onmidimessage).toBeTypeOf('function');
-    xtouchIn.onmidimessage({ data: new Uint8Array([0xba, 1, 64]), timeStamp: 5 });
+    xtouchIn.onmidimessage({
+      data: new Uint8Array([0xba, 1, 64]),
+      timeStamp: 5,
+    });
     expect(onMessage).toHaveBeenCalledTimes(1);
     expect(onMessage.mock.calls[0][0]).toEqual(new Uint8Array([0xba, 1, 64]));
     expect(onMessage.mock.calls[0][1]).toBe(5);
@@ -149,9 +152,11 @@ describe('midi client', () => {
     let hasDevice = false;
     const nav = {
       requestMIDIAccess: vi.fn(async () =>
-        fakeAccess(hasDevice
-          ? { inputs: [XTOUCH_IN()], outputs: [XTOUCH_OUT()] }
-          : { inputs: [], outputs: [] }),
+        fakeAccess(
+          hasDevice
+            ? { inputs: [XTOUCH_IN()], outputs: [XTOUCH_OUT()] }
+            : { inputs: [], outputs: [] },
+        ),
       ),
     };
     const client = createMidiClient({ nav, log: () => {} });
@@ -169,7 +174,8 @@ describe('midi client', () => {
 
   it('rescan returns true immediately while already bound', async () => {
     const { client, requestMIDIAccess } = clientWith(() =>
-      fakeAccess({ inputs: [XTOUCH_IN()], outputs: [XTOUCH_OUT()] }));
+      fakeAccess({ inputs: [XTOUCH_IN()], outputs: [XTOUCH_OUT()] }),
+    );
 
     await client.connect();
     const ok = await client.rescan();
@@ -180,7 +186,8 @@ describe('midi client', () => {
 
   it('requests access with SysEx capability enabled', async () => {
     const { client, requestMIDIAccess } = clientWith(() =>
-      fakeAccess({ inputs: [XTOUCH_IN()], outputs: [XTOUCH_OUT()] }));
+      fakeAccess({ inputs: [XTOUCH_IN()], outputs: [XTOUCH_OUT()] }),
+    );
 
     await client.connect();
 
