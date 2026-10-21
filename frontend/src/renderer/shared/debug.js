@@ -14,46 +14,46 @@
 
 const DEFAULT_CATEGORIES = {
   // Frontend
-  'FlexLayout': false,
-  'Backend': true,
-  'WebSocket': true,
-  'MIDI': true,
-  'ModuleAPI': false,
-  'ModuleEvent': false,
-  'FileQueue': false,
-  'ImageViewer': false,
-  'ReviewModule': false,
-  'OriginalView': false,
-  'LogViewer': false,
-  'Statistics': false,
-  'DatabaseMgmt': false,
-  'Preferences': false,
-  'IPC': false,
-  'NEFConvert': false,
-  'FaceDetection': false,
-  'Preprocessing': false,
-  'Cache': false,
-  'ThumbnailCache': false,
+  FlexLayout: false,
+  Backend: true,
+  WebSocket: true,
+  MIDI: true,
+  ModuleAPI: false,
+  ModuleEvent: false,
+  FileQueue: false,
+  ImageViewer: false,
+  ReviewModule: false,
+  OriginalView: false,
+  LogViewer: false,
+  Statistics: false,
+  DatabaseMgmt: false,
+  Preferences: false,
+  IPC: false,
+  NEFConvert: false,
+  FaceDetection: false,
+  Preprocessing: false,
+  Cache: false,
+  ThumbnailCache: false,
   // Backend
-  'DetectionService': false,
-  'Detection': false,
-  'Management': false,
-  'ManagementService': false,
-  'RenameService': false,
-  'PreprocessingCache': false,
-  'Refinement': false,
-  'RefinementService': false,
-  'Files': false,
-  'Database': false,
-  'DatabaseService': false,
-  'StatisticsService': false,
-  'StartupState': false,
-  'Status': false,
-  'EXIF': false,
-  'Migration': false,
-  'SECURITY': false,
-  'get_file_stats': false,
-  'convert_nef_to_jpg': false,
+  DetectionService: false,
+  Detection: false,
+  Management: false,
+  ManagementService: false,
+  RenameService: false,
+  PreprocessingCache: false,
+  Refinement: false,
+  RefinementService: false,
+  Files: false,
+  Database: false,
+  DatabaseService: false,
+  StatisticsService: false,
+  StartupState: false,
+  Status: false,
+  EXIF: false,
+  Migration: false,
+  SECURITY: false,
+  get_file_stats: false,
+  convert_nef_to_jpg: false,
 };
 
 // Storage key
@@ -77,10 +77,15 @@ function isFileLoggingEnabled() {
   try {
     // Dynamic import to avoid circular dependency
     const { preferences } = require('../workspace/preferences.js');
-    return preferences.get('debug.enabled') && preferences.get('debug.logToFile');
+    return (
+      preferences.get('debug.enabled') && preferences.get('debug.logToFile')
+    );
   } catch (err) {
     // Use console directly to avoid circular dependency with our debug functions
-    console.warn('[Debug] Failed to check file logging preference:', err.message);
+    console.warn(
+      '[Debug] Failed to check file logging preference:',
+      err.message,
+    );
     return false;
   }
 }
@@ -91,7 +96,10 @@ function isFileLoggingEnabled() {
 function sendToFile(level, formattedMessage) {
   if (ipcAvailable && isFileLoggingEnabled()) {
     try {
-      window.ansiktenAPI.send('renderer-log', { level, message: formattedMessage });
+      window.ansiktenAPI.send('renderer-log', {
+        level,
+        message: formattedMessage,
+      });
     } catch (err) {
       // Silently fail - don't cause infinite loop
     }
@@ -188,7 +196,7 @@ function addToBuffer(level, message, source = 'frontend') {
     level,
     message,
     timestamp,
-    source
+    source,
   };
   logBuffer.push(entry);
   // Keep buffer size limited
@@ -226,7 +234,7 @@ export function clearLogBuffer() {
  */
 export function debug(category, ...args) {
   if (enabledCategories[category]) {
-    const message = `[${category}] ${args.map(a => typeof a === 'object' ? JSON.stringify(a) : String(a)).join(' ')}`;
+    const message = `[${category}] ${args.map((a) => (typeof a === 'object' ? JSON.stringify(a) : String(a))).join(' ')}`;
     console.log(`[${category}]`, ...args);
     addToBuffer('info', message);
   }
@@ -238,7 +246,7 @@ export function debug(category, ...args) {
  * @param {...any} args - Log arguments
  */
 export function debugWarn(category, ...args) {
-  const message = `[${category}] ${args.map(a => typeof a === 'object' ? JSON.stringify(a) : String(a)).join(' ')}`;
+  const message = `[${category}] ${args.map((a) => (typeof a === 'object' ? JSON.stringify(a) : String(a))).join(' ')}`;
   console.warn(`[${category}]`, ...args);
   addToBuffer('warn', message);
 }
@@ -249,7 +257,7 @@ export function debugWarn(category, ...args) {
  * @param {...any} args - Log arguments
  */
 export function debugError(category, ...args) {
-  const message = `[${category}] ${args.map(a => typeof a === 'object' ? JSON.stringify(a) : String(a)).join(' ')}`;
+  const message = `[${category}] ${args.map((a) => (typeof a === 'object' ? JSON.stringify(a) : String(a))).join(' ')}`;
   console.error(`[${category}]`, ...args);
   addToBuffer('error', message);
 }

@@ -62,7 +62,7 @@ function initFlexLayoutWorkspace() {
           </ToastProvider>
         </BackendProvider>
       </ModuleAPIProvider>
-    </StrictMode>
+    </StrictMode>,
   );
 
   debug('FlexLayout', 'Workspace initialized');
