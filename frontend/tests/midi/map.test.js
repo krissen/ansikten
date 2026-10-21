@@ -26,12 +26,27 @@ describe('midi map — measured wire format (layer A)', () => {
     [15, 'button-upper', 7],
     [16, 'button-lower', 0],
     [23, 'button-lower', 7],
-  ])('classifies note %i as %s index %i on layer A', (number, control, index) => {
-    const down = parseMidi([STATUS.noteOn, number, 127]);
-    const up = parseMidi([STATUS.noteOff, number, 0]);
-    expect(down).toMatchObject({ kind: 'note-on', control, index, layer: 'A', value: 127 });
-    expect(up).toMatchObject({ kind: 'note-off', control, index, layer: 'A', value: 0 });
-  });
+  ])(
+    'classifies note %i as %s index %i on layer A',
+    (number, control, index) => {
+      const down = parseMidi([STATUS.noteOn, number, 127]);
+      const up = parseMidi([STATUS.noteOff, number, 0]);
+      expect(down).toMatchObject({
+        kind: 'note-on',
+        control,
+        index,
+        layer: 'A',
+        value: 127,
+      });
+      expect(up).toMatchObject({
+        kind: 'note-off',
+        control,
+        index,
+        layer: 'A',
+        value: 0,
+      });
+    },
+  );
 });
 
 describe('midi map — measured wire format (layer B)', () => {
@@ -57,12 +72,25 @@ describe('midi map — measured wire format (layer B)', () => {
     [39, 'button-upper', 7],
     [40, 'button-lower', 0],
     [47, 'button-lower', 7],
-  ])('classifies note %i as %s index %i on layer B', (number, control, index) => {
-    const down = parseMidi([STATUS.noteOn, number, 127]);
-    const up = parseMidi([STATUS.noteOff, number, 0]);
-    expect(down).toMatchObject({ kind: 'note-on', control, index, layer: 'B' });
-    expect(up).toMatchObject({ kind: 'note-off', control, index, layer: 'B' });
-  });
+  ])(
+    'classifies note %i as %s index %i on layer B',
+    (number, control, index) => {
+      const down = parseMidi([STATUS.noteOn, number, 127]);
+      const up = parseMidi([STATUS.noteOff, number, 0]);
+      expect(down).toMatchObject({
+        kind: 'note-on',
+        control,
+        index,
+        layer: 'B',
+      });
+      expect(up).toMatchObject({
+        kind: 'note-off',
+        control,
+        index,
+        layer: 'B',
+      });
+    },
+  );
 });
 
 describe('midi map — rejects everything the measurement does not cover', () => {

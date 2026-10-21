@@ -41,12 +41,18 @@ function classifyCC(number) {
  * upper button row 8–15, lower button row 16–23. Layer B shifts by 24.
  */
 function classifyNote(number) {
-  if (number <= 7) return { control: 'encoder-press', index: number, layer: 'A' };
-  if (number <= 15) return { control: 'button-upper', index: number - 8, layer: 'A' };
-  if (number <= 23) return { control: 'button-lower', index: number - 16, layer: 'A' };
-  if (number <= 31) return { control: 'encoder-press', index: number - 24, layer: 'B' };
-  if (number <= 39) return { control: 'button-upper', index: number - 32, layer: 'B' };
-  if (number <= 47) return { control: 'button-lower', index: number - 40, layer: 'B' };
+  if (number <= 7)
+    return { control: 'encoder-press', index: number, layer: 'A' };
+  if (number <= 15)
+    return { control: 'button-upper', index: number - 8, layer: 'A' };
+  if (number <= 23)
+    return { control: 'button-lower', index: number - 16, layer: 'A' };
+  if (number <= 31)
+    return { control: 'encoder-press', index: number - 24, layer: 'B' };
+  if (number <= 39)
+    return { control: 'button-upper', index: number - 32, layer: 'B' };
+  if (number <= 47)
+    return { control: 'button-lower', index: number - 40, layer: 'B' };
   return null;
 }
 

@@ -35,7 +35,12 @@ async function harness(documentRef) {
   });
   const events = [];
   const log = vi.fn();
-  createInputLayer({ client, documentRef, onEvent: (e) => events.push(e), log });
+  createInputLayer({
+    client,
+    documentRef,
+    onEvent: (e) => events.push(e),
+    log,
+  });
   await client.connect();
 
   return {
@@ -105,8 +110,22 @@ describe('input layer — routing', () => {
     h.feed([0x8a, 10, 0]);
 
     expect(h.events).toEqual([
-      { type: 'button', phase: 'press', layer: 'A', control: 'button-upper', index: 2, value: 127 },
-      { type: 'button', phase: 'release', layer: 'A', control: 'button-upper', index: 2, value: 0 },
+      {
+        type: 'button',
+        phase: 'press',
+        layer: 'A',
+        control: 'button-upper',
+        index: 2,
+        value: 127,
+      },
+      {
+        type: 'button',
+        phase: 'release',
+        layer: 'A',
+        control: 'button-upper',
+        index: 2,
+        value: 0,
+      },
     ]);
   });
 

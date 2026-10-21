@@ -71,7 +71,12 @@ export function createInputLayer({
         timeStamp,
       );
       if (steps !== 0) {
-        onEvent({ type: 'knob', layer: event.layer, index: event.index, steps });
+        onEvent({
+          type: 'knob',
+          layer: event.layer,
+          index: event.index,
+          steps,
+        });
       }
       return;
     }

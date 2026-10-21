@@ -33,7 +33,10 @@ const RAIL_HIGH = 127;
  *          push returns the signed step delta for the movement, or 0 when
  *          the message only baselined/parked/recovered.
  */
-export function createKnobTracker({ idleMs = DEFAULT_IDLE_MS, railMargin = DEFAULT_RAIL_MARGIN } = {}) {
+export function createKnobTracker({
+  idleMs = DEFAULT_IDLE_MS,
+  railMargin = DEFAULT_RAIL_MARGIN,
+} = {}) {
   let baseline = null;
   let lastAt = null;
   let parkedAt = null; // 0 | 127 | null while disengaged
@@ -47,8 +50,7 @@ export function createKnobTracker({ idleMs = DEFAULT_IDLE_MS, railMargin = DEFAU
     // rail parks immediately — there is nowhere to move in that direction.
     if (baseline === null || idle) {
       baseline = value;
-      parkedAt =
-        value === RAIL_LOW || value === RAIL_HIGH ? value : null;
+      parkedAt = value === RAIL_LOW || value === RAIL_HIGH ? value : null;
       return 0;
     }
 
